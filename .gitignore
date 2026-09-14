@@ -7,6 +7,7 @@
 bin/
 dist/
 build/
+node_modules/
 /ekarouter
 /ekarouter-*
 
@@ -33,7 +34,8 @@ data/*.db-journal
 *.test
 *.prof
 coverage.html
-tests/reports/
+tests/reports/*
+!tests/reports/test-results.json
 
 # Editor / OS
 .vscode/

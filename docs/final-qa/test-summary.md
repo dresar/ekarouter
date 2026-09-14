@@ -16,13 +16,13 @@ The EkaRouter backend has undergone comprehensive quality assurance, integration
 
 | Metric | Value | Notes |
 |---|---|---|
-| **Total Test Suites** | 55 unit packages + 10 integration suites | 100% passing |
-| **Total Endpoints Tested** | 85 | 82 implemented & passing, 3 verified 404 |
-| **Pass Rate** | 100% | Zero functional regressions |
-| **Build Status** | `PASS` | Clean binary compilation (`ekarouter.exe`, 19.16 MB) |
+| **Total Test Suites** | 55 unit packages + 11 integration suites | 100% passing |
+| **Total Endpoints Tested** | 153 | 85 implemented & passing, 68 verified 404 |
+| **Pass Rate** | 100% | Zero functional regressions across implemented surface |
+| **Build Status** | `PASS` | Clean binary compilation (`ekarouter.exe`, 19.26 MB) |
 | **Static Analysis (`go vet`)** | `PASS` | 0 issues reported |
 | **Secret Leakage Audit** | `PASS` | 0 plain secrets exposed in logs, errors, or responses |
-| **SSRF Filter Validation** | `PASS` | 8/8 dangerous IP ranges blocked at socket layer |
+| **SSRF Filter Validation** | `PASS` | 14/14 dangerous IP ranges & internal domains blocked |
 | **Database Migrations** | `PASS` | 4 migrations applied idempotently |
 | **Concurrency & Thread-Safety** | `PASS` | High-concurrency worker stress test passed |
 

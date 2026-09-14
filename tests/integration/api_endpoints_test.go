@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -547,4 +548,111 @@ func TestGatewayRoutesAndCompletions(t *testing.T) {
 			t.Fatalf("Streaming response missing expected chunks: %s", bodyStr)
 		}
 	})
+}
+
+func TestUnimplementedEndpointGroups(t *testing.T) {
+	env := SetupTestEnv(t)
+	defer env.Teardown()
+
+	unimplementedCases := []struct {
+		method string
+		path   string
+		group  string
+	}{
+		// System
+		{http.MethodGet, "/metrics", "System"},
+		// Auth
+		{http.MethodPost, "/auth/register", "Auth"},
+		{http.MethodPost, "/auth/refresh", "Auth"},
+		{http.MethodPost, "/auth/change-password", "Auth"},
+		{http.MethodPost, "/auth/revoke", "Auth"},
+		{http.MethodPost, "/auth/forgot-password", "Auth"},
+		{http.MethodPost, "/auth/reset-password", "Auth"},
+		// Users
+		{http.MethodGet, "/api/v1/users", "Users"},
+		{http.MethodPost, "/api/v1/users", "Users"},
+		{http.MethodGet, "/api/v1/users/usr-1", "Users"},
+		{http.MethodPatch, "/api/v1/users/usr-1", "Users"},
+		{http.MethodDelete, "/api/v1/users/usr-1", "Users"},
+		{http.MethodPost, "/api/v1/users/usr-1/enable", "Users"},
+		{http.MethodPost, "/api/v1/users/usr-1/disable", "Users"},
+		// Teams
+		{http.MethodGet, "/api/v1/teams", "Teams"},
+		{http.MethodPost, "/api/v1/teams", "Teams"},
+		{http.MethodGet, "/api/v1/teams/tm-1", "Teams"},
+		{http.MethodPatch, "/api/v1/teams/tm-1", "Teams"},
+		{http.MethodDelete, "/api/v1/teams/tm-1", "Teams"},
+		{http.MethodGet, "/api/v1/teams/tm-1/members", "Teams"},
+		{http.MethodPost, "/api/v1/teams/tm-1/members", "Teams"},
+		{http.MethodPatch, "/api/v1/teams/tm-1/members/mb-1", "Teams"},
+		{http.MethodDelete, "/api/v1/teams/tm-1/members/mb-1", "Teams"},
+		// Models
+		{http.MethodGet, "/api/v1/models", "Models"},
+		{http.MethodPost, "/api/v1/models/sync", "Models"},
+		{http.MethodGet, "/api/v1/models/mod-1", "Models"},
+		{http.MethodPost, "/api/v1/models/mod-1/validate", "Models"},
+		{http.MethodPost, "/api/v1/models/mod-1/test", "Models"},
+		{http.MethodGet, "/api/v1/models/mod-1/capabilities", "Models"},
+		{http.MethodGet, "/api/v1/model-aliases", "Models"},
+		{http.MethodPost, "/api/v1/model-aliases", "Models"},
+		{http.MethodPatch, "/api/v1/model-aliases/alias-1", "Models"},
+		{http.MethodDelete, "/api/v1/model-aliases/alias-1", "Models"},
+		{http.MethodPost, "/api/v1/model-aliases/alias-1/resolve", "Models"},
+		// AI Proxy
+		{http.MethodPost, "/v1/completions", "AI Proxy"},
+		{http.MethodPost, "/v1/embeddings", "AI Proxy"},
+		{http.MethodPost, "/v1/images/generations", "AI Proxy"},
+		{http.MethodPost, "/v1/audio/transcriptions", "AI Proxy"},
+		{http.MethodPost, "/api/v1/proxy/test", "AI Proxy"},
+		// Projects
+		{http.MethodGet, "/api/v1/projects/proj-1/usage", "Projects"},
+		{http.MethodGet, "/api/v1/projects/proj-1/credentials", "Projects"},
+		{http.MethodGet, "/api/v1/projects/proj-1/tools", "Projects"},
+		// Credentials
+		{http.MethodGet, "/api/v1/credentials/cred-1/masked", "Credentials"},
+		{http.MethodGet, "/api/v1/credentials/cred-1/cooldown", "Credentials"},
+		{http.MethodGet, "/api/v1/credentials/cred-1/quota", "Credentials"},
+		// Providers
+		{http.MethodGet, "/api/v1/providers/prov-1/configuration-schema", "Providers"},
+		{http.MethodGet, "/api/v1/providers/prov-1/models", "Providers"},
+		{http.MethodPost, "/api/v1/providers/prov-1/enable", "Providers"},
+		{http.MethodPost, "/api/v1/providers/prov-1/disable", "Providers"},
+		{http.MethodPost, "/api/v1/providers/prov-1/test", "Providers"},
+		// Tools
+		{http.MethodPost, "/api/v1/tools/tool-1/enable", "Tools"},
+		{http.MethodPost, "/api/v1/tools/tool-1/disable", "Tools"},
+		{http.MethodGet, "/api/v1/tools/tool-1/usage", "Tools"},
+		{http.MethodGet, "/api/v1/tools/tool-1/executions", "Tools"},
+		// Webhooks
+		{http.MethodPost, "/api/v1/webhooks/wh-1/enable", "Webhooks"},
+		{http.MethodPost, "/api/v1/webhooks/wh-1/disable", "Webhooks"},
+		{http.MethodPost, "/api/v1/webhooks/wh-1/replay", "Webhooks"},
+		// Usage
+		{http.MethodGet, "/api/v1/usage/models", "Usage"},
+		{http.MethodGet, "/api/v1/usage/tools", "Usage"},
+		{http.MethodGet, "/api/v1/usage/errors", "Usage"},
+		// OAuth
+		{http.MethodGet, "/api/v1/oauth/providers", "OAuth"},
+		{http.MethodPost, "/api/v1/oauth/github/start", "OAuth"},
+		{http.MethodGet, "/api/v1/oauth/github/callback", "OAuth"},
+		{http.MethodGet, "/api/v1/oauth/connections", "OAuth"},
+		{http.MethodGet, "/api/v1/oauth/connections/conn-1", "OAuth"},
+		{http.MethodPost, "/api/v1/oauth/connections/conn-1/refresh", "OAuth"},
+		{http.MethodPost, "/api/v1/oauth/connections/conn-1/revoke", "OAuth"},
+		{http.MethodDelete, "/api/v1/oauth/connections/conn-1", "OAuth"},
+	}
+
+	for _, tc := range unimplementedCases {
+		t.Run(tc.group+" "+tc.method+" "+tc.path+" returns 404 NOT_IMPLEMENTED", func(t *testing.T) {
+			var res *httptest.ResponseRecorder
+			if strings.HasPrefix(tc.path, "/v1/") {
+				res = env.GatewayReq(tc.method, tc.path, nil)
+			} else {
+				res = env.AdminReq(tc.method, tc.path, nil)
+			}
+			if res.Code != http.StatusNotFound {
+				t.Fatalf("Expected 404 for unimplemented %s %s, got %d", tc.method, tc.path, res.Code)
+			}
+		})
+	}
 }

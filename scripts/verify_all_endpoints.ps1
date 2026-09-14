@@ -19,7 +19,9 @@ if (!(Test-Path $binPath)) {
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ekarouter_test_" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 $testDb = Join-Path $tempDir "test.db"
-Copy-Item -Path $mainDb -Destination $testDb -Force
+if (Test-Path $mainDb) {
+    Copy-Item -Path $mainDb -Destination $testDb -Force
+}
 Write-Host "[2/5] Prepared test database at $testDb" -ForegroundColor Green
 
 $port = 19199

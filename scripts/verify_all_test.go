@@ -59,6 +59,9 @@ func (d *dummyGatewayAdapter) ExecuteStream(ctx context.Context, req *providers.
 
 func TestVerifyDatabaseImportState(t *testing.T) {
 	dbPath := filepath.Join("..", "data", "ekarouter.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Skip("data/ekarouter.db not found, skipping database import state verification")
+	}
 	database, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
@@ -94,7 +97,13 @@ func TestVerifyDatabaseImportState(t *testing.T) {
 }
 
 func TestVerifyAllProxyProfilesLive(t *testing.T) {
+	if os.Getenv("EKAROUTER_ENABLE_LIVE_PROVIDER_TESTS") != "true" {
+		t.Skip("Skipping live proxy profiles test; set EKAROUTER_ENABLE_LIVE_PROVIDER_TESTS=true to enable")
+	}
 	dbPath := filepath.Join("..", "data", "ekarouter.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Skip("data/ekarouter.db not found, skipping live proxy profiles test")
+	}
 	database, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)

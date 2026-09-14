@@ -143,3 +143,81 @@
 | `POST` | `/api/devtools/generate-curl` | Generate executable cURL command | 200 OK | **PASS** |
 | `GET` | `/api/backup` | List database backups | 200 OK | **PASS** |
 | `POST` | `/api/backup` | Trigger online SQLite backup | 200 OK | **PASS** |
+
+---
+
+## 6. Verified Unimplemented Endpoints (HTTP 404 Contract)
+
+These endpoints were evaluated against the backend test suite as specified in Section 4 of the QA mandate. All verified returning clean HTTP 404 responses without crashes or unhandled exceptions:
+
+| Method | Endpoint | Group | Status | Reason / Current Alternative |
+|---|---|---|---|---|
+| `GET` | `/metrics` | System | **NOT_IMPLEMENTED** | SQLite-based telemetry exposed via `/api/v1/usage` |
+| `POST` | `/auth/register` | Auth | **NOT_IMPLEMENTED** | Admin-provisioned architecture |
+| `POST` | `/auth/refresh` | Auth | **NOT_IMPLEMENTED** | Session cookies used instead |
+| `POST` | `/auth/change-password` | Auth | **NOT_IMPLEMENTED** | Configured via environment |
+| `POST` | `/auth/revoke` | Auth | **NOT_IMPLEMENTED** | Use `DELETE /auth/sessions/:id` |
+| `POST` | `/auth/forgot-password` | Auth | **NOT_IMPLEMENTED** | SMTP not configured |
+| `POST` | `/auth/reset-password` | Auth | **NOT_IMPLEMENTED** | SMTP not configured |
+| `GET` | `/api/v1/users` | Users | **NOT_IMPLEMENTED** | Single-admin architecture; RBAC scoped to projects |
+| `POST` | `/api/v1/users` | Users | **NOT_IMPLEMENTED** | User management not implemented |
+| `GET` | `/api/v1/users/:id` | Users | **NOT_IMPLEMENTED** | User management not implemented |
+| `PATCH` | `/api/v1/users/:id` | Users | **NOT_IMPLEMENTED** | User management not implemented |
+| `DELETE` | `/api/v1/users/:id` | Users | **NOT_IMPLEMENTED** | User management not implemented |
+| `POST` | `/api/v1/users/:id/enable` | Users | **NOT_IMPLEMENTED** | User management not implemented |
+| `POST` | `/api/v1/users/:id/disable` | Users | **NOT_IMPLEMENTED** | User management not implemented |
+| `GET` | `/api/v1/teams` | Teams | **NOT_IMPLEMENTED** | Teams represented within project metadata |
+| `POST` | `/api/v1/teams` | Teams | **NOT_IMPLEMENTED** | Team directory not implemented |
+| `GET` | `/api/v1/teams/:id` | Teams | **NOT_IMPLEMENTED** | Team directory not implemented |
+| `PATCH` | `/api/v1/teams/:id` | Teams | **NOT_IMPLEMENTED** | Team directory not implemented |
+| `DELETE` | `/api/v1/teams/:id` | Teams | **NOT_IMPLEMENTED** | Team directory not implemented |
+| `GET` | `/api/v1/teams/:id/members` | Teams | **NOT_IMPLEMENTED** | Team membership not implemented |
+| `POST` | `/api/v1/teams/:id/members` | Teams | **NOT_IMPLEMENTED** | Team membership not implemented |
+| `PATCH` | `/api/v1/teams/:id/members/:memberId` | Teams | **NOT_IMPLEMENTED** | Team membership not implemented |
+| `DELETE` | `/api/v1/teams/:id/members/:memberId` | Teams | **NOT_IMPLEMENTED** | Team membership not implemented |
+| `GET` | `/api/v1/models` | Models | **NOT_IMPLEMENTED** | Use `/v1/models` (Gateway) or `/api/models` (Admin) |
+| `POST` | `/api/v1/models/sync` | Models | **NOT_IMPLEMENTED** | Auto-synchronized upon provider registration |
+| `GET` | `/api/v1/models/:id` | Models | **NOT_IMPLEMENTED** | Use `/v1/models` or `/api/models` |
+| `POST` | `/api/v1/models/:id/validate` | Models | **NOT_IMPLEMENTED** | Handled by provider adapters |
+| `POST` | `/api/v1/models/:id/test` | Models | **NOT_IMPLEMENTED** | Test via `/v1/chat/completions` |
+| `GET` | `/api/v1/models/:id/capabilities` | Models | **NOT_IMPLEMENTED** | Use `/api/v1/providers/:id/capabilities` |
+| `GET` | `/api/v1/model-aliases` | Models | **NOT_IMPLEMENTED** | Aliases configured via `/api/routes` |
+| `POST` | `/api/v1/model-aliases` | Models | **NOT_IMPLEMENTED** | Use `/api/routes` |
+| `PATCH` | `/api/v1/model-aliases/:id` | Models | **NOT_IMPLEMENTED** | Use `/api/routes` |
+| `DELETE` | `/api/v1/model-aliases/:id` | Models | **NOT_IMPLEMENTED** | Use `/api/routes/:id` |
+| `POST` | `/api/v1/model-aliases/:id/resolve` | Models | **NOT_IMPLEMENTED** | Auto-resolved dynamically during gateway execution |
+| `POST` | `/v1/completions` | AI Proxy | **NOT_IMPLEMENTED** | Legacy completion deprecated; use `/v1/chat/completions` |
+| `POST` | `/v1/embeddings` | AI Proxy | **NOT_IMPLEMENTED** | Embeddings pipeline scheduled for v1.1.0 |
+| `POST` | `/v1/images/generations` | AI Proxy | **NOT_IMPLEMENTED** | Image generation pipeline scheduled for v1.1.0 |
+| `POST` | `/v1/audio/transcriptions` | AI Proxy | **NOT_IMPLEMENTED** | Audio transcription pipeline scheduled for v1.1.0 |
+| `POST` | `/api/v1/proxy/test` | AI Proxy | **NOT_IMPLEMENTED** | Use `/api/v1/proxy/:provider/*` or `/api/proxies/:id/test` |
+| `GET` | `/api/v1/projects/:id/usage` | Projects | **NOT_IMPLEMENTED** | Use `/api/v1/usage/projects?project_id=:id` |
+| `GET` | `/api/v1/projects/:id/credentials` | Projects | **NOT_IMPLEMENTED** | Use `/api/v1/credentials?project_id=:id` |
+| `GET` | `/api/v1/projects/:id/tools` | Projects | **NOT_IMPLEMENTED** | Use `/api/v1/tools?project_id=:id` |
+| `GET` | `/api/v1/credentials/:id/masked` | Credentials | **NOT_IMPLEMENTED** | Standard `GET /api/v1/credentials/:id` already masks keys |
+| `GET` | `/api/v1/credentials/:id/cooldown` | Credentials | **NOT_IMPLEMENTED** | Cooldown state exposed in `/api/v1/credentials/:id/health` |
+| `GET` | `/api/v1/credentials/:id/quota` | Credentials | **NOT_IMPLEMENTED** | Quota state exposed in `/api/v1/credentials/:id/usage` |
+| `GET` | `/api/v1/providers/:id/configuration-schema` | Providers | **NOT_IMPLEMENTED** | Schema returned in `GET /api/v1/providers/:id` |
+| `GET` | `/api/v1/providers/:id/models` | Providers | **NOT_IMPLEMENTED** | Query `/v1/models` |
+| `POST` | `/api/v1/providers/:id/enable` | Providers | **NOT_IMPLEMENTED** | Toggle enabled via `POST /api/providers` |
+| `POST` | `/api/v1/providers/:id/disable` | Providers | **NOT_IMPLEMENTED** | Toggle enabled via `POST /api/providers` |
+| `POST` | `/api/v1/providers/:id/test` | Providers | **NOT_IMPLEMENTED** | Use `POST /api/v1/providers/:id/health` |
+| `POST` | `/api/v1/tools/:id/enable` | Tools | **NOT_IMPLEMENTED** | Enabled status set within tool definition |
+| `POST` | `/api/v1/tools/:id/disable` | Tools | **NOT_IMPLEMENTED** | Enabled status set within tool definition |
+| `GET` | `/api/v1/tools/:id/usage` | Tools | **NOT_IMPLEMENTED** | Aggregated in platform usage summary |
+| `GET` | `/api/v1/tools/:id/executions` | Tools | **NOT_IMPLEMENTED** | Query `/api/v1/audit-logs?resource_type=tool` |
+| `POST` | `/api/v1/webhooks/:id/enable` | Webhooks | **NOT_IMPLEMENTED** | Configured via DB state |
+| `POST` | `/api/v1/webhooks/:id/disable` | Webhooks | **NOT_IMPLEMENTED** | Configured via DB state |
+| `POST` | `/api/v1/webhooks/:id/replay` | Webhooks | **NOT_IMPLEMENTED** | Trigger via `POST /api/v1/webhooks/:id/test` |
+| `GET` | `/api/v1/usage/models` | Usage | **NOT_IMPLEMENTED** | Model usage breakdown scheduled for v1.1.0 |
+| `GET` | `/api/v1/usage/tools` | Usage | **NOT_IMPLEMENTED** | Executions queried via `/api/v1/audit-logs` |
+| `GET` | `/api/v1/usage/errors` | Usage | **NOT_IMPLEMENTED** | Total errors exposed in `/api/v1/usage/summary` |
+| `GET` | `/api/v1/oauth/providers` | OAuth | **NOT_IMPLEMENTED** | Use `POST /api/accounts/oauth/start` |
+| `POST` | `/api/v1/oauth/:provider/start` | OAuth | **NOT_IMPLEMENTED** | Use `POST /api/accounts/oauth/start` |
+| `GET` | `/api/v1/oauth/:provider/callback` | OAuth | **NOT_IMPLEMENTED** | Use `POST /api/accounts/oauth/callback` |
+| `GET` | `/api/v1/oauth/connections` | OAuth | **NOT_IMPLEMENTED** | Use `GET /api/accounts` |
+| `GET` | `/api/v1/oauth/connections/:id` | OAuth | **NOT_IMPLEMENTED** | Use `GET /api/accounts` |
+| `POST` | `/api/v1/oauth/connections/:id/refresh` | OAuth | **NOT_IMPLEMENTED** | Automatically refreshed by background token manager |
+| `POST` | `/api/v1/oauth/connections/:id/revoke` | OAuth | **NOT_IMPLEMENTED** | Use `DELETE /api/accounts/:id` |
+| `DELETE` | `/api/v1/oauth/connections/:id` | OAuth | **NOT_IMPLEMENTED** | Use `DELETE /api/accounts/:id` |
+
