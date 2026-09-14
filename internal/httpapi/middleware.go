@@ -68,7 +68,7 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, Accept")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, Accept, X-Token-Saver")
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
@@ -99,7 +99,11 @@ func GatewayAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				return
 			}
 
-			_, _ = db.ExecContext(r.Context(), "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", keyID)
+			go func(k string) {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				_, _ = db.ExecContext(ctx, "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", k)
+			}(keyID)
 
 			ctx := context.WithValue(r.Context(), apiKeyIDKey, keyID)
 			next.ServeHTTP(w, r.WithContext(ctx))

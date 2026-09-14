@@ -27,6 +27,13 @@ func (a *OpenAIAdapter) Kind() string {
 	return "openai"
 }
 
+func (a *OpenAIAdapter) clientFor(creds *Credentials) *http.Client {
+	if creds != nil && creds.HTTPClient != nil {
+		return creds.HTTPClient
+	}
+	return a.client
+}
+
 func (a *OpenAIAdapter) Models(ctx context.Context, creds *Credentials) ([]ModelInfo, error) {
 	baseURL := "https://api.openai.com/v1"
 	if creds != nil && creds.BaseURL != "" {
@@ -43,7 +50,7 @@ func (a *OpenAIAdapter) Models(ctx context.Context, creds *Credentials) ([]Model
 		httpReq.Header.Set("Authorization", "Bearer "+creds.APIKey)
 	}
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -115,7 +122,7 @@ func (a *OpenAIAdapter) Execute(ctx context.Context, req *Request, creds *Creden
 		httpReq.Header.Set("Authorization", "Bearer "+creds.APIKey)
 	}
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -202,7 +209,7 @@ func (a *OpenAIAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 		httpReq.Header.Set("Authorization", "Bearer "+creds.APIKey)
 	}
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -220,10 +227,16 @@ func (a *OpenAIAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 		defer close(events)
 
 		scanner := bufio.NewScanner(resp.Body)
+		buf := make([]byte, 64*1024)
+		scanner.Buffer(buf, 4*1024*1024)
+
 		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
-				events <- StreamEvent{Type: StreamEventError, Error: ctx.Err()}
+				select {
+				case events <- StreamEvent{Type: StreamEventError, Error: ctx.Err()}:
+				default:
+				}
 				return
 			default:
 			}
@@ -235,7 +248,10 @@ func (a *OpenAIAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 
 			data := strings.TrimPrefix(line, "data: ")
 			if strings.TrimSpace(data) == "[DONE]" {
-				events <- StreamEvent{Type: StreamEventDone}
+				select {
+				case events <- StreamEvent{Type: StreamEventDone}:
+				case <-ctx.Done():
+				}
 				return
 			}
 
@@ -258,26 +274,37 @@ func (a *OpenAIAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 			}
 
 			if chunk.Usage != nil {
-				events <- StreamEvent{
+				select {
+				case events <- StreamEvent{
 					Type: StreamEventUsage,
 					Usage: &Usage{
 						PromptTokens:     chunk.Usage.PromptTokens,
 						CompletionTokens: chunk.Usage.CompletionTokens,
 						TotalTokens:      chunk.Usage.TotalTokens,
 					},
+				}:
+				case <-ctx.Done():
+					return
 				}
 			}
 
 			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-				events <- StreamEvent{
+				select {
+				case events <- StreamEvent{
 					Type:  StreamEventDelta,
 					Delta: chunk.Choices[0].Delta.Content,
+				}:
+				case <-ctx.Done():
+					return
 				}
 			}
 		}
 
 		if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-			events <- StreamEvent{Type: StreamEventError, Error: err}
+			select {
+			case events <- StreamEvent{Type: StreamEventError, Error: err}:
+			case <-ctx.Done():
+			}
 		}
 	}()
 

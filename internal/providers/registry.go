@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -48,6 +49,14 @@ func (e *ProviderError) IsTransient() bool {
 }
 
 func ClassifyHTTPError(statusCode int, body string) *ProviderError {
+	lowerBody := strings.ToLower(body)
+	if strings.Contains(lowerBody, "insufficient_quota") || strings.Contains(lowerBody, "quota_exceeded") || strings.Contains(lowerBody, "resource_exhausted") {
+		return &ProviderError{StatusCode: statusCode, Class: ErrorClassQuota, Message: "upstream quota exceeded"}
+	}
+	if statusCode == 529 || strings.Contains(lowerBody, "overloaded") {
+		return &ProviderError{StatusCode: statusCode, Class: ErrorClassUpstream5xx, Message: "upstream server overloaded"}
+	}
+
 	switch {
 	case statusCode == http.StatusTooManyRequests:
 		return &ProviderError{StatusCode: statusCode, Class: ErrorClassRateLimit, Message: "upstream rate limit exceeded"}

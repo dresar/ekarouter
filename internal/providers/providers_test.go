@@ -2,9 +2,11 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -192,5 +194,113 @@ func TestClientCancellationPropagates(t *testing.T) {
 	}
 	if !gotErr {
 		t.Log("stream closed cleanly upon cancellation")
+	}
+}
+
+func TestCancellationDoesNotLeak(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher := w.(http.Flusher)
+		for i := 0; i < 50; i++ {
+			fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Chunk\"}}]}\n\n")
+			flusher.Flush()
+			time.Sleep(10 * time.Millisecond)
+		}
+	}))
+	defer server.Close()
+
+	adapter := NewOpenAIAdapter(server.Client())
+	creds := &Credentials{BaseURL: server.URL}
+	req := &Request{Model: "test"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	streamChan, err := adapter.ExecuteStream(ctx, req, creds)
+	if err != nil {
+		t.Fatalf("unexpected stream start error: %v", err)
+	}
+
+	<-streamChan
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+}
+
+func TestLargeSSELineExceedsDefaultBuffer(t *testing.T) {
+	largeContent := strings.Repeat("A", 128*1024)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\"%s\"}}]}\n\n", largeContent)
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+
+	adapter := NewOpenAIAdapter(server.Client())
+	creds := &Credentials{BaseURL: server.URL}
+	req := &Request{Model: "test"}
+
+	ctx := context.Background()
+	streamChan, err := adapter.ExecuteStream(ctx, req, creds)
+	if err != nil {
+		t.Fatalf("unexpected stream error: %v", err)
+	}
+
+	var totalLen int
+	for ev := range streamChan {
+		if ev.Type == StreamEventDelta {
+			totalLen += len(ev.Delta)
+		}
+		if ev.Type == StreamEventError {
+			t.Fatalf("unexpected stream error for large line: %v", ev.Error)
+		}
+	}
+
+	if totalLen != len(largeContent) {
+		t.Errorf("expected %d bytes, got %d", len(largeContent), totalLen)
+	}
+}
+
+func TestGeminiSystemInstruction(t *testing.T) {
+	adapter := NewGeminiAdapter(nil)
+	req := &Request{
+		Model: "gemini-2.5-flash",
+		Messages: []Message{
+			{Role: "system", Content: "You are a helpful assistant."},
+			{Role: "user", Content: "Hello"},
+		},
+	}
+	body := adapter.buildRequestBody(req)
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+
+	var parsed struct {
+		SystemInstruction struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"systemInstruction"`
+	}
+	if err := json.Unmarshal(bodyBytes, &parsed); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if len(parsed.SystemInstruction.Parts) != 1 || parsed.SystemInstruction.Parts[0].Text != "You are a helpful assistant." {
+		t.Errorf("unexpected systemInstruction: %s", string(bodyBytes))
+	}
+}
+
+func TestAnthropicMultiSystem(t *testing.T) {
+	adapter := NewAnthropicAdapter(nil)
+	req := &Request{
+		Model: "claude-3-5-sonnet",
+		Messages: []Message{
+			{Role: "system", Content: "System 1"},
+			{Role: "system", Content: "System 2"},
+			{Role: "user", Content: "Hello"},
+		},
+	}
+	body := adapter.buildRequestBody(req, false)
+	sysStr, ok := body["system"].(string)
+	if !ok || sysStr != "System 1\n\nSystem 2" {
+		t.Errorf("expected concatenated system prompt, got: %v", body["system"])
 	}
 }

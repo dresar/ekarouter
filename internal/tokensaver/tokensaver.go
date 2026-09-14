@@ -36,6 +36,10 @@ func (ts *TokenSaver) Compact(input string) string {
 		return input
 	}
 
+	if isErrorTrace(input) {
+		return input
+	}
+
 	result := input
 
 	if strings.Contains(input, "diff --git") {
@@ -156,29 +160,56 @@ func CompactRepeatedLines(text string) string {
 
 	var result []string
 	var lastLine string
+	var lastRaw string
 	repeatCount := 0
+
+	flushRepeats := func() {
+		if repeatCount >= 3 {
+			result = append(result, fmt.Sprintf("  [... repeated %d times]", repeatCount))
+		} else {
+			for i := 0; i < repeatCount; i++ {
+				result = append(result, lastRaw)
+			}
+		}
+		repeatCount = 0
+	}
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && trimmed == lastLine {
+		if trimmed != "" && !isSyntaxChar(trimmed) && trimmed == lastLine {
 			repeatCount++
 			continue
 		}
 
-		if repeatCount > 0 {
-			result = append(result, fmt.Sprintf("  [... repeated %d times]", repeatCount))
-			repeatCount = 0
-		}
-
+		flushRepeats()
 		result = append(result, line)
 		lastLine = trimmed
+		lastRaw = line
 	}
 
-	if repeatCount > 0 {
-		result = append(result, fmt.Sprintf("  [... repeated %d times]", repeatCount))
-	}
+	flushRepeats()
 
 	return strings.Join(result, "\n")
+}
+
+func isSyntaxChar(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if len(trimmed) <= 4 {
+		switch trimmed {
+		case "{", "}", "[", "]", "(", ")", ";", ",", `""`, "''", "`", "end", "fi", "done":
+			return true
+		}
+	}
+	return false
+}
+
+func isErrorTrace(text string) bool {
+	lower := strings.ToLower(text)
+	return strings.Contains(lower, "panic:") ||
+		strings.Contains(lower, "fatal error:") ||
+		strings.Contains(lower, "traceback (most recent call last):") ||
+		strings.Contains(lower, "stack trace:") ||
+		strings.Contains(lower, "syntaxerror:")
 }
 
 func SmartTruncate(text string, maxChars int) string {

@@ -25,7 +25,11 @@ func (p *Profile) URL() (*url.URL, error) {
 	if p == nil || p.Host == "" {
 		return nil, nil
 	}
-	raw := fmt.Sprintf("%s://%s:%d", p.Scheme, p.Host, p.Port)
+	scheme := p.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+	raw := fmt.Sprintf("%s://%s:%d", scheme, p.Host, p.Port)
 	u, err := url.Parse(raw)
 	if err != nil {
 		return nil, err
@@ -65,16 +69,18 @@ func (m *Manager) GetClient(profile *Profile, timeout time.Duration) (*http.Clie
 }
 
 func (m *Manager) GetTransport(profile *Profile) (*http.Transport, error) {
-	key := "direct"
+	key := "env"
 	var proxyURL *url.URL
 	var err error
 
-	if profile != nil && profile.Host != "" {
+	if profile != nil && profile.Host != "" && profile.Scheme != "direct" {
 		key = fmt.Sprintf("%s://%s:%s@%s:%d", profile.Scheme, profile.Username, profile.Password, profile.Host, profile.Port)
 		proxyURL, err = profile.URL()
 		if err != nil {
 			return nil, err
 		}
+	} else if profile != nil && profile.Scheme == "direct" {
+		key = "direct"
 	}
 
 	m.mu.RLock()
@@ -120,6 +126,10 @@ func (m *Manager) GetTransport(profile *Profile) (*http.Transport, error) {
 
 	if proxyURL != nil {
 		newTr.Proxy = http.ProxyURL(proxyURL)
+	} else if key == "direct" {
+		newTr.Proxy = nil
+	} else {
+		newTr.Proxy = http.ProxyFromEnvironment
 	}
 
 	m.transports[key] = newTr

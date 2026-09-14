@@ -14,6 +14,7 @@ import (
 	"github.com/dresar/ekarouter/internal/gateway"
 	"github.com/dresar/ekarouter/internal/health"
 	"github.com/dresar/ekarouter/internal/httpapi"
+	"github.com/dresar/ekarouter/internal/oauth"
 	"github.com/dresar/ekarouter/internal/providers"
 	"github.com/dresar/ekarouter/internal/proxy"
 	"github.com/dresar/ekarouter/internal/routing"
@@ -60,12 +61,19 @@ func Setup(cfg *config.Config, migrationsDir string) (*Application, error) {
 	registry.Register("openai", providers.NewOpenAIAdapter(sharedClient))
 	registry.Register("anthropic", providers.NewAnthropicAdapter(sharedClient))
 	registry.Register("gemini", providers.NewGeminiAdapter(sharedClient))
-	registry.Register("custom", providers.NewCustomAdapter(sharedClient))
+	customAdapter := providers.NewCustomAdapter(sharedClient)
+	registry.Register("custom", customAdapter)
+	registry.Register("deepseek", customAdapter)
+	registry.Register("groq", customAdapter)
+	registry.Register("openrouter", customAdapter)
+	registry.Register("ollama", customAdapter)
+	registry.Register("mistral", customAdapter)
+	registry.Register("together", customAdapter)
 
 	cd := routing.NewCooldownManager()
 	router := routing.NewRouter(cd)
 
-	if err := loadRoutingFromDB(database.DB, router); err != nil {
+	if err := router.LoadFromDB(context.Background(), database.DB); err != nil {
 		_ = database.Close()
 		return nil, fmt.Errorf("load routes: %w", err)
 	}
@@ -98,8 +106,10 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 		}, nil
 	}
 
+	oauthMgr := oauth.NewManager()
+
 	gw := gateway.NewGateway(router, registry, ts, cd, usageRec, credResolver)
-	httpServerHandler := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker)
+	httpServerHandler := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
@@ -141,61 +151,4 @@ func (a *Application) Run(ctx context.Context) error {
 		_ = a.DB.Close()
 		return err
 	}
-}
-
-func loadRoutingFromDB(database *sql.DB, r *routing.Router) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	accRows, err := database.QueryContext(ctx, "SELECT id, provider_id, name, auth_type, state, priority, enabled FROM accounts WHERE enabled = 1")
-	if err != nil {
-		return err
-	}
-	defer accRows.Close()
-
-	for accRows.Next() {
-		var acc routing.Account
-		var enabledInt int
-		if err := accRows.Scan(&acc.ID, &acc.ProviderID, &acc.Name, &acc.AuthType, &acc.State, &acc.Priority, &enabledInt); err == nil {
-			acc.Enabled = enabledInt == 1
-			r.SetAccount(&acc)
-		}
-	}
-
-	routeRows, err := database.QueryContext(ctx, "SELECT id, name, strategy, enabled FROM routes WHERE enabled = 1")
-	if err != nil {
-		return err
-	}
-	defer routeRows.Close()
-
-	for routeRows.Next() {
-		var route routing.Route
-		var enabledInt int
-		if err := routeRows.Scan(&route.ID, &route.Name, &route.Strategy, &enabledInt); err == nil {
-			route.Enabled = enabledInt == 1
-
-			itemRows, err := database.QueryContext(ctx, `
-SELECT ri.id, ri.route_id, ri.provider_id, p.kind, COALESCE(ri.account_id, ''), COALESCE(m.external_name, ''), ri.priority, ri.weight, ri.enabled, ri.timeout_ms, ri.max_retries
-FROM route_items ri
-JOIN providers p ON p.id = ri.provider_id
-LEFT JOIN models m ON m.id = ri.model_id
-WHERE ri.route_id = ? AND ri.enabled = 1`, route.ID)
-
-			if err == nil {
-				for itemRows.Next() {
-					var item routing.RouteItem
-					var itemEnabled int
-					if err := itemRows.Scan(&item.ID, &item.RouteID, &item.ProviderID, &item.ProviderKind, &item.AccountID, &item.ModelName, &item.Priority, &item.Weight, &itemEnabled, &item.TimeoutMs, &item.MaxRetries); err == nil {
-						item.Enabled = itemEnabled == 1
-						route.Items = append(route.Items, item)
-					}
-				}
-				itemRows.Close()
-			}
-
-			r.SetRoute(&route)
-		}
-	}
-
-	return nil
 }

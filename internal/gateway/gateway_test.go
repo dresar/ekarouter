@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/dresar/ekarouter/internal/providers"
@@ -185,5 +186,67 @@ func TestGatewayExecuteStream(t *testing.T) {
 
 	if len(chunks) != 1 || chunks[0] != "Part 1" {
 		t.Errorf("unexpected stream chunks: %v", chunks)
+	}
+}
+
+func TestGatewayStreamClientCancellation(t *testing.T) {
+	cd := routing.NewCooldownManager()
+	router := routing.NewRouter(cd)
+	router.SetAccount(&routing.Account{ID: "acc-1", ProviderID: "p1", State: "active", Enabled: true})
+	router.SetRoute(&routing.Route{
+		Name:     "cancel-model",
+		Strategy: routing.StrategyPriority,
+		Enabled:  true,
+		Items: []routing.RouteItem{
+			{ProviderID: "p1", ProviderKind: "kind1", AccountID: "acc-1", ModelName: "cancel-model", Priority: 10, Enabled: true},
+		},
+	})
+
+	reg := providers.NewRegistry()
+	reg.Register("kind1", &mockAdapter{
+		kind: "kind1",
+		streamFn: func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (<-chan providers.StreamEvent, error) {
+			ch := make(chan providers.StreamEvent, 50)
+			for i := 0; i < 20; i++ {
+				ch <- providers.StreamEvent{Type: providers.StreamEventDelta, Delta: "chunk"}
+			}
+			return ch, nil
+		},
+	})
+
+	credResolver := func(ctx context.Context, accountID string) (*providers.Credentials, error) {
+		return &providers.Credentials{APIKey: "key"}, nil
+	}
+
+	gw := NewGateway(router, reg, tokensaver.New("safe"), cd, nil, credResolver)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	streamChan, err := gw.ExecuteStream(ctx, &providers.Request{
+		ID:    "req-cancel",
+		Model: "cancel-model",
+	})
+	if err != nil {
+		t.Fatalf("unexpected stream error: %v", err)
+	}
+
+	<-streamChan
+	cancel()
+}
+
+func TestGatewayTokenSaverOptOut(t *testing.T) {
+	cd := routing.NewCooldownManager()
+	router := routing.NewRouter(cd)
+	gw := NewGateway(router, nil, tokensaver.New("safe"), cd, nil, nil)
+
+	diffText := "diff --git a/file b/file\n" + strings.Repeat("+ added line\n", 50)
+	reqOptOut := &providers.Request{
+		OptOutTokenSaver: true,
+		Messages: []providers.Message{
+			{Role: "user", Content: diffText},
+		},
+	}
+	prep := gw.PrepareRequest(reqOptOut)
+	if prep.Messages[0].Content != diffText {
+		t.Errorf("expected untouched text when OptOutTokenSaver is true")
 	}
 }

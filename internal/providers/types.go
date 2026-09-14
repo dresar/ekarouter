@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"net/http"
 )
 
 type ModelInfo struct {
@@ -31,14 +32,15 @@ type FunctionCall struct {
 }
 
 type Request struct {
-	ID          string    `json:"id"`
-	Model       string    `json:"model"`
-	Messages    []Message `json:"messages"`
-	Temperature *float64  `json:"temperature,omitempty"`
-	TopP        *float64  `json:"top_p,omitempty"`
-	MaxTokens   *int      `json:"max_tokens,omitempty"`
-	Stream      bool      `json:"stream"`
-	Stop        []string  `json:"stop,omitempty"`
+	ID               string    `json:"id"`
+	Model            string    `json:"model"`
+	Messages         []Message `json:"messages"`
+	Temperature      *float64  `json:"temperature,omitempty"`
+	TopP             *float64  `json:"top_p,omitempty"`
+	MaxTokens        *int      `json:"max_tokens,omitempty"`
+	Stream           bool      `json:"stream"`
+	Stop             []string  `json:"stop,omitempty"`
+	OptOutTokenSaver bool      `json:"opt_out_token_saver,omitempty"`
 }
 
 type Usage struct {
@@ -77,6 +79,7 @@ type Credentials struct {
 	AccessToken string
 	SecretKey   string
 	BaseURL     string
+	HTTPClient  *http.Client
 }
 
 type Adapter interface {

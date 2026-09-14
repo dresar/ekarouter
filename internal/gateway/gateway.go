@@ -45,12 +45,12 @@ func NewGateway(
 }
 
 func (g *Gateway) PrepareRequest(req *providers.Request) *providers.Request {
-	if g.tokensaver == nil || g.tokensaver.Mode() == tokensaver.ModeOff {
+	if req.OptOutTokenSaver || g.tokensaver == nil || g.tokensaver.Mode() == tokensaver.ModeOff {
 		return req
 	}
 
 	for i := range req.Messages {
-		if req.Messages[i].Role == "user" {
+		if req.Messages[i].Role == "user" || req.Messages[i].Role == "tool" {
 			req.Messages[i].Content = g.tokensaver.Compact(req.Messages[i].Content)
 		}
 	}
@@ -179,7 +179,10 @@ func (g *Gateway) ExecuteStream(ctx context.Context, req *providers.Request) (<-
 				for {
 					select {
 					case <-ctx.Done():
-						outChan <- providers.StreamEvent{Type: providers.StreamEventError, Error: ctx.Err()}
+						select {
+						case outChan <- providers.StreamEvent{Type: providers.StreamEventError, Error: ctx.Err()}:
+						default:
+						}
 						g.recordUsage(req.ID, t, finalUsage, time.Since(start), 499, "client cancelled")
 						return
 					case ev, ok := <-in:
@@ -190,7 +193,12 @@ func (g *Gateway) ExecuteStream(ctx context.Context, req *providers.Request) (<-
 						if ev.Type == providers.StreamEventUsage && ev.Usage != nil {
 							finalUsage = *ev.Usage
 						}
-						outChan <- ev
+						select {
+						case outChan <- ev:
+						case <-ctx.Done():
+							g.recordUsage(req.ID, t, finalUsage, time.Since(start), 499, "client cancelled")
+							return
+						}
 					}
 				}
 			}(target, streamChan)

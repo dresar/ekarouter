@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -63,10 +64,31 @@ SELECT name FROM routes WHERE enabled = 1`)
 }
 
 func (h *GatewayHandler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, `{"error":"failed to read request body"}`, http.StatusBadRequest)
+		return
+	}
+
 	var req providers.Request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"invalid json body: %v"}`, err), http.StatusBadRequest)
 		return
+	}
+
+	if len(req.Messages) == 0 {
+		var rawBody map[string]json.RawMessage
+		_ = json.Unmarshal(bodyBytes, &rawBody)
+		if inputRaw, ok := rawBody["input"]; ok {
+			var inputStr string
+			if err := json.Unmarshal(inputRaw, &inputStr); err == nil && inputStr != "" {
+				req.Messages = []providers.Message{{Role: "user", Content: inputStr}}
+			}
+		}
+	}
+
+	if r.Header.Get("X-Token-Saver") == "off" {
+		req.OptOutTokenSaver = true
 	}
 
 	if req.Model == "" {

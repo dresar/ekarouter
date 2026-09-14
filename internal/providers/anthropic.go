@@ -27,6 +27,13 @@ func (a *AnthropicAdapter) Kind() string {
 	return "anthropic"
 }
 
+func (a *AnthropicAdapter) clientFor(creds *Credentials) *http.Client {
+	if creds != nil && creds.HTTPClient != nil {
+		return creds.HTTPClient
+	}
+	return a.client
+}
+
 func (a *AnthropicAdapter) Models(ctx context.Context, creds *Credentials) ([]ModelInfo, error) {
 	return []ModelInfo{
 		{ID: "claude-3-7-sonnet-20250219", Name: "Claude 3.7 Sonnet", ContextLimit: 200000, Streaming: true},
@@ -57,7 +64,7 @@ func (a *AnthropicAdapter) Execute(ctx context.Context, req *Request, creds *Cre
 		httpReq.Header.Set("x-api-key", creds.APIKey)
 	}
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -131,7 +138,7 @@ func (a *AnthropicAdapter) ExecuteStream(ctx context.Context, req *Request, cred
 		httpReq.Header.Set("x-api-key", creds.APIKey)
 	}
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -149,10 +156,16 @@ func (a *AnthropicAdapter) ExecuteStream(ctx context.Context, req *Request, cred
 		defer close(events)
 
 		scanner := bufio.NewScanner(resp.Body)
+		buf := make([]byte, 64*1024)
+		scanner.Buffer(buf, 4*1024*1024)
+
 		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
-				events <- StreamEvent{Type: StreamEventError, Error: ctx.Err()}
+				select {
+				case events <- StreamEvent{Type: StreamEventError, Error: ctx.Err()}:
+				default:
+				}
 				return
 			default:
 			}
@@ -181,28 +194,42 @@ func (a *AnthropicAdapter) ExecuteStream(ctx context.Context, req *Request, cred
 			switch eventData.Type {
 			case "content_block_delta":
 				if eventData.Delta.Text != "" {
-					events <- StreamEvent{
+					select {
+					case events <- StreamEvent{
 						Type:  StreamEventDelta,
 						Delta: eventData.Delta.Text,
+					}:
+					case <-ctx.Done():
+						return
 					}
 				}
 			case "message_delta":
 				if eventData.Usage != nil {
-					events <- StreamEvent{
+					select {
+					case events <- StreamEvent{
 						Type: StreamEventUsage,
 						Usage: &Usage{
 							CompletionTokens: eventData.Usage.OutputTokens,
 						},
+					}:
+					case <-ctx.Done():
+						return
 					}
 				}
 			case "message_stop":
-				events <- StreamEvent{Type: StreamEventDone}
+				select {
+				case events <- StreamEvent{Type: StreamEventDone}:
+				case <-ctx.Done():
+				}
 				return
 			}
 		}
 
 		if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-			events <- StreamEvent{Type: StreamEventError, Error: err}
+			select {
+			case events <- StreamEvent{Type: StreamEventError, Error: err}:
+			case <-ctx.Done():
+			}
 		}
 	}()
 
@@ -210,12 +237,12 @@ func (a *AnthropicAdapter) ExecuteStream(ctx context.Context, req *Request, cred
 }
 
 func (a *AnthropicAdapter) buildRequestBody(req *Request, stream bool) map[string]any {
-	var systemPrompt string
+	var systemPrompts []string
 	var nonSystemMsgs []map[string]string
 
 	for _, m := range req.Messages {
 		if strings.ToLower(m.Role) == "system" {
-			systemPrompt = m.Content
+			systemPrompts = append(systemPrompts, m.Content)
 		} else {
 			role := "user"
 			if strings.ToLower(m.Role) == "assistant" {
@@ -226,6 +253,13 @@ func (a *AnthropicAdapter) buildRequestBody(req *Request, stream bool) map[strin
 				"content": m.Content,
 			})
 		}
+	}
+
+	if len(nonSystemMsgs) == 0 {
+		nonSystemMsgs = append(nonSystemMsgs, map[string]string{
+			"role":    "user",
+			"content": "Hello",
+		})
 	}
 
 	maxTokens := 4096
@@ -239,8 +273,8 @@ func (a *AnthropicAdapter) buildRequestBody(req *Request, stream bool) map[strin
 		"max_tokens": maxTokens,
 		"stream":     stream,
 	}
-	if systemPrompt != "" {
-		bodyData["system"] = systemPrompt
+	if len(systemPrompts) > 0 {
+		bodyData["system"] = strings.Join(systemPrompts, "\n\n")
 	}
 	if req.Temperature != nil {
 		bodyData["temperature"] = *req.Temperature

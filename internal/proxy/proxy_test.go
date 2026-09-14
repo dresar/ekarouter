@@ -77,3 +77,29 @@ func TestManagerTransportCaching(t *testing.T) {
 		t.Error("expected reused shared transport for direct connections")
 	}
 }
+
+func TestSocks5ProfileURL(t *testing.T) {
+	p := &Profile{
+		Scheme: "socks5",
+		Host:   "103.253.213.185",
+		Port:   1080,
+	}
+	u, err := p.URL()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if u.String() != "socks5://103.253.213.185:1080" {
+		t.Fatalf("expected socks5://103.253.213.185:1080, got %s", u.String())
+	}
+}
+
+func TestDirectProfileTransport(t *testing.T) {
+	m := NewManager(false)
+	trDirect, err := m.GetTransport(&Profile{Scheme: "direct"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if trDirect.Proxy != nil {
+		t.Error("expected nil Proxy for direct profile")
+	}
+}

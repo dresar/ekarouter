@@ -7,8 +7,8 @@
 bin/
 dist/
 build/
-ekarouter
-ekarouter-*
+/ekarouter
+/ekarouter-*
 
 # Environment & Secrets
 .env
@@ -16,6 +16,7 @@ ekarouter-*
 !.env.example
 *.pem
 *.key
+*backup*.json
 
 # Database files & state
 data/*.db
@@ -39,3 +40,12 @@ coverage.html
 *~
 .DS_Store
 Thumbs.db
+
+# Backups & workspace artifacts
+*-backup*.json
+*.backup.json
+.agents/
+skills/
+EkaRouter_Backend_PRD/
+AGENTS.md
+GEMINI.md

@@ -95,3 +95,35 @@ func TestRoundRobinRouting(t *testing.T) {
 		t.Errorf("expected round robin to rotate first target; got %s and %s", targets1[0].AccountID, targets2[0].AccountID)
 	}
 }
+
+func TestDirectModelRouting(t *testing.T) {
+	router := NewRouter(nil)
+	router.SetProvider("p1", "openai")
+	router.SetProvider("p2", "anthropic")
+	router.SetAccount(&Account{ID: "acc-oa", ProviderID: "p1", State: "active", Enabled: true, Priority: 1})
+	router.SetAccount(&Account{ID: "acc-cl", ProviderID: "p2", State: "active", Enabled: true, Priority: 1})
+
+	targetsOAI, err := router.SelectTargets("gpt-4o")
+	if err != nil {
+		t.Fatalf("expected direct routing for gpt-4o, got error: %v", err)
+	}
+	if len(targetsOAI) != 1 || targetsOAI[0].AccountID != "acc-oa" {
+		t.Fatalf("unexpected targets for gpt-4o: %v", targetsOAI)
+	}
+
+	targetsClaude, err := router.SelectTargets("claude-3-5-sonnet")
+	if err != nil {
+		t.Fatalf("expected direct routing for claude, got error: %v", err)
+	}
+	if len(targetsClaude) != 1 || targetsClaude[0].AccountID != "acc-cl" {
+		t.Fatalf("unexpected targets for claude: %v", targetsClaude)
+	}
+
+	targetsPrefix, err := router.SelectTargets("openai/custom-model-x")
+	if err != nil {
+		t.Fatalf("expected direct routing for prefix model, got error: %v", err)
+	}
+	if len(targetsPrefix) != 1 || targetsPrefix[0].ModelName != "custom-model-x" {
+		t.Fatalf("unexpected model name in prefix targets: %v", targetsPrefix)
+	}
+}

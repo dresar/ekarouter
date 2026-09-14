@@ -28,6 +28,13 @@ func (a *GeminiAdapter) Kind() string {
 	return "gemini"
 }
 
+func (a *GeminiAdapter) clientFor(creds *Credentials) *http.Client {
+	if creds != nil && creds.HTTPClient != nil {
+		return creds.HTTPClient
+	}
+	return a.client
+}
+
 func (a *GeminiAdapter) Models(ctx context.Context, creds *Credentials) ([]ModelInfo, error) {
 	return []ModelInfo{
 		{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", ContextLimit: 1048576, Streaming: true},
@@ -60,7 +67,7 @@ func (a *GeminiAdapter) Execute(ctx context.Context, req *Request, creds *Creden
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -140,7 +147,7 @@ func (a *GeminiAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
 
-	resp, err := a.client.Do(httpReq)
+	resp, err := a.clientFor(creds).Do(httpReq)
 	if err != nil {
 		return nil, &ProviderError{StatusCode: 0, Class: ErrorClassNetwork, Message: err.Error(), Err: err}
 	}
@@ -158,10 +165,16 @@ func (a *GeminiAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 		defer close(events)
 
 		scanner := bufio.NewScanner(resp.Body)
+		buf := make([]byte, 64*1024)
+		scanner.Buffer(buf, 4*1024*1024)
+
 		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
-				events <- StreamEvent{Type: StreamEventError, Error: ctx.Err()}
+				select {
+				case events <- StreamEvent{Type: StreamEventError, Error: ctx.Err()}:
+				default:
+				}
 				return
 			default:
 			}
@@ -192,22 +205,30 @@ func (a *GeminiAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 			}
 
 			if chunk.UsageMetadata != nil {
-				events <- StreamEvent{
+				select {
+				case events <- StreamEvent{
 					Type: StreamEventUsage,
 					Usage: &Usage{
 						PromptTokens:     chunk.UsageMetadata.PromptTokenCount,
 						CompletionTokens: chunk.UsageMetadata.CandidatesTokenCount,
 						TotalTokens:      chunk.UsageMetadata.TotalTokenCount,
 					},
+				}:
+				case <-ctx.Done():
+					return
 				}
 			}
 
 			if len(chunk.Candidates) > 0 {
 				for _, part := range chunk.Candidates[0].Content.Parts {
 					if part.Text != "" {
-						events <- StreamEvent{
+						select {
+						case events <- StreamEvent{
 							Type:  StreamEventDelta,
 							Delta: part.Text,
+						}:
+						case <-ctx.Done():
+							return
 						}
 					}
 				}
@@ -215,11 +236,17 @@ func (a *GeminiAdapter) ExecuteStream(ctx context.Context, req *Request, creds *
 		}
 
 		if err := scanner.Err(); err != nil && !errors.Is(err, context.Canceled) {
-			events <- StreamEvent{Type: StreamEventError, Error: err}
+			select {
+			case events <- StreamEvent{Type: StreamEventError, Error: err}:
+			case <-ctx.Done():
+			}
 			return
 		}
 
-		events <- StreamEvent{Type: StreamEventDone}
+		select {
+		case events <- StreamEvent{Type: StreamEventDone}:
+		case <-ctx.Done():
+		}
 	}()
 
 	return events, nil
@@ -235,9 +262,16 @@ func (a *GeminiAdapter) buildRequestBody(req *Request) map[string]any {
 	}
 
 	var contents []content
+	var systemParts []part
+
 	for _, m := range req.Messages {
+		r := strings.ToLower(m.Role)
+		if r == "system" {
+			systemParts = append(systemParts, part{Text: m.Content})
+			continue
+		}
 		role := "user"
-		if strings.ToLower(m.Role) == "assistant" {
+		if r == "assistant" || r == "model" {
 			role = "model"
 		}
 		contents = append(contents, content{
@@ -259,6 +293,11 @@ func (a *GeminiAdapter) buildRequestBody(req *Request) map[string]any {
 
 	body := map[string]any{
 		"contents": contents,
+	}
+	if len(systemParts) > 0 {
+		body["systemInstruction"] = map[string]any{
+			"parts": systemParts,
+		}
 	}
 	if len(genConfig) > 0 {
 		body["generationConfig"] = genConfig

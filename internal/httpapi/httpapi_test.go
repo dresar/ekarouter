@@ -15,6 +15,7 @@ import (
 	"github.com/dresar/ekarouter/internal/db"
 	"github.com/dresar/ekarouter/internal/gateway"
 	"github.com/dresar/ekarouter/internal/health"
+	"github.com/dresar/ekarouter/internal/oauth"
 	"github.com/dresar/ekarouter/internal/providers"
 	"github.com/dresar/ekarouter/internal/routing"
 	"github.com/dresar/ekarouter/internal/tokensaver"
@@ -85,7 +86,8 @@ func setupTestServer(t *testing.T) (*Server, *db.DB, string) {
 	}
 
 	gw := gateway.NewGateway(router, reg, ts, cd, usageRec, credResolver)
-	server := NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker)
+	oauthMgr := oauth.NewManager()
+	server := NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr)
 
 	rawKey, prefix, hash, _ := auth.GenerateApiKey()
 	_, _ = database.Exec("INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES ('key1', 'Test Key', ?, ?, '*', 1)", prefix, hash)
@@ -217,5 +219,149 @@ func TestBodyLimitEnforcement(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("expected body size limit error, got %d", rec.Code)
+	}
+}
+
+func TestResponsesEndpointWithInput(t *testing.T) {
+	server, database, validKey := setupTestServer(t)
+	defer database.Close()
+
+	body := `{"model":"gpt-4o","input":"Hello from responses API"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+validKey)
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /v1/responses, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTokenSaverOptOutHeader(t *testing.T) {
+	server, database, validKey := setupTestServer(t)
+	defer database.Close()
+
+	body := `{"model":"gpt-4o","messages":[{"role":"user","content":"hello world"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+validKey)
+	req.Header.Set("X-Token-Saver", "off")
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 with X-Token-Saver off, got %d", rec.Code)
+	}
+}
+
+func TestAdminEntityManagement(t *testing.T) {
+	server, database, _ := setupTestServer(t)
+	defer database.Close()
+
+	loginBody := `{"username":"admin","password":"admin12345"}`
+	reqLogin := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(loginBody))
+	recLogin := httptest.NewRecorder()
+	server.ServeHTTP(recLogin, reqLogin)
+
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	_ = json.NewDecoder(recLogin.Body).Decode(&loginResp)
+	token := loginResp.Token
+
+	provBody := `{"id":"p_test","key":"key_test","name":"Test Provider","kind":"openai","base_url":"https://api.test.com","enabled":true}`
+	reqProv := httptest.NewRequest(http.MethodPost, "/api/providers", strings.NewReader(provBody))
+	reqProv.Header.Set("Authorization", "Bearer "+token)
+	recProv := httptest.NewRecorder()
+	server.ServeHTTP(recProv, reqProv)
+	if recProv.Code != http.StatusCreated {
+		t.Fatalf("create provider failed, got %d", recProv.Code)
+	}
+
+	modelBody := `{"id":"m_test","provider_id":"p_test","external_name":"test-model","display_name":"Test Model","context_limit":8192,"streaming":true}`
+	reqModel := httptest.NewRequest(http.MethodPost, "/api/models", strings.NewReader(modelBody))
+	reqModel.Header.Set("Authorization", "Bearer "+token)
+	recModel := httptest.NewRecorder()
+	server.ServeHTTP(recModel, reqModel)
+	if recModel.Code != http.StatusCreated {
+		t.Fatalf("create model failed, got %d", recModel.Code)
+	}
+
+	accBody := `{"id":"a_test","provider_id":"p_test","name":"Test Acc","auth_type":"api_key","priority":1,"api_key":"sk-secret"}`
+	reqAcc := httptest.NewRequest(http.MethodPost, "/api/accounts", strings.NewReader(accBody))
+	reqAcc.Header.Set("Authorization", "Bearer "+token)
+	recAcc := httptest.NewRecorder()
+	server.ServeHTTP(recAcc, reqAcc)
+	if recAcc.Code != http.StatusCreated {
+		t.Fatalf("create account failed, got %d", recAcc.Code)
+	}
+
+	proxyBody := `{"id":"px_test","name":"Test Proxy","scheme":"http","host":"103.253.213.185","port":8080,"username":"user","password":"pass"}`
+	reqPx := httptest.NewRequest(http.MethodPost, "/api/proxy-profiles", strings.NewReader(proxyBody))
+	reqPx.Header.Set("Authorization", "Bearer "+token)
+	recPx := httptest.NewRecorder()
+	server.ServeHTTP(recPx, reqPx)
+	if recPx.Code != http.StatusCreated {
+		t.Fatalf("create proxy profile failed, got %d", recPx.Code)
+	}
+
+	settingBody := `{"key":"theme","value":"dark"}`
+	reqSet := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(settingBody))
+	reqSet.Header.Set("Authorization", "Bearer "+token)
+	recSet := httptest.NewRecorder()
+	server.ServeHTTP(recSet, reqSet)
+	if recSet.Code != http.StatusOK {
+		t.Fatalf("update setting failed, got %d", recSet.Code)
+	}
+}
+
+func TestOAuthStartAndCallback(t *testing.T) {
+	server, database, _ := setupTestServer(t)
+	defer database.Close()
+
+	loginBody := `{"username":"admin","password":"admin12345"}`
+	reqLogin := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(loginBody))
+	recLogin := httptest.NewRecorder()
+	server.ServeHTTP(recLogin, reqLogin)
+
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	_ = json.NewDecoder(recLogin.Body).Decode(&loginResp)
+	token := loginResp.Token
+
+	provBody := `{"id":"p_oauth","key":"key_oauth","name":"OAuth Provider","kind":"openai","base_url":"https://api.test.com","enabled":true}`
+	reqProv := httptest.NewRequest(http.MethodPost, "/api/providers", strings.NewReader(provBody))
+	reqProv.Header.Set("Authorization", "Bearer "+token)
+	recProv := httptest.NewRecorder()
+	server.ServeHTTP(recProv, reqProv)
+
+	startBody := `{"provider_id":"p_oauth"}`
+	reqStart := httptest.NewRequest(http.MethodPost, "/api/accounts/oauth/start", strings.NewReader(startBody))
+	reqStart.Header.Set("Authorization", "Bearer "+token)
+	recStart := httptest.NewRecorder()
+	server.ServeHTTP(recStart, reqStart)
+
+	if recStart.Code != http.StatusOK {
+		t.Fatalf("expected 200 for oauth start, got %d", recStart.Code)
+	}
+
+	var startResp struct {
+		State string `json:"state"`
+	}
+	_ = json.NewDecoder(recStart.Body).Decode(&startResp)
+	if startResp.State == "" {
+		t.Fatal("expected state in oauth start response")
+	}
+
+	cbBody := `{"state":"` + startResp.State + `","code":"auth_code_123","account_name":"My OAuth Acc"}`
+	reqCb := httptest.NewRequest(http.MethodPost, "/api/accounts/oauth/callback", strings.NewReader(cbBody))
+	reqCb.Header.Set("Authorization", "Bearer "+token)
+	recCb := httptest.NewRecorder()
+	server.ServeHTTP(recCb, reqCb)
+
+	if recCb.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for oauth callback, got %d: %s", recCb.Code, recCb.Body.String())
 	}
 }

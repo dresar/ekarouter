@@ -63,3 +63,20 @@ func TestFailOpenBehavior(t *testing.T) {
 		t.Fatalf("expected exact original text for small inputs, got %s", out)
 	}
 }
+
+func TestSyntaxCharProtection(t *testing.T) {
+	code := "func foo() {\n    if true {\n        x := 1\n        _ = x\n    }\n}\n"
+	compacted := CompactRepeatedLines(code)
+	if strings.Contains(compacted, "repeated") {
+		t.Errorf("syntax braces should never be collapsed, got:\n%s", compacted)
+	}
+}
+
+func TestErrorTracePreservation(t *testing.T) {
+	ts := New("safe")
+	errTrace := "panic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation]\ngoroutine 1 [running]:\nmain.main()\n\t/app/main.go:10 +0x20\nrepeated line\nrepeated line\nrepeated line\nrepeated line\nrepeated line"
+	out := ts.Compact(errTrace)
+	if out != errTrace {
+		t.Errorf("expected error trace to be preserved 100%% untouched")
+	}
+}
