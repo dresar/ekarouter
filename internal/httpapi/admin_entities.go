@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dresar/ekarouter/internal/proxy"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -507,6 +508,43 @@ func (a *AdminHandler) DeleteProxyProfile(w http.ResponseWriter, r *http.Request
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+func (a *AdminHandler) TestProxyProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var pName, pScheme, pHost, pUser, pPass sql.NullString
+	var pPort, pEnabled int
+	err := a.db.QueryRowContext(r.Context(), "SELECT name, scheme, host, port, username, encrypted_password, enabled FROM proxy_profiles WHERE id = ?", id).Scan(
+		&pName, &pScheme, &pHost, &pPort, &pUser, &pPass, &pEnabled)
+	if err != nil {
+		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
+		return
+	}
+
+	pass, _ := a.crypto.Decrypt(pPass.String)
+	prof := &proxy.Profile{
+		ID:       id,
+		Name:     pName.String,
+		Scheme:   pScheme.String,
+		Host:     pHost.String,
+		Port:     pPort,
+		Username: pUser.String,
+		Password: pass,
+	}
+
+	ok, statusCode, latency, testErr := proxy.TestProfile(r.Context(), prof, 10*time.Second)
+	errStr := ""
+	if testErr != nil {
+		errStr = testErr.Error()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":         ok,
+		"status":     statusCode,
+		"latency_ms": latency,
+		"error":      errStr,
+	})
 }
 
 func (a *AdminHandler) OAuthStart(w http.ResponseWriter, r *http.Request) {

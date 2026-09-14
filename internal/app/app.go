@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,10 +17,29 @@ import (
 	"github.com/dresar/ekarouter/internal/httpapi"
 	"github.com/dresar/ekarouter/internal/oauth"
 	"github.com/dresar/ekarouter/internal/providers"
+	"github.com/dresar/ekarouter/internal/providers/airforce"
 	"github.com/dresar/ekarouter/internal/providers/anthropic"
+	"github.com/dresar/ekarouter/internal/providers/bazaarlink"
+	"github.com/dresar/ekarouter/internal/providers/cerebras"
+	"github.com/dresar/ekarouter/internal/providers/chutes"
+	"github.com/dresar/ekarouter/internal/providers/cloudflare"
+	"github.com/dresar/ekarouter/internal/providers/coqui"
 	"github.com/dresar/ekarouter/internal/providers/custom"
+	"github.com/dresar/ekarouter/internal/providers/devin"
+	"github.com/dresar/ekarouter/internal/providers/edgetts"
 	"github.com/dresar/ekarouter/internal/providers/gemini"
+	"github.com/dresar/ekarouter/internal/providers/groq"
+	"github.com/dresar/ekarouter/internal/providers/huggingface"
+	"github.com/dresar/ekarouter/internal/providers/kilogateway"
+	"github.com/dresar/ekarouter/internal/providers/kimchi"
+	"github.com/dresar/ekarouter/internal/providers/kiro"
+	"github.com/dresar/ekarouter/internal/providers/mimofree"
+	"github.com/dresar/ekarouter/internal/providers/nvidia"
+	"github.com/dresar/ekarouter/internal/providers/ollama"
 	"github.com/dresar/ekarouter/internal/providers/openai"
+	"github.com/dresar/ekarouter/internal/providers/opencode"
+	"github.com/dresar/ekarouter/internal/providers/openrouter"
+	"github.com/dresar/ekarouter/internal/providers/searxng"
 	"github.com/dresar/ekarouter/internal/proxy"
 	"github.com/dresar/ekarouter/internal/routing"
 	"github.com/dresar/ekarouter/internal/tokensaver"
@@ -73,10 +93,36 @@ func Setup(cfg *config.Config, migrationsDir string) (*Application, error) {
 	registry.Register("gemini-agy", antigravityAdapter)
 	customAdapter := custom.NewAdapter(sharedClient)
 	registry.Register("custom", customAdapter)
+	registry.Register("opencode", opencode.NewAdapter(sharedClient))
+	registry.Register("oc", opencode.NewAdapter(sharedClient))
+	registry.Register("mimo-free", mimofree.NewAdapter(sharedClient))
+	registry.Register("mmf", mimofree.NewAdapter(sharedClient))
+	registry.Register("devin", devin.NewAdapter(sharedClient))
+	registry.Register("devin-cli", devin.NewAdapter(sharedClient))
+	registry.Register("groq", groq.NewAdapter(sharedClient))
+	registry.Register("cerebras", cerebras.NewAdapter(sharedClient))
+	registry.Register("openrouter", openrouter.NewAdapter(sharedClient))
+	registry.Register("cloudflare-ai", cloudflare.NewAdapter(sharedClient))
+	registry.Register("cloudflare", cloudflare.NewAdapter(sharedClient))
+	registry.Register("cf", cloudflare.NewAdapter(sharedClient))
+	registry.Register("nvidia", nvidia.NewAdapter(sharedClient))
+	registry.Register("api-airforce", airforce.NewAdapter(sharedClient))
+	registry.Register("airforce", airforce.NewAdapter(sharedClient))
+	registry.Register("af", airforce.NewAdapter(sharedClient))
+	registry.Register("bazaarlink", bazaarlink.NewAdapter(sharedClient))
+	registry.Register("bzl", bazaarlink.NewAdapter(sharedClient))
+	registry.Register("kilo-gateway", kilogateway.NewAdapter(sharedClient))
+	registry.Register("kgw", kilogateway.NewAdapter(sharedClient))
+	registry.Register("kimchi", kimchi.NewAdapter(sharedClient))
+	registry.Register("ollama", ollama.NewAdapter(sharedClient))
+	registry.Register("chutes", chutes.NewAdapter(sharedClient))
+	registry.Register("huggingface", huggingface.NewAdapter(sharedClient))
+	registry.Register("hf", huggingface.NewAdapter(sharedClient))
+	registry.Register("kiro", kiro.NewAdapter(sharedClient))
+	registry.Register("searxng", searxng.NewAdapter(sharedClient))
+	registry.Register("edge-tts", edgetts.NewAdapter(sharedClient))
+	registry.Register("coqui", coqui.NewAdapter(sharedClient))
 	registry.Register("deepseek", custom.NewBackendAdapter("deepseek", sharedClient))
-	registry.Register("groq", custom.NewBackendAdapter("groq", sharedClient))
-	registry.Register("openrouter", custom.NewBackendAdapter("openrouter", sharedClient))
-	registry.Register("ollama", custom.NewBackendAdapter("ollama", sharedClient))
 	registry.Register("mistral", custom.NewBackendAdapter("mistral", sharedClient))
 	registry.Register("together", custom.NewBackendAdapter("together", sharedClient))
 	registry.Register("vllm", custom.NewBackendAdapter("vllm", sharedClient))
@@ -111,10 +157,37 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 		apiKey, _ := crypto.Decrypt(encAccess.String)
 		secretKey, _ := crypto.Decrypt(encSecret.String)
 
+		var client *http.Client
+		if secretKey != "" {
+			var meta map[string]any
+			if err := json.Unmarshal([]byte(secretKey), &meta); err == nil {
+				if poolID, ok := meta["proxyPoolId"].(string); ok && poolID != "" {
+					var pName, pScheme, pHost, pUser, pPass sql.NullString
+					var pPort, pEnabled int
+					_ = database.QueryRowContext(ctx, "SELECT name, scheme, host, port, username, encrypted_password, enabled FROM proxy_profiles WHERE id = ?", poolID).Scan(
+						&pName, &pScheme, &pHost, &pPort, &pUser, &pPass, &pEnabled)
+					if pEnabled == 1 && pHost.Valid && pHost.String != "" {
+						pass, _ := crypto.Decrypt(pPass.String)
+						prof := &proxy.Profile{
+							ID:       poolID,
+							Name:     pName.String,
+							Scheme:   pScheme.String,
+							Host:     pHost.String,
+							Port:     pPort,
+							Username: pUser.String,
+							Password: pass,
+						}
+						client, _ = proxyMgr.GetClient(prof, 60*time.Second)
+					}
+				}
+			}
+		}
+
 		return &providers.Credentials{
-			APIKey:    apiKey,
-			SecretKey: secretKey,
-			BaseURL:   baseURL,
+			APIKey:     apiKey,
+			SecretKey:  secretKey,
+			BaseURL:    baseURL,
+			HTTPClient: client,
 		}, nil
 	}
 

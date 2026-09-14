@@ -80,6 +80,7 @@ func NewServer(
 			authApi.Get("/proxy-profiles", adminHandler.ListProxyProfiles)
 			authApi.Post("/proxy-profiles", adminHandler.CreateProxyProfile)
 			authApi.Delete("/proxy-profiles/{id}", adminHandler.DeleteProxyProfile)
+			authApi.Post("/proxy-profiles/{id}/test", adminHandler.TestProxyProfile)
 
 			authApi.Get("/keys", adminHandler.ListApiKeys)
 			authApi.Post("/keys", adminHandler.CreateApiKey)

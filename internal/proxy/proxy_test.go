@@ -103,3 +103,43 @@ func TestDirectProfileTransport(t *testing.T) {
 		t.Error("expected nil Proxy for direct profile")
 	}
 }
+
+func TestRelayTransportAndEdgeDetection(t *testing.T) {
+	pRelay := &Profile{
+		Host:   "xiomi16799.xiomi16799.workers.dev",
+		Port:   443,
+		Scheme: "https",
+	}
+	if !pRelay.IsEdgeRelay() {
+		t.Error("expected workers.dev to be edge relay")
+	}
+	if pRelay.RelayURL() != "https://xiomi16799.xiomi16799.workers.dev" {
+		t.Errorf("unexpected relay url: %s", pRelay.RelayURL())
+	}
+
+	pVercel := &Profile{
+		Host:   "app.vercel.app",
+		Port:   80,
+		Scheme: "http",
+	}
+	if !pVercel.IsEdgeRelay() {
+		t.Error("expected vercel.app to be edge relay")
+	}
+
+	pDeno := &Profile{
+		Host: "test.deno.net",
+	}
+	if !pDeno.IsEdgeRelay() {
+		t.Error("expected deno.net to be edge relay")
+	}
+
+	pDirect := &Profile{
+		Host:   "my-proxy.com",
+		Port:   8080,
+		Scheme: "http",
+	}
+	if pDirect.IsEdgeRelay() {
+		t.Error("standard proxy should not be edge relay")
+	}
+}
+

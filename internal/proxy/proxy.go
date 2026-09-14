@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -44,6 +46,117 @@ func (p *Profile) URL() (*url.URL, error) {
 	return u, nil
 }
 
+func (p *Profile) IsEdgeRelay() bool {
+	if p == nil {
+		return false
+	}
+	h := strings.ToLower(p.Host)
+	return strings.Contains(h, "workers.dev") || strings.Contains(h, "vercel.app") || strings.Contains(h, "deno.net") || p.Scheme == "relay"
+}
+
+func (p *Profile) RelayURL() string {
+	if p == nil || p.Host == "" {
+		return ""
+	}
+	scheme := p.Scheme
+	if scheme == "" || scheme == "relay" {
+		scheme = "https"
+	}
+	if p.Port == 443 || p.Port == 80 || p.Port == 0 {
+		return fmt.Sprintf("%s://%s", scheme, p.Host)
+	}
+	return fmt.Sprintf("%s://%s:%d", scheme, p.Host, p.Port)
+}
+
+type RelayTransport struct {
+	RelayURL string
+	Base     http.RoundTripper
+}
+
+func (t *RelayTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	relayReq := req.Clone(req.Context())
+	parsedRelay, err := url.Parse(t.RelayURL)
+	if err != nil {
+		return nil, err
+	}
+
+	relayReq.Header.Set("x-relay-target", fmt.Sprintf("%s://%s", req.URL.Scheme, req.URL.Host))
+	relayReq.Header.Set("x-relay-path", req.URL.RequestURI())
+
+	relayReq.URL.Scheme = parsedRelay.Scheme
+	relayReq.URL.Host = parsedRelay.Host
+	relayReq.URL.Path = parsedRelay.Path
+	relayReq.Host = parsedRelay.Host
+
+	base := t.Base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(relayReq)
+}
+
+func TestProfile(ctx context.Context, p *Profile, timeout time.Duration) (bool, int, int64, error) {
+	if p == nil {
+		return false, 0, 0, errors.New("nil profile")
+	}
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	start := time.Now()
+	if p.IsEdgeRelay() {
+		relayURL := p.RelayURL()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, relayURL, nil)
+		if err != nil {
+			return false, 0, time.Since(start).Milliseconds(), err
+		}
+		req.Header.Set("User-Agent", "EkaRouter/1.0")
+		req.Header.Set("x-relay-target", "https://httpbin.org")
+		req.Header.Set("x-relay-path", "/get")
+
+		resp, err := client.Do(req)
+		latency := time.Since(start).Milliseconds()
+		if err != nil {
+			return false, 0, latency, err
+		}
+		defer resp.Body.Close()
+		ok := resp.StatusCode >= 200 && resp.StatusCode < 400
+		return ok, resp.StatusCode, latency, nil
+	}
+
+	u, err := p.URL()
+	if err != nil {
+		return false, 0, 0, err
+	}
+	tr := &http.Transport{
+		Proxy:           http.ProxyURL(u),
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	proxyClient := &http.Client{
+		Timeout:   timeout,
+		Transport: tr,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, "https://api.openai.com/v1/models", nil)
+	if err != nil {
+		return false, 0, time.Since(start).Milliseconds(), err
+	}
+	resp, err := proxyClient.Do(req)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return false, 0, latency, err
+	}
+	defer resp.Body.Close()
+	ok := resp.StatusCode >= 200 && resp.StatusCode < 400
+	return ok, resp.StatusCode, latency, nil
+}
+
 type Manager struct {
 	mu                  sync.RWMutex
 	transports          map[string]*http.Transport
@@ -58,6 +171,19 @@ func NewManager(allowLocalProviders bool) *Manager {
 }
 
 func (m *Manager) GetClient(profile *Profile, timeout time.Duration) (*http.Client, error) {
+	if profile != nil && profile.IsEdgeRelay() {
+		baseTr, err := m.GetTransport(nil)
+		if err != nil {
+			return nil, err
+		}
+		return &http.Client{
+			Transport: &RelayTransport{
+				RelayURL: profile.RelayURL(),
+				Base:     baseTr,
+			},
+			Timeout: timeout,
+		}, nil
+	}
 	transport, err := m.GetTransport(profile)
 	if err != nil {
 		return nil, err

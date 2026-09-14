@@ -97,7 +97,7 @@ func (r *Router) LoadFromDB(ctx context.Context, database *sql.DB) error {
 	}
 
 	modelRows, err := database.QueryContext(ctx, `
-SELECT m.external_name, p.kind
+SELECT m.id, m.external_name, p.kind
 FROM models m
 JOIN providers p ON p.id = m.provider_id
 WHERE m.enabled = 1 AND p.enabled = 1`)
@@ -108,8 +108,9 @@ WHERE m.enabled = 1 AND p.enabled = 1`)
 	modelsMap := make(map[string]string)
 	if err == nil {
 		for modelRows.Next() {
-			var extName, kind string
-			if err := modelRows.Scan(&extName, &kind); err == nil {
+			var id, extName, kind string
+			if err := modelRows.Scan(&id, &extName, &kind); err == nil {
+				modelsMap[id] = kind
 				modelsMap[extName] = kind
 			}
 		}
@@ -301,14 +302,24 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
 	providerKind := ""
 	actualModel := targetName
+	specificProviderID := ""
 
 	if strings.Contains(targetName, "/") {
 		parts := strings.SplitN(targetName, "/", 2)
 		prefix := strings.ToLower(parts[0])
-		switch prefix {
-		case "openai", "anthropic", "gemini", "custom":
-			providerKind = prefix
+		r.mu.RLock()
+		if kind, ok := r.providers[prefix]; ok {
+			providerKind = kind
+			specificProviderID = prefix
 			actualModel = parts[1]
+		}
+		r.mu.RUnlock()
+		if providerKind == "" {
+			switch prefix {
+			case "openai", "anthropic", "gemini", "custom":
+				providerKind = prefix
+				actualModel = parts[1]
+			}
 		}
 	}
 
@@ -343,6 +354,12 @@ func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
 			continue
 		}
 		if r.cooldowns.IsCoolingDown(acc.ID) {
+			continue
+		}
+		if specificProviderID != "" {
+			if acc.ProviderID == specificProviderID {
+				eligible = append(eligible, acc)
+			}
 			continue
 		}
 		kind := r.providers[acc.ProviderID]

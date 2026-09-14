@@ -112,7 +112,13 @@ func (a *Adapter) buildEndpointURL(creds *providers.Credentials) string {
 	}
 
 	if a.mode == ModeCodex {
+		if strings.HasSuffix(baseURL, "/responses") {
+			return baseURL
+		}
 		return baseURL + "/responses"
+	}
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		return baseURL
 	}
 	return baseURL + "/chat/completions"
 }

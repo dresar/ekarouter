@@ -48,48 +48,81 @@ var providerAliases = map[string]string{
 	"bai":                 "node_b_ai_api",
 	"9inf":                "node_9inference_cloud",
 	"node_openagentic_id": "node_openagentic_id",
+	"oa":                  "node_openagentic_id",
+	"apx":                 "node_apinex",
+	"dahl":                "node_dahl_global",
+	"zans":                "node_zanslab_id",
+	"tabi":                "openai-compatible-chat-tabitoken",
+	"holver":              "openai-compatible-chat-holver",
+	"cmc":                 "commandcode",
+	"opencode-go":         "opencode-go",
+	"oc":                  "opencode",
+	"mmf":                 "mimo-free",
+	"dv":                  "devin",
+	"cf":                  "cloudflare-ai",
+	"hf":                  "huggingface",
 }
 
 var defaultProviderURLs = map[string]struct{ BaseURL, Kind string }{
-	"gemini":            {"https://generativelanguage.googleapis.com", "gemini"},
-	"gemini-cli":        {"https://cloudcode-pa.googleapis.com", "gemini"},
-	"antigravity":       {"https://daily-cloudcode-pa.googleapis.com", "gemini"},
-	"anthropic":         {"https://api.anthropic.com", "anthropic"},
-	"claude":            {"https://api.anthropic.com", "anthropic"},
-	"openai":            {"https://api.openai.com/v1", "openai"},
-	"groq":              {"https://api.groq.com/openai/v1", "openai"},
-	"openrouter":        {"https://openrouter.ai/api/v1", "openai"},
-	"mistral":           {"https://api.mistral.ai/v1", "openai"},
-	"siliconflow":       {"https://api.siliconflow.cn/v1", "openai"},
-	"venice":            {"https://api.venice.ai/api/v1", "openai"},
-	"together":          {"https://api.together.xyz/v1", "openai"},
-	"xai":               {"https://api.x.ai/v1", "openai"},
-	"grok-cli":          {"https://api.x.ai/v1", "openai"},
-	"nvidia":            {"https://integrate.api.nvidia.com/v1", "openai"},
-	"cohere":            {"https://api.cohere.com/v2", "openai"},
-	"hyperbolic":        {"https://api.hyperbolic.xyz/v1", "openai"},
-	"chutes":            {"https://api.chutes.ai/v1", "openai"},
-	"github":            {"https://models.inference.ai.azure.com", "openai"},
-	"ollama":            {"http://localhost:11434/v1", "openai"},
-	"qoder":             {"https://api.qoder.co/v1", "openai"},
-	"kilocode":          {"https://api.kilocode.ai/v1", "openai"},
-	"cline":             {"https://api.cline.bot/v1", "openai"},
-	"clinepass":         {"https://api.cline.bot/v1", "openai"},
-	"codebuddy-intl":    {"https://api.codebuddy.ai/v1", "openai"},
-	"cloudflare-ai":     {"https://api.cloudflare.com/client/v4/accounts/ai/v1", "openai"},
-	"tokenrouter":       {"https://api.tokenrouter.ai/v1", "openai"},
-	"exa":               {"https://api.exa.ai", "custom"},
-	"xiaomi-tokenplan":  {"https://api.mimo.mi.com/v1", "openai"},
-	"vercel-ai-gateway": {"https://gateway.ai.cloudflare.com/v1", "openai"},
-	"llm7":              {"https://api.llm7.com/v1", "openai"},
-	"morph":             {"https://api.morph.so/v1", "openai"},
-	"kimi":              {"https://api.moonshot.cn/v1", "openai"},
-	"kiro":              {"https://codewhisperer.us-east-1.amazonaws.com", "custom"},
-	"byteplus":          {"https://ark.cn-beijing.volces.com/api/v3", "openai"},
-	"api-airforce":      {"https://api.airforce/v1", "openai"},
-	"bazaarlink":        {"https://api.bazaarlink.com/v1", "openai"},
-	"kilo-gateway":      {"https://gateway.kilo.ai/v1", "openai"},
-	"poolside":          {"https://api.poolside.ai/v1", "openai"},
+	"gemini":                           {"https://generativelanguage.googleapis.com", "gemini"},
+	"gemini-cli":                       {"https://cloudcode-pa.googleapis.com", "gemini"},
+	"antigravity":                      {"https://daily-cloudcode-pa.googleapis.com", "gemini"},
+	"anthropic":                        {"https://api.anthropic.com", "anthropic"},
+	"claude":                           {"https://api.anthropic.com", "anthropic"},
+	"openai":                           {"https://api.openai.com/v1", "openai"},
+	"opencode":                         {"https://opencode.ai", "opencode"},
+	"mimo-free":                        {"https://api.xiaomimimo.com/api/free-ai/openai/chat", "mimo-free"},
+	"devin":                            {"https://api.devin.ai/v1", "devin"},
+	"devin-cli":                        {"https://api.devin.ai/v1", "devin"},
+	"groq":                             {"https://api.groq.com/openai/v1", "groq"},
+	"cerebras":                         {"https://api.cerebras.ai/v1", "cerebras"},
+	"openrouter":                       {"https://openrouter.ai/api/v1", "openrouter"},
+	"mistral":                          {"https://api.mistral.ai/v1", "openai"},
+	"siliconflow":                      {"https://api.siliconflow.cn/v1", "openai"},
+	"venice":                           {"https://api.venice.ai/api/v1", "openai"},
+	"together":                         {"https://api.together.xyz/v1", "openai"},
+	"xai":                              {"https://api.x.ai/v1", "openai"},
+	"grok-cli":                         {"https://api.x.ai/v1", "openai"},
+	"nvidia":                           {"https://integrate.api.nvidia.com/v1", "nvidia"},
+	"cohere":                           {"https://api.cohere.com/v2", "openai"},
+	"hyperbolic":                       {"https://api.hyperbolic.xyz/v1", "openai"},
+	"chutes":                           {"https://api.chutes.ai/v1", "chutes"},
+	"github":                           {"https://models.inference.ai.azure.com", "openai"},
+	"ollama":                           {"http://localhost:11434/v1", "ollama"},
+	"qoder":                            {"https://api.qoder.co/v1", "openai"},
+	"kilocode":                         {"https://api.kilocode.ai/v1", "openai"},
+	"cline":                            {"https://api.cline.bot/v1", "openai"},
+	"clinepass":                        {"https://api.cline.bot/v1", "openai"},
+	"codebuddy-intl":                   {"https://api.codebuddy.ai/v1", "openai"},
+	"cloudflare-ai":                    {"https://api.cloudflare.com/client/v4/accounts/ai/v1", "cloudflare-ai"},
+	"tokenrouter":                      {"https://api.tokenrouter.ai/v1", "openai"},
+	"exa":                              {"https://api.exa.ai", "custom"},
+	"xiaomi-tokenplan":                 {"https://api.mimo.mi.com/v1", "openai"},
+	"vercel-ai-gateway":                {"https://gateway.ai.cloudflare.com/v1", "openai"},
+	"llm7":                             {"https://api.llm7.com/v1", "openai"},
+	"morph":                            {"https://api.morph.so/v1", "openai"},
+	"kimi":                             {"https://api.moonshot.cn/v1", "openai"},
+	"kiro":                             {"https://runtime.us-east-1.kiro.dev", "kiro"},
+	"byteplus":                         {"https://ark.cn-beijing.volces.com/api/v3", "openai"},
+	"api-airforce":                     {"https://api.airforce/v1", "api-airforce"},
+	"bazaarlink":                       {"https://api.bazaarlink.com/v1", "bazaarlink"},
+	"kilo-gateway":                     {"https://gateway.kilo.ai/v1", "kilo-gateway"},
+	"kimchi":                           {"https://llm.kimchi.dev/openai/v1", "kimchi"},
+	"huggingface":                      {"https://router.huggingface.co/hf-inference/v1", "huggingface"},
+	"searxng":                          {"http://localhost:8080/search", "searxng"},
+	"edge-tts":                         {"http://localhost:5050/v1/audio/speech", "edge-tts"},
+	"coqui":                            {"http://localhost:5002/api/tts", "coqui"},
+	"poolside":                         {"https://api.poolside.ai/v1", "openai"},
+	"commandcode":                      {"https://api.commandcode.ai/v1", "openai"},
+	"opencode-go":                      {"https://opencode.ai/zen/go/v1", "openai"},
+	"node_openagentic_id":              {"https://openagentic.id/api/v1", "openai"},
+	"node_9inference_cloud":            {"https://9inference.cloud/v1/package", "openai"},
+	"node_b_ai_api":                    {"https://api.b.ai/v1", "openai"},
+	"node_zanslab_id":                  {"https://zanslab.id/v1", "openai"},
+	"node_dahl_global":                 {"https://inference.dahl.global/v1", "openai"},
+	"node_apinex":                      {"https://api.apinex.bond/v1", "openai"},
+	"openai-compatible-chat-tabitoken": {"https://tabitoken.com/v1", "openai"},
+	"openai-compatible-chat-holver":    {"https://api.holver.web.id/v1", "openai"},
 }
 
 func Import9RouterBackup(database *DB, crypto *auth.CryptoService, filePath string) (*ImportStats, error) {
@@ -128,6 +161,8 @@ func Import9RouterBackup(database *DB, crypto *auth.CryptoService, filePath stri
 		id, _ := node["id"].(string)
 		name, _ := node["name"].(string)
 		baseUrl, _ := node["baseUrl"].(string)
+		prefix, _ := node["prefix"].(string)
+		apiKey, _ := node["apiKey"].(string)
 		if baseUrl == "" {
 			if dataMap, ok := node["data"].(map[string]any); ok {
 				baseUrl, _ = dataMap["baseUrl"].(string)
@@ -143,21 +178,62 @@ func Import9RouterBackup(database *DB, crypto *auth.CryptoService, filePath stri
 		if baseUrl == "" {
 			baseUrl = "https://api.openai.com/v1"
 		}
+		if prefix != "" {
+			providerAliases[prefix] = id
+		}
 
 		_, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO providers (id, key, name, kind, base_url, enabled) VALUES (?, ?, ?, ?, ?, 1)",
-			id, id, name, "custom", baseUrl)
+			id, id, name, "openai", baseUrl)
 		if err == nil {
 			knownProviders[id] = true
 			stats.Providers++
 		}
+
+		if modelsRaw, ok := node["models"].([]any); ok {
+			for _, mRaw := range modelsRaw {
+				mStr, _ := mRaw.(string)
+				if mStr == "" {
+					continue
+				}
+				modelKey := fmt.Sprintf("%s/%s", id, mStr)
+				_, err := tx.ExecContext(ctx, `
+INSERT OR REPLACE INTO models (id, provider_id, external_name, display_name, context_limit, input_capability, output_capability, streaming, enabled)
+VALUES (?, ?, ?, ?, 128000, 'text', 'text', 1, 1)`, modelKey, id, mStr, mStr)
+				if err == nil {
+					stats.Models++
+				}
+				if prefix != "" {
+					aliasKey := fmt.Sprintf("%s/%s", prefix, mStr)
+					_, _ = tx.ExecContext(ctx, `
+INSERT OR IGNORE INTO models (id, provider_id, external_name, display_name, context_limit, input_capability, output_capability, streaming, enabled)
+VALUES (?, ?, ?, ?, 128000, 'text', 'text', 1, 1)`, aliasKey, id, mStr, mStr)
+				}
+			}
+		}
+
+		if apiKey != "" {
+			accID := "acc-" + id
+			_, _ = tx.ExecContext(ctx, `
+INSERT OR REPLACE INTO accounts (id, provider_id, name, auth_type, state, priority, enabled)
+VALUES (?, ?, ?, 'apiKey', 'active', 1, 1)`, accID, id, name)
+			encAccess, _ := crypto.Encrypt(apiKey)
+			h := sha256.Sum256([]byte(apiKey))
+			fingerprint := hex.EncodeToString(h[:8])
+			_, _ = tx.ExecContext(ctx, `
+INSERT OR REPLACE INTO credentials (id, account_id, encrypted_access, encrypted_refresh, encrypted_secret, key_fingerprint)
+VALUES (?, ?, ?, '', '', ?)`, "cred-"+accID, accID, encAccess, fingerprint)
+		}
 	}
 
-	ensureProvider := func(provID string) {
+	ensureProvider := func(provID string) string {
+		if canonical, ok := providerAliases[provID]; ok {
+			provID = canonical
+		}
 		if knownProviders[provID] {
-			return
+			return provID
 		}
 		name := strings.Title(strings.ReplaceAll(provID, "-", " "))
-		kind := "custom"
+		kind := "openai"
 		baseUrl := "https://api.openai.com/v1"
 
 		if def, ok := defaultProviderURLs[provID]; ok {
@@ -171,6 +247,7 @@ func Import9RouterBackup(database *DB, crypto *auth.CryptoService, filePath stri
 			knownProviders[provID] = true
 			stats.Providers++
 		}
+		return provID
 	}
 
 	for _, conn := range root.ProviderConnections {
@@ -315,14 +392,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, id, name, scheme, host, port, username, encPas
 			name = id
 		}
 
-		ensureProvider(alias)
+		canonicalProv := ensureProvider(alias)
 
-		modelKey := fmt.Sprintf("%s/%s", alias, id)
+		outCap := "text"
+		if mType, ok := m["type"].(string); ok && mType == "image" {
+			outCap = "image"
+		}
+
+		modelKey := fmt.Sprintf("%s/%s", canonicalProv, id)
 		_, err := tx.ExecContext(ctx, `
 INSERT OR REPLACE INTO models (id, provider_id, external_name, display_name, context_limit, input_capability, output_capability, streaming, enabled)
-VALUES (?, ?, ?, ?, 128000, 'text', 'text', 1, 1)`, modelKey, alias, id, name)
+VALUES (?, ?, ?, ?, 128000, 'text', ?, 1, 1)`, modelKey, canonicalProv, id, name, outCap)
 		if err == nil {
 			stats.Models++
+		}
+
+		if alias != canonicalProv {
+			aliasModelKey := fmt.Sprintf("%s/%s", alias, id)
+			_, _ = tx.ExecContext(ctx, `
+INSERT OR IGNORE INTO models (id, provider_id, external_name, display_name, context_limit, input_capability, output_capability, streaming, enabled)
+VALUES (?, ?, ?, ?, 128000, 'text', ?, 1, 1)`, aliasModelKey, canonicalProv, id, name, outCap)
 		}
 	}
 
