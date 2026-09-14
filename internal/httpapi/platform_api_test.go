@@ -120,7 +120,6 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		return w
 	}
 
-	// 1. Providers
 	res := authGet("/api/v1/providers")
 	if res.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/providers failed: %d", res.Code)
@@ -146,7 +145,6 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/v1/providers/cloudflare/validate failed: %d", res.Code)
 	}
 
-	// 2. Projects & Environments
 	res = authPost("/api/v1/projects", map[string]string{
 		"name":        "Test Project",
 		"environment": "production",
@@ -207,7 +205,6 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		t.Fatalf("PATCH /api/v1/environments/:id failed: %d", res.Code)
 	}
 
-	// 3. Credentials
 	credReq := map[string]any{
 		"name":            "Cloudflare Prod Key",
 		"credential_type": "api_key",
@@ -266,7 +263,6 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /api/v1/credentials/:id/health failed: %d", res.Code)
 	}
 
-	// 4. Tools
 	toolReq := map[string]any{
 		"provider_id":  "cloudflare",
 		"name":         "List DNS Zones",

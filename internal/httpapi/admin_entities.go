@@ -561,6 +561,10 @@ func (a *AdminHandler) CreateProxyProfile(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if body.ID == "" {
+		body.ID = "proxy_" + uuid.NewString()[:8]
+	}
+
 	enabled := 1
 	if body.Enabled != nil && !*body.Enabled {
 		enabled = 0

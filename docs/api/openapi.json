@@ -1,0 +1,302 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EkaRouter Universal AI Gateway & Developer Platform API",
+    "description": "Complete production specification for the EkaRouter multi-provider AI routing gateway, encrypted credential vault, proxy profiles, and developer platform.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://api.ekarouter.dev",
+      "description": "Production Gateway"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check Probe",
+        "operationId": "getHealth",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "example": "ok"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "List AI Models & Routes",
+        "operationId": "listModels",
+        "tags": ["AI Gateway"],
+        "security": [{"ApiKeyAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of available models in OpenAI format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Create Chat Completion",
+        "operationId": "chatCompletions",
+        "tags": ["AI Gateway"],
+        "security": [{"ApiKeyAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat completion response or SSE stream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/400BadRequest"},
+          "401": {"$ref": "#/components/responses/401Unauthorized"},
+          "502": {"$ref": "#/components/responses/502BadGateway"}
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Administrator Login",
+        "operationId": "adminLogin",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": {"type": "string", "example": "admin"},
+                  "password": {"type": "string", "example": "strong_password_here"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated session established",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "example": "authenticated"},
+                    "token": {"type": "string", "example": "sess_raw_token_value"},
+                    "expires_at": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/401Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/providers": {
+      "get": {
+        "summary": "List Registered Platform Providers",
+        "operationId": "listPlatformProviders",
+        "tags": ["Platform Providers"],
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of supported provider metadata"
+          }
+        }
+      }
+    },
+    "/api/v1/credentials": {
+      "get": {
+        "summary": "List Stored Credentials (Masked)",
+        "operationId": "listCredentials",
+        "tags": ["Credentials Vault"],
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of credentials with masked values"
+          }
+        }
+      },
+      "post": {
+        "summary": "Store Encrypted Credential in Vault",
+        "operationId": "createCredential",
+        "tags": ["Credentials Vault"],
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "201": {
+            "description": "Credential securely stored"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session_token"
+      }
+    },
+    "schemas": {
+      "ModelListResponse": {
+        "type": "object",
+        "properties": {
+          "object": {"type": "string", "example": "list"},
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "example": "gpt-4o"},
+                "object": {"type": "string", "example": "model"},
+                "created": {"type": "integer", "example": 1700000000},
+                "owned_by": {"type": "string", "example": "ekarouter"}
+              }
+            }
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {"type": "string", "example": "gpt-4o"},
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["role", "content"],
+              "properties": {
+                "role": {"type": "string", "enum": ["system", "user", "assistant", "tool"], "example": "user"},
+                "content": {"type": "string", "example": "Hello, EkaRouter!"}
+              }
+            }
+          },
+          "stream": {"type": "boolean", "example": false},
+          "temperature": {"type": "number", "example": 0.7}
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "example": "chatcmpl-12345"},
+          "object": {"type": "string", "example": "chat.completion"},
+          "created": {"type": "integer", "example": 1700000000},
+          "model": {"type": "string", "example": "gpt-4o"},
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {"type": "integer", "example": 0},
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": {"type": "string", "example": "assistant"},
+                    "content": {"type": "string", "example": "Hello!"}
+                  }
+                },
+                "finish_reason": {"type": "string", "example": "stop"}
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {"type": "integer", "example": 12},
+              "completion_tokens": {"type": "integer", "example": 9},
+              "total_tokens": {"type": "integer", "example": 21}
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": false},
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {"type": "string", "example": "invalid_request"},
+              "message": {"type": "string", "example": "Required field missing"}
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "400BadRequest": {
+        "description": "Invalid request parameters",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
+      "401Unauthorized": {
+        "description": "Unauthorized access",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      },
+      "502BadGateway": {
+        "description": "Upstream failure",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
+      }
+    }
+  }
+}

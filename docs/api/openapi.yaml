@@ -1,0 +1,725 @@
+openapi: 3.1.0
+info:
+  title: EkaRouter Universal AI Gateway & Developer Platform API
+  description: Complete production specification for the EkaRouter multi-provider AI routing gateway, encrypted credential vault, proxy profiles, and developer platform.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local Development Server
+  - url: https://api.ekarouter.dev
+    description: Production Gateway
+
+paths:
+  /health:
+    get:
+      summary: Health Check Probe
+      operationId: getHealth
+      tags: [System]
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /ready:
+    get:
+      summary: Readiness Probe
+      operationId: getReady
+      tags: [System]
+      responses:
+        '200':
+          description: Database and core systems ready
+
+  /live:
+    get:
+      summary: Liveness Probe
+      operationId: getLive
+      tags: [System]
+      responses:
+        '200':
+          description: Process is active
+
+  /v1/models:
+    get:
+      summary: List AI Models & Routes
+      operationId: listModels
+      tags: [AI Gateway]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of available models in OpenAI format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelListResponse'
+
+  /v1/chat/completions:
+    post:
+      summary: Create Chat Completion
+      operationId: chatCompletions
+      tags: [AI Gateway]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: header
+          name: X-Token-Saver
+          schema:
+            type: string
+            enum: [off, safe, balanced]
+          required: false
+          description: Override token saver optimization mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+      responses:
+        '200':
+          description: Chat completion response or SSE stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE chunks ending with data [DONE]
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '502':
+          $ref: '#/components/responses/502BadGateway'
+
+  /v1/responses:
+    post:
+      summary: Alternate Chat Completion Endpoint
+      operationId: responses
+      tags: [AI Gateway]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+      responses:
+        '200':
+          description: Completion response
+
+  /api/auth/login:
+    post:
+      summary: Administrator Login
+      operationId: adminLogin
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  example: strong_password_here
+      responses:
+        '200':
+          description: Authenticated session established
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: session_token=sess_token_val; Path=/; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: authenticated
+                  token:
+                    type: string
+                    example: sess_raw_token_value
+                  expires_at:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
+  /api/auth/logout:
+    post:
+      summary: Administrator Logout
+      operationId: adminLogout
+      tags: [Authentication]
+      security:
+        - SessionCookie: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Session invalidated
+
+  /api/auth/me:
+    get:
+      summary: Current Authenticated User
+      operationId: getMe
+      tags: [Authentication]
+      security:
+        - SessionCookie: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: string
+                    example: admin
+
+  /api/v1/providers:
+    get:
+      summary: List Registered Platform Providers
+      operationId: listPlatformProviders
+      tags: [Platform Providers]
+      security:
+        - BearerAuth: []
+        - SessionCookie: []
+      responses:
+        '200':
+          description: List of supported provider metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderMetadata'
+
+  /api/v1/credentials:
+    get:
+      summary: List Stored Credentials (Masked)
+      operationId: listCredentials
+      tags: [Credentials Vault]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of credentials with masked values
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MaskedCredential'
+    post:
+      summary: Store Encrypted Credential in Vault
+      operationId: createCredential
+      tags: [Credentials Vault]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, provider_id, secret_value]
+              properties:
+                name:
+                  type: string
+                  example: Cloudflare Production Token
+                provider_id:
+                  type: string
+                  example: cloudflare
+                secret_value:
+                  type: string
+                  example: cf_live_token_secret_12345
+                environment:
+                  type: string
+                  example: production
+                project_id:
+                  type: string
+                  example: proj_prod
+      responses:
+        '201':
+          description: Credential securely stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaskedCredentialResponse'
+
+  /api/v1/credentials/{id}:
+    get:
+      summary: Get Credential Metadata
+      operationId: getCredential
+      tags: [Credentials Vault]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Credential details (masked)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaskedCredentialResponse'
+    delete:
+      summary: Delete Credential
+      operationId: deleteCredential
+      tags: [Credentials Vault]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Credential deleted
+
+  /api/v1/credentials/{id}/rotate:
+    post:
+      summary: Rotate Credential Secret
+      operationId: rotateCredential
+      tags: [Credentials Vault]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_secret]
+              properties:
+                new_secret:
+                  type: string
+                  example: cf_new_rotated_token_67890
+      responses:
+        '200':
+          description: Credential rotated successfully
+
+  /api/v1/projects:
+    get:
+      summary: List Projects
+      operationId: listProjects
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Projects list
+    post:
+      summary: Create Project
+      operationId: createProject
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: AI Workspace
+                description:
+                  type: string
+                  example: Primary development workspace
+      responses:
+        '201':
+          description: Project created
+
+  /api/v1/tools:
+    get:
+      summary: List Tools
+      operationId: listTools
+      tags: [Tools]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tools list
+    post:
+      summary: Create Tool
+      operationId: createTool
+      tags: [Tools]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, provider_id, action_type]
+              properties:
+                name:
+                  type: string
+                  example: Deploy Worker
+                provider_id:
+                  type: string
+                  example: cloudflare
+                action_type:
+                  type: string
+                  example: http
+                configuration:
+                  type: object
+      responses:
+        '201':
+          description: Tool created
+
+  /api/v1/tools/{id}/execute:
+    post:
+      summary: Execute Tool
+      operationId: executeTool
+      tags: [Tools]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Tool execution output
+
+  /api/proxies:
+    get:
+      summary: List Outbound Proxies
+      operationId: listProxies
+      tags: [Proxies]
+      security:
+        - SessionCookie: []
+      responses:
+        '200':
+          description: Proxy profiles list (passwords masked)
+    post:
+      summary: Create Outbound Proxy Profile
+      operationId: createProxy
+      tags: [Proxies]
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scheme, host, port]
+              properties:
+                name:
+                  type: string
+                  example: EU Datacenter Proxy
+                scheme:
+                  type: string
+                  enum: [http, https, socks5]
+                  example: http
+                host:
+                  type: string
+                  example: proxy.datacenter.eu
+                port:
+                  type: integer
+                  example: 8080
+                username:
+                  type: string
+                  example: proxy_user
+                password:
+                  type: string
+                  example: proxy_pass_12345
+                enabled:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Proxy profile created with generated ID
+
+  /api/credential-pools:
+    get:
+      summary: List Credential Pools
+      operationId: listCredentialPools
+      tags: [Credential Pools]
+      security:
+        - SessionCookie: []
+      responses:
+        '200':
+          description: Credential pools list
+    post:
+      summary: Create Credential Pool
+      operationId: createCredentialPool
+      tags: [Credential Pools]
+      security:
+        - SessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: OpenAI Production Pool
+                environment:
+                  type: string
+                  example: production
+      responses:
+        '201':
+          description: Credential pool created
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: API Key authentication for the /v1 AI gateway
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer session token or client token for /api/v1 platform routes
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_token
+      description: Session cookie issued upon administrator login
+
+  schemas:
+    ModelListResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: gpt-4o
+              object:
+                type: string
+                example: model
+              created:
+                type: integer
+                example: 1700000000
+              owned_by:
+                type: string
+                example: ekarouter
+
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          example: gpt-4o
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant, tool]
+                example: user
+              content:
+                type: string
+                example: Hello, EkaRouter!
+        stream:
+          type: boolean
+          example: false
+        temperature:
+          type: number
+          example: 0.7
+
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: chatcmpl-12345
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+          example: 1700000000
+        model:
+          type: string
+          example: gpt-4o
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+                example: 0
+              message:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    example: assistant
+                  content:
+                    type: string
+                    example: Hello! How can I assist you today?
+              finish_reason:
+                type: string
+                example: stop
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+              example: 12
+            completion_tokens:
+              type: integer
+              example: 9
+            total_tokens:
+              type: integer
+              example: 21
+
+    ProviderMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          example: cloudflare
+        name:
+          type: string
+          example: Cloudflare
+        category:
+          type: string
+          example: developer
+        description:
+          type: string
+          example: Cloudflare API for DNS, Workers, Pages
+        base_url:
+          type: string
+          example: https://api.cloudflare.com/client/v4
+        auth_type:
+          type: string
+          example: bearer_token
+
+    MaskedCredential:
+      type: object
+      properties:
+        id:
+          type: string
+          example: cred_123456
+        name:
+          type: string
+          example: Cloudflare Production Token
+        provider_id:
+          type: string
+          example: cloudflare
+        masked_value:
+          type: string
+          example: cf_sec***12
+        environment:
+          type: string
+          example: production
+        status:
+          type: string
+          example: active
+
+    MaskedCredentialResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/MaskedCredential'
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: invalid_request
+            message:
+              type: string
+              example: Required field missing
+
+  responses:
+    400BadRequest:
+      description: Invalid request parameters or malformed JSON
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    401Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    502BadGateway:
+      description: Upstream provider failure or circuit breaker triggered
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

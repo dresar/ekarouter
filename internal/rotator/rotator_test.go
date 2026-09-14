@@ -93,4 +93,3 @@ func TestRotatorPerPoolIsolation(t *testing.T) {
 		t.Fatalf("Expected p1_c2, got %v, err=%v", selP1_2, err)
 	}
 }
-

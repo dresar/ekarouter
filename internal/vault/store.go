@@ -342,7 +342,6 @@ func (s *Store) RotateMasterKey(ctx context.Context, newVault *Vault) error {
 		enc string
 	}
 
-	// 1. Re-encrypt vault_credentials
 	rows, err := tx.QueryContext(ctx, "SELECT id, encrypted_value FROM vault_credentials")
 	if err != nil {
 		return fmt.Errorf("query vault_credentials: %w", err)
@@ -370,7 +369,6 @@ func (s *Store) RotateMasterKey(ctx context.Context, newVault *Vault) error {
 		}
 	}
 
-	// 2. Re-encrypt credential_versions
 	vRows, err := tx.QueryContext(ctx, "SELECT id, encrypted_value FROM credential_versions")
 	if err == nil {
 		var versions []itemEnc
@@ -395,7 +393,6 @@ func (s *Store) RotateMasterKey(ctx context.Context, newVault *Vault) error {
 		}
 	}
 
-	// 3. Re-encrypt webhooks
 	wRows, err := tx.QueryContext(ctx, "SELECT id, secret_encrypted FROM webhooks")
 	if err == nil {
 		var whs []itemEnc
@@ -427,4 +424,3 @@ func (s *Store) RotateMasterKey(ctx context.Context, newVault *Vault) error {
 	s.vault = newVault
 	return nil
 }
-

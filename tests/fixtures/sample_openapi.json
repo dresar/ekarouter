@@ -1,0 +1,63 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Mock Upstream Service API",
+    "version": "1.0.0",
+    "description": "Test fixture OpenAPI definition for devtools import validation"
+  },
+  "servers": [
+    {
+      "url": "https://api.mockservice.test/v1"
+    }
+  ],
+  "paths": {
+    "/items": {
+      "get": {
+        "summary": "List items",
+        "operationId": "listItems",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {"type": "string"},
+                      "name": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create item",
+        "operationId": "createItem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Item created"
+          }
+        }
+      }
+    }
+  }
+}

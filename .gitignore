@@ -33,6 +33,7 @@ data/*.db-journal
 *.test
 *.prof
 coverage.html
+tests/reports/
 
 # Editor / OS
 .vscode/

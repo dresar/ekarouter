@@ -170,13 +170,11 @@ func TestRotateMasterKey(t *testing.T) {
 		t.Fatalf("CreateCredential: %v", err)
 	}
 
-	// Verify readable with key1
 	dec1, err := store.GetDecryptedSecret(ctx, cred.ID)
 	if err != nil || dec1 != rawSecret {
 		t.Fatalf("dec1 mismatch: %s, err: %v", dec1, err)
 	}
 
-	// Rotate to key2
 	key2 := "master-key-secondary-987654321098"
 	v2, err := vault.NewVault(key2)
 	if err != nil {
@@ -187,17 +185,14 @@ func TestRotateMasterKey(t *testing.T) {
 		t.Fatalf("RotateMasterKey: %v", err)
 	}
 
-	// Verify readable with new vault
 	dec2, err := store.GetDecryptedSecret(ctx, cred.ID)
 	if err != nil || dec2 != rawSecret {
 		t.Fatalf("dec2 mismatch: %s, err: %v", dec2, err)
 	}
 
-	// Verify old vault CANNOT decrypt new ciphertext
 	var newEnc string
 	_ = d.DB.QueryRowContext(ctx, "SELECT encrypted_value FROM vault_credentials WHERE id = ?", cred.ID).Scan(&newEnc)
 	if _, err := v1.Decrypt(newEnc); err == nil {
 		t.Fatal("Old vault unexpectedly succeeded in decrypting ciphertext encrypted with new master key")
 	}
 }
-

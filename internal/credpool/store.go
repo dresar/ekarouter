@@ -31,10 +31,15 @@ func (s *Store) CreatePool(ctx context.Context, p *Pool) error {
 	p.CreatedAt = now
 	p.UpdatedAt = now
 
+	var provID any
+	if p.ProviderID != "" {
+		provID = p.ProviderID
+	}
+
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO credential_pools (id, name, owner_id, provider_id, environment, status, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.Name, p.OwnerID, p.ProviderID, p.Environment, p.Status, p.CreatedAt, p.UpdatedAt)
+		p.ID, p.Name, p.OwnerID, provID, p.Environment, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create pool: %w", err)
 	}

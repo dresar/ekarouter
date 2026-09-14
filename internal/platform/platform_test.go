@@ -130,7 +130,6 @@ func TestBaseAdapterExecution(t *testing.T) {
 }
 
 func TestSafeHTTPClientRedirectBlock(t *testing.T) {
-	// Server redirects to loopback
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "http://127.0.0.1:8080/evil", http.StatusFound)
 	}))
@@ -143,4 +142,3 @@ func TestSafeHTTPClientRedirectBlock(t *testing.T) {
 		t.Fatal("expected error following redirect to 127.0.0.1, got nil")
 	}
 }
-
