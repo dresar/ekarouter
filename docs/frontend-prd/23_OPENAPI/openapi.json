@@ -1,0 +1,136 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "EkaRouter API",
+    "version": "1.0.0",
+    "description": "Universal AI Gateway & Developer API Management Platform OpenAPI 3.0 specification."
+  },
+  "servers": [
+    { "url": "http://localhost:8080", "description": "Local development server" },
+    { "url": "https://api.ekarouter.io", "description": "Production gateway server" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "System health check",
+        "responses": {
+          "200": {
+            "description": "Health summary",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "OpenAI compatible model list",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of available models" }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "OpenAI compatible chat completions",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Chat completion response or SSE stream" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Authenticate management session",
+        "responses": {
+          "200": { "description": "Login successful" }
+        }
+      }
+    },
+    "/api/providers": {
+      "get": {
+        "summary": "List AI providers",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "List of providers" } }
+      },
+      "post": {
+        "summary": "Create or update provider",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "201": { "description": "Provider created" } }
+      }
+    },
+    "/api/accounts": {
+      "get": {
+        "summary": "List accounts",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "List of accounts" } }
+      },
+      "post": {
+        "summary": "Create or update account",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "201": { "description": "Account created" } }
+      }
+    },
+    "/api/routes": {
+      "get": {
+        "summary": "List routes",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "List of routes" } }
+      },
+      "post": {
+        "summary": "Create or update route",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "201": { "description": "Route created" } }
+      }
+    },
+    "/api/v1/credentials": {
+      "get": {
+        "summary": "List vault credentials",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Masked credentials" } }
+      },
+      "post": {
+        "summary": "Store credential in vault",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Credential stored" } }
+      }
+    },
+    "/api/v1/tools": {
+      "get": {
+        "summary": "List generic tools",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "List of tools" } }
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "summary": "Query audit logs",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Audit log records" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "database": { "type": "string" },
+          "uptime": { "type": "string" }
+        }
+      }
+    }
+  }
+}

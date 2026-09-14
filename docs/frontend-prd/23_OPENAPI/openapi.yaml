@@ -1,0 +1,614 @@
+openapi: 3.0.3
+info:
+  title: EkaRouter API
+  version: 1.0.0
+  description: Universal AI Gateway & Developer API Management Platform OpenAPI 3.0 specification.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.ekarouter.io
+    description: Production gateway server
+
+paths:
+  /health:
+    get:
+      summary: System health check
+      responses:
+        '200':
+          description: Health summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: System ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+
+  /v1/models:
+    get:
+      summary: OpenAI compatible model list
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of available AI models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: gpt-4o
+                        object:
+                          type: string
+                          example: model
+
+  /v1/chat/completions:
+    post:
+      summary: OpenAI compatible chat completions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - model
+                - messages
+              properties:
+                model:
+                  type: string
+                  example: gpt-4o
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        example: user
+                      content:
+                        type: string
+                        example: Hello EkaRouter
+                stream:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Chat completion response or SSE stream
+
+  /api/auth/login:
+    post:
+      summary: Authenticate management session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  example: admin12345
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                      role:
+                        type: string
+
+  /api/providers:
+    get:
+      summary: List AI providers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Provider'
+    post:
+      summary: Create or update AI provider
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderInput'
+      responses:
+        '201':
+          description: Provider saved
+
+  /api/providers/{id}:
+    delete:
+      summary: Delete AI provider
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Provider deleted
+
+  /api/accounts:
+    get:
+      summary: List provider accounts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+    post:
+      summary: Create or update account with credentials
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountInput'
+      responses:
+        '201':
+          description: Account created
+
+  /api/routes:
+    get:
+      summary: List routing combos
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'
+    post:
+      summary: Create or update routing combo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteInput'
+      responses:
+        '201':
+          description: Route created
+
+  /api/keys:
+    get:
+      summary: List ingress API keys
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of API keys
+    post:
+      summary: Generate new ingress API key
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                scopes:
+                  type: string
+                  default: '*'
+      responses:
+        '201':
+          description: API key generated
+
+  /api/proxies:
+    get:
+      summary: List outbound proxies
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of proxies
+    post:
+      summary: Create proxy profile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProxyInput'
+      responses:
+        '201':
+          description: Proxy profile created
+
+  /api/proxies/{id}/test:
+    post:
+      summary: Test proxy connectivity
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connectivity test result
+
+  /api/v1/credentials:
+    get:
+      summary: List encrypted vault credentials
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Masked vault credentials
+    post:
+      summary: Store credential in vault
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaultCredentialInput'
+      responses:
+        '200':
+          description: Credential stored
+
+  /api/v1/tools:
+    get:
+      summary: List generic tools
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of tool definitions
+    post:
+      summary: Create generic tool definition
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolInput'
+      responses:
+        '200':
+          description: Tool definition created
+
+  /api/v1/tools/{id}/execute:
+    post:
+      summary: Execute tool with parameters and SSRF validation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variables:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '200':
+          description: Execution result
+
+  /api/v1/audit-logs:
+    get:
+      summary: Query system audit logs
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Paginated audit log records
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        database:
+          type: string
+        uptime:
+          type: string
+
+    Provider:
+      type: object
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+        base_url:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+        updated_at:
+          type: string
+
+    ProviderInput:
+      type: object
+      required:
+        - name
+        - kind
+        - base_url
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+        base_url:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+        provider_id:
+          type: string
+        name:
+          type: string
+        auth_type:
+          type: string
+        state:
+          type: string
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+
+    AccountInput:
+      type: object
+      required:
+        - provider_id
+        - auth_type
+      properties:
+        id:
+          type: string
+        provider_id:
+          type: string
+        name:
+          type: string
+        auth_type:
+          type: string
+        priority:
+          type: integer
+          default: 10
+        api_key:
+          type: string
+        secret_key:
+          type: string
+
+    Route:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        strategy:
+          type: string
+        enabled:
+          type: boolean
+        item_count:
+          type: integer
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              provider_id:
+                type: string
+              account_id:
+                type: string
+              priority:
+                type: integer
+              weight:
+                type: integer
+
+    RouteInput:
+      type: object
+      required:
+        - name
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        strategy:
+          type: string
+          default: priority
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - provider_id
+            properties:
+              provider_id:
+                type: string
+              account_id:
+                type: string
+              priority:
+                type: integer
+                default: 10
+              weight:
+                type: integer
+                default: 1
+
+    ProxyInput:
+      type: object
+      required:
+        - name
+        - host
+        - port
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        scheme:
+          type: string
+          default: http
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        password:
+          type: string
+
+    VaultCredentialInput:
+      type: object
+      required:
+        - name
+        - credential_type
+        - provider_id
+        - value
+      properties:
+        name:
+          type: string
+        credential_type:
+          type: string
+        provider_id:
+          type: string
+        environment:
+          type: string
+          default: production
+        value:
+          type: string
+        priority:
+          type: integer
+          default: 10
+        tags:
+          type: string
+
+    ToolInput:
+      type: object
+      required:
+        - name
+        - provider_id
+        - method
+        - url_template
+      properties:
+        provider_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          default: developer
+        method:
+          type: string
+          default: GET
+        url_template:
+          type: string
+        timeout_ms:
+          type: integer
+          default: 10000
