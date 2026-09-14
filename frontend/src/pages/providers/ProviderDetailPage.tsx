@@ -656,178 +656,12 @@ export function ProviderDetailPage() {
         </div>
       )}
 
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-[var(--border-subtle)]">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h3 className="text-[15px] font-bold text-[var(--text-primary)]">Available Models</h3>
-
-            <div className="relative inline-block">
-              <select
-                value={thinkingMode}
-                onChange={(e) => handleThinkingChange(e.target.value)}
-                className="h-7 px-2.5 pr-6 text-[11.5px] font-medium rounded-[6px] bg-[#1c1e24] border border-[#333742] text-[#d4d6df] hover:border-[var(--brand-primary)] focus:outline-none cursor-pointer appearance-none"
-              >
-                <option value="Auto">Thinking: Auto</option>
-                <option value="Enabled">Thinking: Enabled</option>
-                <option value="High">Thinking: High</option>
-                <option value="Medium">Thinking: Medium</option>
-                <option value="Low">Thinking: Low</option>
-                <option value="Disabled">Thinking: Disabled</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-[#8a8d9a]">
-                <ChevronDown className="w-3 h-3" />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleBatchToggleModels(true)}
-              className="h-7 px-2.5 text-[11.5px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#282b33] border border-[#333742] text-[#e0e2eb] flex items-center gap-1.5 transition-colors"
-            >
-              <RotateCw className="w-3 h-3 text-[#a0a4b5]" />
-              Active All
-            </button>
-            <button
-              type="button"
-              onClick={() => handleBatchToggleModels(false)}
-              className="h-7 px-2.5 text-[11.5px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#282b33] border border-[#333742] text-[#e0e2eb] flex items-center gap-1.5 transition-colors"
-            >
-              <Ban className="w-3 h-3 text-[#a0a4b5]" />
-              Disable All
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center flex-wrap gap-2.5">
-          {activeModels.map((m) => {
-            const displayModelId = `${provider?.key || provider?.id || id}/${m.external_name}`
-            const isCopied = copiedModelId === displayModelId
-
-            return (
-              <div
-                key={m.external_name}
-                className="bg-[#17181c] border border-[#2b2e37] rounded-[7px] px-3 py-2 flex items-center gap-2.5 min-w-[220px] max-w-[340px] group transition-all"
-              >
-                <div className="w-7 h-7 rounded-[6px] bg-[#22242b] border border-[#333742] flex items-center justify-center shrink-0 text-[#b5b8c7]">
-                  <Bot className="w-4 h-4" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11.5px] font-mono font-medium text-[#e6e8f0] truncate">
-                      {displayModelId}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(displayModelId)}
-                      title="Copy model identifier"
-                      className="p-1 text-[#787c8d] hover:text-[#e6e8f0] transition-colors rounded"
-                    >
-                      {isCopied ? (
-                        <Check className="w-3 h-3 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#8e92a2]">
-                    <span className="truncate italic">{m.display_name}</span>
-                    {m.vision && (
-                      <span title="Vision Capable" className="inline-flex">
-                        <Eye className="w-2.5 h-2.5 shrink-0 opacity-70" />
-                      </span>
-                    )}
-                    {m.web && (
-                      <span title="Grounding / Search" className="inline-flex">
-                        <Globe className="w-2.5 h-2.5 shrink-0 opacity-70" />
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleToggleModel(m)}
-                  title="Disable model"
-                  className="p-1 text-[#707485] hover:text-rose-400 opacity-40 group-hover:opacity-100 transition-opacity rounded"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )
-          })}
-
-          {showAddModel ? (
-            <form
-              onSubmit={handleAddCustomModel}
-              className="flex items-center gap-1.5 bg-[#17181c] border border-[var(--brand-primary)]/40 rounded-[7px] px-2.5 py-1.5"
-            >
-              <input
-                type="text"
-                autoFocus
-                value={customModelName}
-                onChange={(e) => setCustomModelName(e.target.value)}
-                placeholder="e.g. gemini-2.0-flash"
-                className="w-36 h-6 text-[11.5px] font-mono bg-transparent border-none text-[#e6e8f0] focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="h-6 px-2 text-[10.5px] font-medium rounded bg-[var(--brand-primary)] text-white hover:opacity-90"
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddModel(false)}
-                className="p-1 text-[#707485] hover:text-[#e6e8f0]"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowAddModel(true)}
-              className="h-11 px-3.5 border border-dashed border-[#ea580c]/40 hover:border-[#ea580c] rounded-[7px] text-[12px] font-medium text-[#f97316] flex items-center gap-1.5 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Model
-            </button>
-          )}
-        </div>
-
-        {disabledModels.length > 0 && (
-          <div className="pt-2 border-t border-[var(--border-subtle)]/60">
-            <p className="text-[11.5px] font-medium text-[#7d8293] mb-2">
-              Disabled models ({disabledModels.length}):
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {disabledModels.map((dm) => (
-                <button
-                  key={dm.external_name}
-                  type="button"
-                  onClick={() => handleToggleModel(dm)}
-                  title={`Click to enable ${dm.display_name}`}
-                  className="px-2 py-1 text-[11px] font-mono rounded-[5px] bg-[#1a1b20] hover:bg-[#23252d] border border-[#2d3039] hover:border-[#ea580c]/50 text-[#9da1b2] hover:text-[#ea580c] transition-all flex items-center gap-1"
-                >
-                  <Plus className="w-2.5 h-2.5" />
-                  <span>{dm.external_name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] px-4 py-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setShowApplyProxySheet(true)}
-            className="h-8 px-3 text-[12px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#2a2d35] border border-[#363a45] text-[#e0e2eb] flex items-center gap-2 transition-colors"
+            className="h-8 px-3 text-[12px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#2a2d35] border border-[#363a45] text-[#e0e2eb] flex items-center gap-2 transition-colors cursor-pointer"
           >
             <Network className="w-3.5 h-3.5 text-[#9fa3b4]" />
             <span>Apply Proxy</span>
@@ -836,7 +670,7 @@ export function ProviderDetailPage() {
           <button
             type="button"
             onClick={handleTestOneByOne}
-            className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-2 transition-colors ${
+            className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-2 transition-colors cursor-pointer ${
               isTestingOneByOne
                 ? 'bg-amber-950/30 border-amber-600/50 text-amber-300'
                 : 'bg-[#202227] hover:bg-[#2a2d35] border-[#363a45]'
@@ -853,7 +687,7 @@ export function ProviderDetailPage() {
             <button
               type="button"
               onClick={handleRoundRobinToggle}
-              className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 ${
+              className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
                 roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
               }`}
             >
@@ -898,7 +732,7 @@ export function ProviderDetailPage() {
                 abortTestRef.current = true
                 setIsTestingOneByOne(false)
               }}
-              className="px-2 py-1 rounded-[4px] bg-rose-950/40 border border-rose-600/40 text-rose-300 hover:bg-rose-900/50 text-[11px]"
+              className="px-2 py-1 rounded-[4px] bg-rose-950/40 border border-rose-600/40 text-rose-300 hover:bg-rose-900/50 text-[11px] cursor-pointer"
             >
               Stop
             </button>
@@ -961,7 +795,7 @@ export function ProviderDetailPage() {
                       <button
                         type="button"
                         onClick={() => toggleExpand(acc.id)}
-                        className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       >
                         {isExpanded ? (
                           <ChevronUp className="w-3.5 h-3.5" />
@@ -1014,7 +848,7 @@ export function ProviderDetailPage() {
                         type="button"
                         title="Set proxy for this connection"
                         onClick={() => openEdit(acc)}
-                        className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--status-warning)] hover:bg-[var(--bg-panel)] rounded-[5px] transition-colors flex items-center gap-1"
+                        className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--status-warning)] hover:bg-[var(--bg-panel)] rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer"
                       >
                         <Globe className="w-3.5 h-3.5" />
                         <span className="hidden sm:block">Proxy</span>
@@ -1024,7 +858,7 @@ export function ProviderDetailPage() {
                         type="button"
                         title="Edit connection"
                         onClick={() => openEdit(acc)}
-                        className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] rounded-[5px] transition-colors flex items-center gap-1"
+                        className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                         <span className="hidden sm:block">Edit</span>
@@ -1035,7 +869,7 @@ export function ProviderDetailPage() {
                           <button
                             type="button"
                             title="Delete connection"
-                            className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--status-danger)] hover:bg-rose-950/20 rounded-[5px] transition-colors flex items-center gap-1"
+                            className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--status-danger)] hover:bg-rose-950/20 rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span className="hidden sm:block">Delete</span>
@@ -1049,7 +883,7 @@ export function ProviderDetailPage() {
                         type="button"
                         title={acc.enabled ? 'Disable' : 'Enable'}
                         onClick={() => handleToggle(acc)}
-                        className="px-2 py-1.5 rounded-[5px] transition-colors text-[var(--text-muted)] hover:bg-[var(--bg-panel)]"
+                        className="px-2 py-1.5 rounded-[5px] transition-colors text-[var(--text-muted)] hover:bg-[var(--bg-panel)] cursor-pointer"
                       >
                         {acc.enabled ? (
                           <ToggleRight className="w-4.5 h-4.5 text-[var(--status-success)]" />
@@ -1112,6 +946,172 @@ export function ProviderDetailPage() {
                 </div>
               )
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3 className="text-[15px] font-bold text-[var(--text-primary)]">Available Models</h3>
+
+            <div className="relative inline-block">
+              <select
+                value={thinkingMode}
+                onChange={(e) => handleThinkingChange(e.target.value)}
+                className="h-7 px-2.5 pr-6 text-[11.5px] font-medium rounded-[6px] bg-[#1c1e24] border border-[#333742] text-[#d4d6df] hover:border-[var(--brand-primary)] focus:outline-none cursor-pointer appearance-none"
+              >
+                <option value="Auto">Thinking: Auto</option>
+                <option value="Enabled">Thinking: Enabled</option>
+                <option value="High">Thinking: High</option>
+                <option value="Medium">Thinking: Medium</option>
+                <option value="Low">Thinking: Low</option>
+                <option value="Disabled">Thinking: Disabled</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-[#8a8d9a]">
+                <ChevronDown className="w-3 h-3" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleBatchToggleModels(true)}
+              className="h-7 px-2.5 text-[11.5px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#282b33] border border-[#333742] text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <RotateCw className="w-3 h-3 text-[#a0a4b5]" />
+              Active All
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBatchToggleModels(false)}
+              className="h-7 px-2.5 text-[11.5px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#282b33] border border-[#333742] text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Ban className="w-3 h-3 text-[#a0a4b5]" />
+              Disable All
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center flex-wrap gap-2.5">
+          {activeModels.map((m) => {
+            const displayModelId = `${provider?.key || provider?.id || id}/${m.external_name}`
+            const isCopied = copiedModelId === displayModelId
+
+            return (
+              <div
+                key={m.external_name}
+                className="bg-[#17181c] border border-[#2b2e37] rounded-[7px] px-3 py-2 flex items-center gap-2.5 min-w-[220px] max-w-[340px] group transition-all"
+              >
+                <div className="w-7 h-7 rounded-[6px] bg-[#22242b] border border-[#333742] flex items-center justify-center shrink-0 text-[#b5b8c7]">
+                  <Bot className="w-4 h-4" />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11.5px] font-mono font-medium text-[#e6e8f0] truncate">
+                      {displayModelId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(displayModelId)}
+                      title="Copy model identifier"
+                      className="p-1 text-[#787c8d] hover:text-[#e6e8f0] transition-colors rounded cursor-pointer"
+                    >
+                      {isCopied ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[11px] text-[#8e92a2]">
+                    <span className="truncate italic">{m.display_name}</span>
+                    {m.vision && (
+                      <span title="Vision Capable" className="inline-flex">
+                        <Eye className="w-2.5 h-2.5 shrink-0 opacity-70" />
+                      </span>
+                    )}
+                    {m.web && (
+                      <span title="Grounding / Search" className="inline-flex">
+                        <Globe className="w-2.5 h-2.5 shrink-0 opacity-70" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleModel(m)}
+                  title="Disable model"
+                  className="p-1 text-[#707485] hover:text-rose-400 opacity-40 group-hover:opacity-100 transition-opacity rounded cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )
+          })}
+
+          {showAddModel ? (
+            <form
+              onSubmit={handleAddCustomModel}
+              className="flex items-center gap-1.5 bg-[#17181c] border border-[var(--brand-primary)]/40 rounded-[7px] px-2.5 py-1.5"
+            >
+              <input
+                type="text"
+                autoFocus
+                value={customModelName}
+                onChange={(e) => setCustomModelName(e.target.value)}
+                placeholder="e.g. gemini-2.0-flash"
+                className="w-36 h-6 text-[11.5px] font-mono bg-transparent border-none text-[#e6e8f0] focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="h-6 px-2 text-[10.5px] font-medium rounded bg-[var(--brand-primary)] text-white hover:opacity-90 cursor-pointer"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddModel(false)}
+                className="p-1 text-[#707485] hover:text-[#e6e8f0] cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddModel(true)}
+              className="h-11 px-3.5 border border-dashed border-[#ea580c]/40 hover:border-[#ea580c] rounded-[7px] text-[12px] font-medium text-[#f97316] flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Model
+            </button>
+          )}
+        </div>
+
+        {disabledModels.length > 0 && (
+          <div className="pt-2 border-t border-[var(--border-subtle)]/60">
+            <p className="text-[11.5px] font-medium text-[#7d8293] mb-2">
+              Disabled models ({disabledModels.length}):
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {disabledModels.map((dm) => (
+                <button
+                  key={dm.external_name}
+                  type="button"
+                  onClick={() => handleToggleModel(dm)}
+                  title={`Click to enable ${dm.display_name}`}
+                  className="px-2 py-1 text-[11px] font-mono rounded-[5px] bg-[#1a1b20] hover:bg-[#23252d] border border-[#2d3039] hover:border-[#ea580c]/50 text-[#9da1b2] hover:text-[#ea580c] transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-2.5 h-2.5" />
+                  <span>{dm.external_name}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
