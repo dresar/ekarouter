@@ -1,5 +1,20 @@
 import { useEffect, useState, FormEvent } from 'react'
-import { Settings, Server, CheckCircle2, RefreshCw, Shield, Lock, AlertTriangle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  Settings,
+  Server,
+  CheckCircle2,
+  RefreshCw,
+  Shield,
+  Lock,
+  AlertTriangle,
+  Database,
+  BookOpen,
+  Gauge,
+  Wrench,
+  Sparkles,
+  Layers,
+} from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Tabs } from '../../components/ui/Tabs.tsx'
 import { Button } from '../../components/ui/Button.tsx'
@@ -296,37 +311,121 @@ export function SettingsPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-3 max-w-2xl">
-          <div className="space-y-2 text-[12.5px]">
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-              <span className="text-[var(--text-muted)]">Gateway Service</span>
-              <span className="font-mono text-[var(--text-primary)] font-semibold">
-                EkaRouter v1.0.0
-              </span>
+        <div className="space-y-4 max-w-2xl">
+          <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-3">
+            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+              Runtime Environment
+            </h3>
+            <div className="space-y-2 text-[12.5px]">
+              <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Gateway Service</span>
+                <span className="font-mono text-[var(--text-primary)] font-semibold">
+                  EkaRouter v1.0.0
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Runtime Language</span>
+                <span className="font-mono text-[var(--text-primary)]">
+                  Go 1.24+ (Pure Go / CGO-free)
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Database Engine</span>
+                <span className="font-mono text-[var(--text-primary)]">
+                  modernc.org/sqlite (WAL Mode)
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Server Uptime</span>
+                <span className="font-mono text-[var(--text-secondary)]">
+                  {health?.uptime || 'Active'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                <span className="text-[var(--text-muted)]">Network Binding</span>
+                <span className="font-mono text-[var(--brand-text)] font-semibold">
+                  0.0.0.0:8080
+                </span>
+              </div>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-              <span className="text-[var(--text-muted)]">Runtime Language</span>
-              <span className="font-mono text-[var(--text-primary)]">
-                Go 1.24+ (Pure Go / CGO-free)
-              </span>
+          </div>
+
+          <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-3">
+            <div>
+              <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+                System Utilities
+              </h3>
+              <p className="text-[11.5px] text-[var(--text-muted)] mt-0.5">
+                Quick access to maintenance tools, backups, and schema documentation.
+              </p>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-              <span className="text-[var(--text-muted)]">Database Engine</span>
-              <span className="font-mono text-[var(--text-primary)]">
-                modernc.org/sqlite (WAL Mode)
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-              <span className="text-[var(--text-muted)]">Server Uptime</span>
-              <span className="font-mono text-[var(--text-secondary)]">
-                {health?.uptime || 'Active'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-              <span className="text-[var(--text-muted)]">Network Binding</span>
-              <span className="font-mono text-[var(--brand-text)] font-semibold">
-                0.0.0.0:8080
-              </span>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+              <Link
+                to="/backup"
+                className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)] hover:border-[var(--brand-primary)]/40 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center gap-1.5 mb-1 text-[var(--text-primary)] font-medium text-[12px]">
+                  <Database className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Backup</span>
+                </div>
+                <span className="text-[10.5px] text-[var(--text-muted)]">SQLite database dump</span>
+              </Link>
+
+              <Link
+                to="/api-docs"
+                className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)] hover:border-[var(--brand-primary)]/40 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center gap-1.5 mb-1 text-[var(--text-primary)] font-medium text-[12px]">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>API Docs</span>
+                </div>
+                <span className="text-[10.5px] text-[var(--text-muted)]">OpenAI cURL reference</span>
+              </Link>
+
+              <Link
+                to="/quota"
+                className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)] hover:border-[var(--brand-primary)]/40 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center gap-1.5 mb-1 text-[var(--text-primary)] font-medium text-[12px]">
+                  <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Quotas</span>
+                </div>
+                <span className="text-[10.5px] text-[var(--text-muted)]">Circuit cooldown timers</span>
+              </Link>
+
+              <Link
+                to="/tools"
+                className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)] hover:border-[var(--brand-primary)]/40 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center gap-1.5 mb-1 text-[var(--text-primary)] font-medium text-[12px]">
+                  <Wrench className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Tools</span>
+                </div>
+                <span className="text-[10.5px] text-[var(--text-muted)]">HTTP templates &amp; SSRF</span>
+              </Link>
+
+              <Link
+                to="/credential-pools"
+                className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)] hover:border-[var(--brand-primary)]/40 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center gap-1.5 mb-1 text-[var(--text-primary)] font-medium text-[12px]">
+                  <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>HA Pools</span>
+                </div>
+                <span className="text-[10.5px] text-[var(--text-muted)]">Load balancing groups</span>
+              </Link>
+
+              <Link
+                to="/free-tiers"
+                className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)] hover:border-[var(--brand-primary)]/40 transition-colors flex flex-col justify-between"
+              >
+                <div className="flex items-center gap-1.5 mb-1 text-[var(--text-primary)] font-medium text-[12px]">
+                  <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Free Tiers</span>
+                </div>
+                <span className="text-[10.5px] text-[var(--text-muted)]">Zero-cost model quotas</span>
+              </Link>
             </div>
           </div>
         </div>
