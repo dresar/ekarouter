@@ -37,8 +37,20 @@ export function BoostModal({ isOpen, onClose }: BoostModalProps) {
   useEffect(() => {
     if (!isOpen) return
 
-    const originalOverflow = document.body.style.overflow
+    const originalBodyOverflow = document.body.style.overflow
+    const originalHtmlOverflow = document.documentElement.style.overflow
+    const originalBodyOverscroll = document.body.style.overscrollBehavior
+    const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+
     document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    document.documentElement.style.overscrollBehavior = 'none'
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -49,7 +61,11 @@ export function BoostModal({ isOpen, onClose }: BoostModalProps) {
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.body.style.overflow = originalOverflow
+      document.body.style.overflow = originalBodyOverflow
+      document.documentElement.style.overflow = originalHtmlOverflow
+      document.body.style.overscrollBehavior = originalBodyOverscroll
+      document.documentElement.style.overscrollBehavior = originalHtmlOverscroll
+      document.body.style.paddingRight = ''
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen, onClose])
@@ -74,14 +90,26 @@ export function BoostModal({ isOpen, onClose }: BoostModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
+      onWheel={(e) => e.stopPropagation()}
     >
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
         onClick={onClose}
+        onWheel={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-[480px] rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-strong)] shadow-2xl overflow-hidden z-10 animate-in zoom-in-95 duration-150">
+      <div
+        className="relative w-full max-w-[480px] rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-strong)] shadow-2xl overflow-hidden z-10 animate-in zoom-in-95 duration-150"
+        onWheel={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-card)]">
           <div className="flex items-center gap-2">
             <div className="p-1 rounded-[5px] bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -212,14 +240,24 @@ export function BoostModal({ isOpen, onClose }: BoostModalProps) {
         </div>
 
         <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-panel)]/40 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigateTo('/token-saver')}
-            className="text-[11.5px] text-[var(--brand-text)] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
-          >
-            <span>Token Saver Studio</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigateTo('/boost')}
+              className="text-[11.5px] text-[var(--brand-text)] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <span>Full Dashboard</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[var(--text-muted)] text-[11px]">•</span>
+            <button
+              type="button"
+              onClick={() => navigateTo('/token-saver')}
+              className="text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span>Token Saver</span>
+            </button>
+          </div>
           <Button
             variant="primary"
             size="compact"

@@ -136,7 +136,6 @@ export function FreeTiersPage() {
 
       {error && <ErrorBanner message={error} onRetry={loadData} />}
 
-      {/* Filter Bar exactly matching screenshot */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-[var(--bg-surface)] p-2.5 rounded-[8px] border border-[var(--border-subtle)]">
         <div className="flex items-center gap-4 w-full md:w-auto flex-wrap">
           <div className="flex items-center gap-2">
@@ -189,7 +188,6 @@ export function FreeTiersPage() {
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        /* Empty State matching screenshot */
         <div className="py-20 px-4 rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)] flex flex-col items-center justify-center text-center">
           <div className="relative mb-4 flex items-center justify-center">
             <div className="w-16 h-16 rounded-xl bg-[var(--bg-panel)] border border-[var(--border-strong)] flex items-center justify-center text-[var(--text-muted)]">

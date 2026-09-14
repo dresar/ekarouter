@@ -33,7 +33,6 @@ export function OverviewPage() {
   const [error, setError] = useState<string | null>(null)
   const [copiedSnippet, setCopiedSnippet] = useState(false)
 
-  // Ingress quick test runner
   const [testModel, setTestModel] = useState('gpt-4o')
   const [testPrompt, setTestPrompt] = useState('ping')
   const [testOutput, setTestOutput] = useState<string | null>(null)
@@ -174,7 +173,6 @@ export function OverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left Column: Provider Matrix & Failover */}
         <div className="lg:col-span-7 space-y-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4">
             <div className="flex items-center justify-between mb-3">
@@ -257,7 +255,6 @@ export function OverviewPage() {
           )}
         </div>
 
-        {/* Right Column: Ingress CLI tester & Quick Navigation */}
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4">
             <div className="flex items-center justify-between mb-2">

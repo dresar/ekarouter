@@ -74,23 +74,19 @@ export function LiveConsolePage() {
     }
   }
 
-  // Load audit logs from backend
   const loadInitialLogs = async () => {
     try {
       const data = await api.get<AuditRecord[]>('/api/v1/audit-logs', { params: { limit: 50 } })
       if (Array.isArray(data) && data.length > 0) {
         setLogs(data.map(formatAuditLog))
       }
-    } catch {
-      // Backend offline or audit logs empty
-    }
+    } catch {}
   }
 
   useEffect(() => {
     loadInitialLogs()
   }, [])
 
-  // Live polling for new backend audit records
   useEffect(() => {
     if (!isStreaming) return
 
@@ -107,15 +103,12 @@ export function LiveConsolePage() {
             return combined.length > 500 ? combined.slice(combined.length - 500) : combined
           })
         }
-      } catch {
-        // Polling silently ignores transient network errors
-      }
+      } catch {}
     }, 4000)
 
     return () => clearInterval(interval)
   }, [isStreaming])
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (autoScroll && consoleEndRef.current) {
       consoleEndRef.current.scrollIntoView({ behavior: 'smooth' })
@@ -281,7 +274,6 @@ export function LiveConsolePage() {
         }
       />
 
-      {/* Filter and control bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-[var(--bg-surface)] p-2.5 rounded-[8px] border border-[var(--border-subtle)] text-[12px]">
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
           <span className="text-[11px] font-medium text-[var(--text-muted)] flex items-center gap-1 mr-1">
@@ -343,7 +335,6 @@ export function LiveConsolePage() {
         </div>
       </div>
 
-      {/* Main Terminal Window */}
       <div
         ref={containerRef}
         className="rounded-[8px] bg-[#07090E] border border-[var(--border-subtle)] font-mono text-[12px] h-[580px] overflow-y-auto flex flex-col relative"

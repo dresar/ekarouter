@@ -16,8 +16,20 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   useEffect(() => {
     if (!isOpen) return
 
-    const originalOverflow = document.body.style.overflow
+    const originalBodyOverflow = document.body.style.overflow
+    const originalHtmlOverflow = document.documentElement.style.overflow
+    const originalBodyOverscroll = document.body.style.overscrollBehavior
+    const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+
     document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    document.documentElement.style.overscrollBehavior = 'none'
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -28,7 +40,11 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.body.style.overflow = originalOverflow
+      document.body.style.overflow = originalBodyOverflow
+      document.documentElement.style.overflow = originalHtmlOverflow
+      document.body.style.overscrollBehavior = originalBodyOverscroll
+      document.documentElement.style.overscrollBehavior = originalHtmlOverscroll
+      document.body.style.paddingRight = ''
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen, onClose])
@@ -50,14 +66,26 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
+      onWheel={(e) => e.stopPropagation()}
     >
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
         onClick={onClose}
+        onWheel={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-[420px] rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-strong)] shadow-2xl overflow-hidden z-10 animate-in zoom-in-95 duration-150">
+      <div
+        className="relative w-full max-w-[420px] rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-strong)] shadow-2xl overflow-hidden z-10 animate-in zoom-in-95 duration-150"
+        onWheel={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-[var(--brand-text)]" />

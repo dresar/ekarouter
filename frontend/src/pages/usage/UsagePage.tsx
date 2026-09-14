@@ -115,7 +115,6 @@ export function UsagePage() {
 
       {error && <ErrorBanner message={error} onRetry={loadUsage} />}
 
-      {/* Top 4 Infrastructure Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard
           label="Total Ingress Requests"
@@ -163,7 +162,6 @@ export function UsagePage() {
         />
       ) : (
         <div className="space-y-4">
-          {/* Provider Workload Share */}
           <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -226,7 +224,6 @@ export function UsagePage() {
             )}
           </div>
 
-          {/* Credential Volume Table */}
           <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -310,7 +307,6 @@ export function UsagePage() {
             )}
           </div>
 
-          {/* Project Workload */}
           {projectUsage.length > 0 && (
             <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-3">
               <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">

@@ -18,7 +18,7 @@ export function RightDrawer({
   description,
   children,
   footer,
-  width = 'max-w-[620px]',
+  width = 'max-w-[700px] lg:max-w-[780px]',
 }: RightDrawerProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -26,11 +26,13 @@ export function RightDrawer({
     const originalBodyOverflow = document.body.style.overflow
     const originalHtmlOverflow = document.documentElement.style.overflow
     const originalBodyOverscroll = document.body.style.overscrollBehavior
+    const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
 
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
     document.body.style.overscrollBehavior = 'none'
+    document.documentElement.style.overscrollBehavior = 'none'
 
     if (scrollbarWidth > 0) {
       document.body.style.paddingRight = `${scrollbarWidth}px`
@@ -48,6 +50,7 @@ export function RightDrawer({
       document.body.style.overflow = originalBodyOverflow
       document.documentElement.style.overflow = originalHtmlOverflow
       document.body.style.overscrollBehavior = originalBodyOverscroll
+      document.documentElement.style.overscrollBehavior = originalHtmlOverscroll
       document.body.style.paddingRight = ''
       window.removeEventListener('keydown', handleKeyDown)
     }
@@ -60,15 +63,25 @@ export function RightDrawer({
       className="fixed inset-0 z-50 flex justify-end overflow-hidden"
       role="dialog"
       aria-modal="true"
+      onWheel={(e) => e.stopPropagation()}
     >
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-200"
         onClick={onClose}
+        onWheel={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
         aria-hidden="true"
       />
 
       <div
         className={`relative w-full ${width} h-full bg-[var(--bg-surface)] border-l border-[var(--border-strong)] shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200 overscroll-contain`}
+        onWheel={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-strong)] shrink-0 bg-[var(--bg-card)]">
           <div className="min-w-0 pr-4">

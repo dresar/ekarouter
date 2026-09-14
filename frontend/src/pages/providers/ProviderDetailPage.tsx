@@ -35,7 +35,7 @@ import { Button } from '../../components/ui/Button.tsx'
 import { StatusBadge } from '../../components/ui/StatusBadge.tsx'
 import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
-import { BottomSheet } from '../../components/ui/BottomSheet.tsx'
+import { RightDrawer } from '../../components/ui/RightDrawer.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 import { api } from '../../api/client.ts'
 import { Provider, Account, PlatformProvider, ProxyProfile } from '../../types/api.ts'
@@ -363,9 +363,7 @@ export function ProviderDetailPage() {
         streaming: true,
       })
       await api.patch(`/api/models/${encodeURIComponent(model.id)}`, { enabled: nextState })
-    } catch {
-      /* silent */
-    }
+    } catch {}
   }
 
   const handleBatchToggleModels = async (enabled: boolean) => {
@@ -387,9 +385,7 @@ export function ProviderDetailPage() {
           })
         }
       }
-    } catch {
-      /* silent */
-    }
+    } catch {}
   }
 
   const handleAddCustomModel = async (e: FormEvent) => {
@@ -418,9 +414,7 @@ export function ProviderDetailPage() {
         display_name: customModelName.trim(),
         streaming: true,
       })
-    } catch {
-      /* silent */
-    }
+    } catch {}
   }
 
   const copyToClipboard = (text: string) => {
@@ -435,9 +429,7 @@ export function ProviderDetailPage() {
     if (provider) {
       try {
         await api.put('/api/settings', { key: `round_robin_${provider.id}`, value: String(nextVal) })
-      } catch {
-        /* silent */
-      }
+      } catch {}
     }
   }
 
@@ -446,9 +438,7 @@ export function ProviderDetailPage() {
     if (provider) {
       try {
         await api.put('/api/settings', { key: `sticky_${provider.id}`, value: String(val) })
-      } catch {
-        /* silent */
-      }
+      } catch {}
     }
   }
 
@@ -457,9 +447,7 @@ export function ProviderDetailPage() {
     if (provider) {
       try {
         await api.put('/api/settings', { key: `thinking_${provider.id}`, value: mode })
-      } catch {
-        /* silent */
-      }
+      } catch {}
     }
   }
 
@@ -525,9 +513,7 @@ export function ProviderDetailPage() {
       setAccounts((prev) =>
         prev.map((a) => (a.id === acc.id ? { ...a, enabled: !a.enabled } : a))
       )
-    } catch {
-      /* silent */
-    }
+    } catch {}
   }
 
   const openEdit = (acc: Account) => {
@@ -670,7 +656,6 @@ export function ProviderDetailPage() {
         </div>
       )}
 
-      {/* Available Models Section */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-3 flex-wrap">
@@ -715,7 +700,6 @@ export function ProviderDetailPage() {
           </div>
         </div>
 
-        {/* Active Models Grid */}
         <div className="flex items-center flex-wrap gap-2.5">
           {activeModels.map((m) => {
             const displayModelId = `${provider?.key || provider?.id || id}/${m.external_name}`
@@ -815,7 +799,6 @@ export function ProviderDetailPage() {
           )}
         </div>
 
-        {/* Disabled Models Section */}
         {disabledModels.length > 0 && (
           <div className="pt-2 border-t border-[var(--border-subtle)]/60">
             <p className="text-[11.5px] font-medium text-[#7d8293] mb-2">
@@ -839,7 +822,6 @@ export function ProviderDetailPage() {
         )}
       </div>
 
-      {/* Action Toolbar Header (Screenshot 2) */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] px-4 py-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -897,7 +879,6 @@ export function ProviderDetailPage() {
         </div>
       </div>
 
-      {/* Progress banner during One-by-One sequential test */}
       {isTestingOneByOne && (
         <div className="px-4 py-3 rounded-[8px] bg-[#1c1e25] border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[12px]">
           <div className="flex items-center gap-2 text-amber-300">
@@ -925,7 +906,6 @@ export function ProviderDetailPage() {
         </div>
       )}
 
-      {/* Connections List */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-2">
@@ -1154,84 +1134,75 @@ export function ProviderDetailPage() {
         </div>
       )}
 
-      {/* Apply Proxy BottomSheet Modal (Screenshot 3) */}
-      <BottomSheet
+      <RightDrawer
         isOpen={showApplyProxySheet}
         onClose={() => setShowApplyProxySheet(false)}
         title={`Apply Proxy (${accounts.length} connections)`}
         description="Distribute proxies across connections or assign a single relay"
-        maxWidth="max-w-md"
+        width="max-w-[560px] lg:max-w-[640px]"
       >
-        <div className="space-y-2">
-          {/* macOS window top bar decoration */}
-          <div className="flex items-center gap-1.5 pb-2 border-b border-[var(--border-subtle)] mb-2">
-            <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-            <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-            <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
-            <span className="text-[12px] font-medium text-[var(--text-secondary)] ml-2">
-              Proxy Routing Policy
-            </span>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled={isApplyingProxy}
+              onClick={() => handleApplyProxy('rotate')}
+              className="w-full px-3.5 py-2.5 rounded-[7px] bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] flex items-center gap-3 text-left transition-colors group cursor-pointer"
+            >
+              <div className="w-7 h-7 rounded-[6px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                <ArrowLeftRight className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[13px] font-medium text-[var(--text-primary)] block">
+                  One-to-one (rotate)
+                </span>
+                <span className="text-[11px] text-[var(--text-muted)] block truncate">
+                  Distribute {proxies.length} proxies evenly across all {accounts.length} connections
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={isApplyingProxy}
+              onClick={() => handleApplyProxy('none')}
+              className="w-full px-3.5 py-2.5 rounded-[7px] bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] flex items-center gap-3 text-left transition-colors group cursor-pointer"
+            >
+              <div className="w-7 h-7 rounded-[6px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                <Unlink className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[13px] font-medium text-[var(--text-primary)] block">
+                  None (unbind all)
+                </span>
+                <span className="text-[11px] text-[var(--text-muted)] block truncate">
+                  Remove proxy from all connections (direct connection)
+                </span>
+              </div>
+            </button>
           </div>
 
-          <button
-            type="button"
-            disabled={isApplyingProxy}
-            onClick={() => handleApplyProxy('rotate')}
-            className="w-full px-3.5 py-2.5 rounded-[7px] bg-[#1a1c22] hover:bg-[#232630] border border-[#2e313c] flex items-center gap-3 text-left transition-colors group"
-          >
-            <div className="w-7 h-7 rounded-[6px] bg-[#292c37] flex items-center justify-center shrink-0 text-[#a5a9bc] group-hover:text-white">
-              <ArrowLeftRight className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[13px] font-medium text-[#e4e6f0] block">
-                One-to-one (rotate)
-              </span>
-              <span className="text-[11px] text-[#7d8293] block truncate">
-                Distribute {proxies.length} proxies evenly across all {accounts.length} connections
-              </span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            disabled={isApplyingProxy}
-            onClick={() => handleApplyProxy('none')}
-            className="w-full px-3.5 py-2.5 rounded-[7px] bg-[#1a1c22] hover:bg-[#232630] border border-[#2e313c] flex items-center gap-3 text-left transition-colors group"
-          >
-            <div className="w-7 h-7 rounded-[6px] bg-[#292c37] flex items-center justify-center shrink-0 text-[#a5a9bc] group-hover:text-white">
-              <Unlink className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[13px] font-medium text-[#e4e6f0] block">
-                None (unbind all)
-              </span>
-              <span className="text-[11px] text-[#7d8293] block truncate">
-                Remove proxy from all connections (direct connection)
-              </span>
-            </div>
-          </button>
-
-          <div className="pt-2 pb-1 text-[11px] font-semibold uppercase text-[#73788a] tracking-wider">
+          <div className="pt-2 pb-1 text-[11px] font-semibold uppercase text-[var(--text-muted)] tracking-wider">
             Available Proxies ({proxies.length})
           </div>
 
-          <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+          <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
             {proxies.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 disabled={isApplyingProxy}
                 onClick={() => handleApplyProxy('single', p.id)}
-                className="w-full px-3 py-2 rounded-[6px] bg-[#1a1c22] hover:bg-[#232630] border border-[#2a2d37] flex items-center gap-2.5 text-left transition-colors group"
+                className="w-full px-3 py-2 rounded-[6px] bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] flex items-center gap-2.5 text-left transition-colors group cursor-pointer"
               >
-                <div className="w-6 h-6 rounded-[5px] bg-[#262832] flex items-center justify-center shrink-0 text-[#9da1b5]">
+                <div className="w-6 h-6 rounded-[5px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0 text-[var(--text-secondary)]">
                   <Network className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[12.5px] font-medium text-[#e0e2ed] block truncate">
+                  <span className="text-[12.5px] font-medium text-[var(--text-primary)] block truncate">
                     {p.name}
                   </span>
-                  <span className="text-[10.5px] font-mono text-[#767b8c] block truncate">
+                  <span className="text-[10.5px] font-mono text-[var(--text-muted)] block truncate">
                     {p.scheme}://{p.host}
                   </span>
                 </div>
@@ -1239,15 +1210,13 @@ export function ProviderDetailPage() {
             ))}
           </div>
         </div>
-      </BottomSheet>
+      </RightDrawer>
 
-      {/* Add Connection BottomSheet */}
-      <BottomSheet
+      <RightDrawer
         isOpen={showAddSheet}
         onClose={() => setShowAddSheet(false)}
         title={`Add Connection — ${provider?.name || ''}`}
-        description="API key or credential will be encrypted with AES-256-GCM"
-        maxWidth="max-w-2xl"
+        description="API key or credential will be encrypted with AES-256-GCM."
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
           {formError && (
@@ -1340,15 +1309,13 @@ export function ProviderDetailPage() {
             </Button>
           </div>
         </form>
-      </BottomSheet>
+      </RightDrawer>
 
-      {/* Edit Connection BottomSheet */}
-      <BottomSheet
+      <RightDrawer
         isOpen={showEditSheet}
         onClose={() => setShowEditSheet(false)}
         title={`Edit — ${editingAccount?.name || ''}`}
-        description="Update connection name, priority, proxy, or rotate API key"
-        maxWidth="max-w-2xl"
+        description="Update connection name, priority, proxy, or rotate API key."
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
           {formError && (
@@ -1454,7 +1421,7 @@ export function ProviderDetailPage() {
             </Button>
           </div>
         </form>
-      </BottomSheet>
+      </RightDrawer>
     </div>
   )
 }
