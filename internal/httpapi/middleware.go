@@ -152,9 +152,81 @@ func SessionAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 	}
 }
 
+const (
+	userRoleKey  contextKey = "user_role"
+	projectIDKey contextKey = "project_id"
+)
+
+func PlatformAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var token string
+			if cookie, err := r.Cookie("session_token"); err == nil {
+				token = cookie.Value
+			}
+			if token == "" {
+				authHeader := r.Header.Get("Authorization")
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					token = strings.TrimPrefix(authHeader, "Bearer ")
+				}
+			}
+
+			if token == "" {
+				http.Error(w, `{"success":false,"error":{"code":"unauthorized","message":"missing authorization header or session"}}`, http.StatusUnauthorized)
+				return
+			}
+
+			tokenHash := auth.HashToken(token)
+
+			var userID, role string
+			var exp sql.NullTime
+			var rev sql.NullTime
+
+			err := db.QueryRowContext(r.Context(), "SELECT user_id, expires_at, revoked_at FROM sessions WHERE token_hash = ?", tokenHash).Scan(&userID, &exp, &rev)
+			if err == nil && !rev.Valid && (!exp.Valid || time.Now().Before(exp.Time)) {
+				role = "admin"
+				ctx := context.WithValue(r.Context(), userIDKey, userID)
+				ctx = context.WithValue(ctx, userRoleKey, role)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			var ctID, ctUser, ctProject, ctScopes string
+			err = db.QueryRowContext(r.Context(), "SELECT id, COALESCE(user_id, ''), COALESCE(project_id, ''), scopes, expires_at FROM client_tokens WHERE token_hash = ?", tokenHash).Scan(&ctID, &ctUser, &ctProject, &ctScopes, &exp)
+			if err == nil && (!exp.Valid || time.Now().Before(exp.Time)) {
+				role = "developer"
+				ctx := context.WithValue(r.Context(), userIDKey, ctUser)
+				ctx = context.WithValue(ctx, userRoleKey, role)
+				ctx = context.WithValue(ctx, projectIDKey, ctProject)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			var keyID string
+			err = db.QueryRowContext(r.Context(), "SELECT id FROM api_keys WHERE hash = ? AND enabled = 1", tokenHash).Scan(&keyID)
+			if err == nil {
+				role = "developer"
+				ctx := context.WithValue(r.Context(), apiKeyIDKey, keyID)
+				ctx = context.WithValue(ctx, userRoleKey, role)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			http.Error(w, `{"success":false,"error":{"code":"unauthorized","message":"invalid or expired credentials"}}`, http.StatusUnauthorized)
+		})
+	}
+}
+
 func GetRequestID(ctx context.Context) string {
 	if val, ok := ctx.Value(requestIDKey).(string); ok {
 		return val
 	}
 	return ""
+}
+
+func GetUserRole(ctx context.Context) string {
+	if val, ok := ctx.Value(userRoleKey).(string); ok {
+		return val
+	}
+	return "developer"
 }

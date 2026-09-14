@@ -53,6 +53,18 @@ func (r *Router) ResolveModel(model string) string {
 	return model
 }
 
+func (r *Router) getCursor(name string) *uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c, ok := r.cursors[name]
+	if !ok {
+		var val uint64
+		c = &val
+		r.cursors[name] = c
+	}
+	return c
+}
+
 func (r *Router) SetRoute(route *Route) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -283,6 +295,25 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 			sort.SliceStable(matching, func(i, j int) bool {
 				return matching[i].Priority < matching[j].Priority
 			})
+			if len(matching) > 1 && route.Strategy == StrategyRoundRobin {
+				topPriority := matching[0].Priority
+				topCount := 0
+				for _, acc := range matching {
+					if acc.Priority == topPriority {
+						topCount++
+					} else {
+						break
+					}
+				}
+				if topCount > 1 {
+					cursor := r.getCursor("wild:" + route.Name + ":" + item.ProviderID)
+					idx := atomic.AddUint64(cursor, 1) % uint64(topCount)
+					rotatedTop := make([]*Account, topCount)
+					copy(rotatedTop, matching[idx:topCount])
+					copy(rotatedTop[topCount-int(idx):], matching[:idx])
+					copy(matching[:topCount], rotatedTop)
+				}
+			}
 			for _, acc := range matching {
 				targets = append(targets, Target{
 					ProviderID:   item.ProviderID,
@@ -379,6 +410,26 @@ func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
 	sort.SliceStable(eligible, func(i, j int) bool {
 		return eligible[i].Priority < eligible[j].Priority
 	})
+
+	if len(eligible) > 1 {
+		topPriority := eligible[0].Priority
+		topCount := 0
+		for _, acc := range eligible {
+			if acc.Priority == topPriority {
+				topCount++
+			} else {
+				break
+			}
+		}
+		if topCount > 1 {
+			cursor := r.getCursor("dyn:" + providerKind)
+			idx := atomic.AddUint64(cursor, 1) % uint64(topCount)
+			rotatedTop := make([]*Account, topCount)
+			copy(rotatedTop, eligible[idx:topCount])
+			copy(rotatedTop[topCount-int(idx):], eligible[:idx])
+			copy(eligible[:topCount], rotatedTop)
+		}
+	}
 
 	var targets []Target
 	for _, acc := range eligible {

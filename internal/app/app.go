@@ -9,15 +9,19 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dresar/ekarouter/internal/audit"
 	"github.com/dresar/ekarouter/internal/auth"
 	"github.com/dresar/ekarouter/internal/config"
 	"github.com/dresar/ekarouter/internal/credpool"
 	"github.com/dresar/ekarouter/internal/db"
+	"github.com/dresar/ekarouter/internal/executor"
 	"github.com/dresar/ekarouter/internal/freetier"
 	"github.com/dresar/ekarouter/internal/gateway"
 	"github.com/dresar/ekarouter/internal/health"
 	"github.com/dresar/ekarouter/internal/httpapi"
+	"github.com/dresar/ekarouter/internal/limits"
 	"github.com/dresar/ekarouter/internal/oauth"
+	"github.com/dresar/ekarouter/internal/platform"
 	"github.com/dresar/ekarouter/internal/providers"
 	"github.com/dresar/ekarouter/internal/providers/airforce"
 	"github.com/dresar/ekarouter/internal/providers/anthropic"
@@ -43,16 +47,22 @@ import (
 	"github.com/dresar/ekarouter/internal/providers/openrouter"
 	"github.com/dresar/ekarouter/internal/providers/searxng"
 	"github.com/dresar/ekarouter/internal/proxy"
+	"github.com/dresar/ekarouter/internal/rbac"
+	"github.com/dresar/ekarouter/internal/rotator"
 	"github.com/dresar/ekarouter/internal/routing"
+	"github.com/dresar/ekarouter/internal/scheduler"
 	"github.com/dresar/ekarouter/internal/tokensaver"
 	"github.com/dresar/ekarouter/internal/usage"
+	"github.com/dresar/ekarouter/internal/vault"
 )
 
 type Application struct {
-	Config   *config.Config
-	DB       *db.DB
-	Server   *http.Server
-	UsageRec *usage.Recorder
+	Config    *config.Config
+	DB        *db.DB
+	Server    *http.Server
+	UsageRec  *usage.Recorder
+	Scheduler *scheduler.Scheduler
+	AuditLog  *audit.Logger
 }
 
 func Setup(cfg *config.Config, migrationsDir string) (*Application, error) {
@@ -226,9 +236,26 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 
 	_ = freetier.SeedCatalog(context.Background(), catalogStore)
 
+	platRegistry := platform.NewRegistry()
+	platform.RegisterDefaultProviders(platRegistry)
+
+	v, err := vault.NewVault(cfg.SecretKey)
+	if err != nil {
+		_ = database.Close()
+		return nil, fmt.Errorf("vault: %w", err)
+	}
+	vStore := vault.NewStore(database.DB, v)
+	limEng := limits.NewEngine(database.DB)
+	rot := rotator.NewRotator()
+	exec := executor.NewExecutor(database.DB, platRegistry, vStore, cfg.AllowLocalProviders)
+	rbacSvc := rbac.NewService(database.DB)
+	auditLog := audit.NewLogger(database.DB, 1000)
+	platHandler := httpapi.NewPlatformHandler(database.DB, platRegistry, vStore, limEng, rot, exec, rbacSvc, auditLog)
+	sched := scheduler.NewScheduler(database.DB, platRegistry, cfg.LogRetentionDays, 60*time.Second)
+
 	gw := gateway.NewGateway(router, registry, ts, cd, usageRec, credResolver)
 	httpServerHandler := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr,
-		poolStore, poolEngine, healthCheckerPool, catalogStore)
+		poolStore, poolEngine, healthCheckerPool, catalogStore, platHandler)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
@@ -239,14 +266,17 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 	}
 
 	return &Application{
-		Config:   cfg,
-		DB:       database,
-		Server:   srv,
-		UsageRec: usageRec,
+		Config:    cfg,
+		DB:        database,
+		Server:    srv,
+		UsageRec:  usageRec,
+		Scheduler: sched,
+		AuditLog:  auditLog,
 	}, nil
 }
 
 func (a *Application) Run(ctx context.Context) error {
+	a.Scheduler.Start(ctx)
 	errChan := make(chan error, 1)
 
 	go func() {
@@ -261,11 +291,15 @@ func (a *Application) Run(ctx context.Context) error {
 		defer cancel()
 
 		_ = a.Server.Shutdown(shutdownCtx)
+		a.Scheduler.Stop()
+		a.AuditLog.Close()
 		a.UsageRec.Close()
 		_ = a.DB.Close()
 		return nil
 
 	case err := <-errChan:
+		a.Scheduler.Stop()
+		a.AuditLog.Close()
 		a.UsageRec.Close()
 		_ = a.DB.Close()
 		return err

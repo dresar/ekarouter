@@ -1,77 +1,133 @@
 # EkaRouter
 
-EkaRouter is a high-performance, lightweight, single-process Universal AI Gateway written in pure Go. It delivers OpenAI-compatible endpoints (`/v1/models`, `/v1/chat/completions`, `/v1/responses`), intelligent combo routing, multi-account rotation, automated fallback, safe token saving compactions, SSRF-protected outbound proxying, and pure-Go SQLite persistence without external dependencies or CGO requirements.
+EkaRouter is an enterprise-grade, high-performance, lightweight, single-process **Universal AI Gateway & Developer API Management Platform** written in pure Go. It delivers OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/models`, `/v1/responses`) alongside a comprehensive Developer Platform (`/api/v1/*`) for managing third-party developer APIs, encrypted credential vaults, multi-strategy key rotation, rate limits, quotas, generic tool execution, webhooks, and SSRF-protected proxying.
+
+Built with pure-Go SQLite (`modernc.org/sqlite`), EkaRouter is 100% CGO-free and compiles into a single, standalone executable on Windows, Linux, and macOS.
+
+---
 
 ## Key Features
 
-- **Universal OpenAI Compatibility**: Drop-in replacement for OpenAI `/v1/chat/completions` (with real-time SSE streaming) and `/v1/models`.
-- **Multi-Provider Adapters**: Native translations for OpenAI-compatible, Anthropic Claude (`/v1/messages`), Google Gemini (`generateContent`), and custom backends.
-- **Intelligent Routing & Failover**: Priority and round-robin strategies with automatic cooldown circuit breaking on transient errors (429 rate limits, 5xx server errors, timeouts).
-- **Safe Token Saver**: RTK-inspired heuristic compactions (Git diffs, deduplicated logs, build output, truncation) preserving file paths, line numbers, and error traces fail-open.
-- **Enterprise Security**: Secrets encrypted at rest with AES-256-GCM; API keys hashed with SHA-256; strict SSRF IP validation on outbound requests.
-- **Pure Go & CGO-Free**: Uses `modernc.org/sqlite` for 100% CGO-free builds on Windows (`.exe`) and Linux (`amd64`, `arm64`) running under a 500 MB VPS memory footprint.
-- **Zero Source Comments**: Compliant with the strict `/nokomen` standard. All documentation lives in Markdown files.
+### 1. Universal AI Gateway (`/v1/*`)
+- **OpenAI-Compatible Drop-In**: Native streaming SSE completions for `/v1/chat/completions` and model discovery via `/v1/models`.
+- **Multi-Provider Adapters**: Native translations for OpenAI, Anthropic Claude (`/v1/messages`), Google Gemini (`generateContent`), Cloudflare AI, Groq, Cerebras, OpenRouter, HuggingFace, Ollama, and custom backends.
+- **Fail-Open Token Saver**: Heuristic prompt compaction (Git diffs, deduplicated logs, build output, truncation) preserving file paths, line numbers, and error traces.
+
+### 2. Developer Platform & API Key Vault (`/api/v1/*`)
+- **Encrypted Credential Vault**: Authenticated AES-256-GCM symmetric encryption with versioned ciphertext (`v1:<base64>`) and automatic secret masking (`sk-****abcd`, `ghp_****91xz`, `Bearer ****ef12`).
+- **11 Universal Provider Categories**: Built-in discovery and adapters for Developer, Communication, Monitoring, Automation, Scraping & Data, Storage, Payments, Analytics, Maps, Security, and Custom APIs.
+- **Multi-Strategy Key Rotation**: Concurrency-safe selection across Priority, Round Robin, Random, Least Used, Lowest Error Rate, and Health-Based strategies.
+- **Rate Limit & Quota Engine**: Sliding-window rate limiting, persistent daily/monthly quota tracking, and automatic circuit-breaking cooldowns upon HTTP 429.
+- **Generic Tool Execution Engine**: Parameterized HTTP tool caller with safe template variable substitution `{{var}}`, strict header injection/CRLF sanitization, and execution audit logging.
+- **Strict SSRF Defense**: Rigorous blocking of loopback (`127.0.0.1`), link-local (`169.254.0.0/16`), RFC 1918 private IPv4 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and cloud metadata IP (`169.254.169.254`).
+- **Webhooks System**: Inbound HMAC-SHA256 signature verification in constant time and outbound webhook event dispatching with delivery logging.
+- **Controlled API Proxy**: Secure reverse proxy route `/api/v1/proxy/{provider}/*` injecting vault credentials and enforcing SSRF guards.
+- **Role-Based Access Control**: Multi-tenant RBAC (`admin`, `developer`, `viewer`), PBKDF2-HMAC-SHA256 password hashing (100,000 rounds), and scoped developer client tokens (`eka_pat_*`).
+- **Background Maintenance Scheduler**: Graceful background worker loop handling cooldown recovery, log retention pruning, and health verification.
+- **Zero Source Comments**: Compliant with the strict `/nokomen` clean-code standard. All architectural documentation lives in Markdown.
+
+---
 
 ## Project Structure
 
 ```text
 ekarouter/
 ├── cmd/
-│   └── ekarouter/       # CLI entrypoint with flag parsing and lifecycle signal traps
+│   └── ekarouter/       # Application entrypoint with flag parsing and signal traps
 ├── internal/
 │   ├── app/             # Application dependency injection and graceful shutdown
+│   ├── audit/           # Asynchronous immutable audit logger
 │   ├── auth/            # AES-256-GCM crypto service and SHA-256 token hashing
-│   ├── config/          # Environment and flag configuration loader
-│   ├── db/              # SQLite connection pool, WAL configuration, and migrations
-│   ├── gateway/         # Core AI gateway pipeline, retry/fallback, and SSE streaming
-│   ├── health/          # Process liveness (/health) and readiness (/ready) checks
-│   ├── httpapi/         # Chi HTTP router, CORS/auth middleware, and API handlers
-│   ├── oauth/           # Ephemeral PKCE OAuth state and anti-stampede refresh locks
-│   ├── providers/       # Abstract provider interface and OpenAI/Anthropic/Gemini adapters
-│   ├── proxy/           # Reusable outbound HTTP transports and SSRF protection
-│   ├── routing/         # Combos, model alias resolution, and account cooldown manager
-│   ├── tokensaver/      # Heuristic text compaction algorithms (safe, balanced, off)
-│   └── usage/           # Asynchronous non-blocking usage and request metadata logger
-├── migrations/          # Versioned SQL database migrations
-├── scripts/             # Build scripts, smoke tests, and benchmarks
-└── docs/                # Architecture specifications, agent reports, and reference audits
+│   ├── cli/             # Interactive terminal menu and management subcommands
+│   ├── config/          # Environment variable configuration loader
+│   ├── credpool/        # AI credential pool and rotation policies
+│   ├── db/              # SQLite connection pool, WAL mode, and migrations
+│   ├── devtools/        # OpenAPI 3.x document parser and template generator
+│   ├── executor/        # Generic tool execution engine and template interpolation
+│   ├── freetier/        # Free-tier provider catalog and capability seeding
+│   ├── gateway/         # Core AI gateway pipeline, fallback, and SSE streaming
+│   ├── health/          # Process liveness (/live, /health) and readiness (/ready) checks
+│   ├── httpapi/         # Chi HTTP router, CORS/auth middleware, and API endpoints
+│   ├── limits/          # Sliding-window rate limiter, quotas, and cooldowns
+│   ├── oauth/           # Ephemeral PKCE OAuth state and token manager
+│   ├── platform/        # Universal provider registry across 11 categories & SSRF guard
+│   ├── providers/       # AI provider adapters (OpenAI, Anthropic, Gemini, etc.)
+│   ├── proxy/           # Outbound HTTP transports and proxy chaining
+│   ├── rbac/            # User authentication, PBKDF2 hashing, and client tokens
+│   ├── rotator/         # Concurrency-safe multi-strategy credential selector
+│   ├── routing/         # Combos, model alias resolution, and cooldown manager
+│   ├── scheduler/       # Background periodic maintenance and log retention
+│   ├── tokensaver/      # Heuristic text compaction algorithms
+│   ├── usage/           # Non-blocking request and token usage logger
+│   ├── vault/           # Encrypted credential vault, versioning, and masking
+│   └── webhooks/        # HMAC-SHA256 signature verification and delivery dispatcher
+├── migrations/          # Versioned SQL database migrations (0001, 0002, 0003)
+├── scripts/             # Build scripts and smoke tests
+└── docs/                # Comprehensive technical documentation suite
 ```
+
+---
 
 ## Quick Start
 
-### Build Native Binaries
+### 1. Build Executable
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ./scripts/build.ps1
+go build -ldflags="-s -w" -o ekarouter.exe ./cmd/ekarouter
 ```
 
-Or on Linux:
+### 2. Configure Environment
 
-```bash
-./scripts/build.sh
+Copy `.env.example` to `.env`:
+```powershell
+Copy-Item .env.example .env
 ```
 
-### Run the Server
-
-```bash
-./bin/ekarouter.exe -port 8080 -db data/ekarouter.db
-```
-
-### Smoke Test
+### 3. Run Server
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ./scripts/smoke_test.ps1
+.\ekarouter.exe serve
 ```
 
-## Configuration
+EkaRouter binds to `http://0.0.0.0:8080` and initializes `data/ekarouter.db`.
 
-| Environment Variable | Default | Description |
-| :--- | :--- | :--- |
-| `EKAROUTER_PORT` | `8080` | HTTP listen port |
-| `EKAROUTER_HOST` | `0.0.0.0` | Bind address |
-| `EKAROUTER_DB_PATH` | `data/ekarouter.db` | SQLite database file location |
-| `EKAROUTER_SECRET_KEY` | *(auto-generated)* | 256-bit encryption key for stored secrets |
-| `EKAROUTER_ADMIN_USER` | `admin` | Admin dashboard username |
-| `EKAROUTER_ADMIN_PASSWORD` | `admin12345` | Admin dashboard password |
-| `EKAROUTER_TOKEN_SAVER_MODE`| `safe` | Token saver mode (`off`, `safe`, `balanced`) |
-| `EKAROUTER_ALLOW_LOCAL_PROVIDERS` | `false` | Set to `true` to allow local IPs (Ollama) bypassing SSRF check |
+### 4. Run Verification Tests
+
+```powershell
+go test ./...
+```
+
+---
+
+## Documentation
+
+Full architectural and developer guides are located in the `docs/` directory:
+- [Audit Report](docs/developer-platform-audit.md)
+- [System Architecture](docs/architecture.md)
+- [Installation Guide](docs/installation.md)
+- [Configuration Reference](docs/configuration.md)
+- [Database Schema & Migrations](docs/database.md)
+- [Security & SSRF Protection](docs/security.md)
+- [Authentication](docs/authentication.md)
+- [Authorization & RBAC](docs/authorization.md)
+- [Provider Directory](docs/providers.md)
+- [Provider Development Guide](docs/provider-development.md)
+- [Credential Vault](docs/credentials.md)
+- [API Keys & Client Tokens](docs/api-keys.md)
+- [Credential Rotation Engine](docs/rotation.md)
+- [Quotas & Limit Tracking](docs/quotas.md)
+- [Rate Limiting & Cooldowns](docs/rate-limits.md)
+- [Generic Tool Execution](docs/tools.md)
+- [Custom Providers](docs/custom-providers.md)
+- [OpenAPI 3.x Import](docs/openapi-import.md)
+- [OAuth 2.0 Integration](docs/oauth.md)
+- [Webhooks System](docs/webhooks.md)
+- [Request Templates](docs/request-templates.md)
+- [Controlled API Proxy](docs/proxy.md)
+- [Usage Observability](docs/usage.md)
+- [Audit Logging](docs/audit-logs.md)
+- [Background Scheduler](docs/scheduler.md)
+- [Testing Guide](docs/testing.md)
+- [Build & Compilation](docs/build.md)
+- [Production Deployment](docs/deployment.md)
+- [Troubleshooting](docs/troubleshooting.md)

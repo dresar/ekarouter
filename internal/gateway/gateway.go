@@ -114,6 +114,21 @@ func (g *Gateway) Execute(ctx context.Context, req *providers.Request) (*provide
 
 			lastErr = execErr
 
+			var pe *providers.ProviderError
+			if errors.As(execErr, &pe) && (pe.Class == providers.ErrorClassAuth || pe.Class == providers.ErrorClassQuota) {
+				cdDuration := 15 * time.Minute
+				if pe.Class == providers.ErrorClassQuota {
+					cdDuration = 30 * time.Minute
+				}
+				g.cooldowns.MarkFailure(target.AccountID, cdDuration)
+				status := 401
+				if pe.Class == providers.ErrorClassQuota {
+					status = 429
+				}
+				g.recordUsage(req.ID, target, providers.Usage{}, time.Since(start), status, execErr.Error())
+				break
+			}
+
 			if !providers.IsTransient(execErr) {
 				g.recordUsage(req.ID, target, providers.Usage{}, time.Since(start), 400, execErr.Error())
 				return nil, execErr
@@ -207,6 +222,21 @@ func (g *Gateway) ExecuteStream(ctx context.Context, req *providers.Request) (<-
 		}
 
 		lastErr = streamErr
+
+		var pe *providers.ProviderError
+		if errors.As(streamErr, &pe) && (pe.Class == providers.ErrorClassAuth || pe.Class == providers.ErrorClassQuota) {
+			cdDuration := 15 * time.Minute
+			if pe.Class == providers.ErrorClassQuota {
+				cdDuration = 30 * time.Minute
+			}
+			g.cooldowns.MarkFailure(target.AccountID, cdDuration)
+			status := 401
+			if pe.Class == providers.ErrorClassQuota {
+				status = 429
+			}
+			g.recordUsage(req.ID, target, providers.Usage{}, time.Since(start), status, streamErr.Error())
+			continue
+		}
 
 		if !providers.IsTransient(streamErr) {
 			g.recordUsage(req.ID, target, providers.Usage{}, time.Since(start), 400, streamErr.Error())

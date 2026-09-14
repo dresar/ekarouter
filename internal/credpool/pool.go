@@ -90,16 +90,19 @@ type Member struct {
 }
 
 func (m *Member) IsAvailable() bool {
-	if m.Status != StatusActive && m.Status != StatusValid {
-		return false
-	}
 	if m.ExpiresAt != nil && time.Now().After(*m.ExpiresAt) {
 		return false
 	}
 	if m.CooldownUntil != nil && time.Now().Before(*m.CooldownUntil) {
 		return false
 	}
-	return true
+	if m.Status == StatusActive || m.Status == StatusValid {
+		return true
+	}
+	if m.Status == StatusCoolingDown && m.CooldownUntil != nil && time.Now().After(*m.CooldownUntil) {
+		return true
+	}
+	return false
 }
 
 type RotationPolicy struct {

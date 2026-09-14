@@ -127,3 +127,23 @@ func TestDirectModelRouting(t *testing.T) {
 		t.Fatalf("unexpected model name in prefix targets: %v", targetsPrefix)
 	}
 }
+
+func TestDirectModelRotation(t *testing.T) {
+	router := NewRouter(nil)
+	router.SetProvider("p1", "openai")
+	router.SetAccount(&Account{ID: "acc-oa-1", ProviderID: "p1", State: "active", Enabled: true, Priority: 10})
+	router.SetAccount(&Account{ID: "acc-oa-2", ProviderID: "p1", State: "active", Enabled: true, Priority: 10})
+
+	t1, err := router.SelectTargets("gpt-4o")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t2, err := router.SelectTargets("gpt-4o")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if t1[0].AccountID == t2[0].AccountID {
+		t.Errorf("expected dynamic model targets to rotate across equal priority accounts: got %s and %s", t1[0].AccountID, t2[0].AccountID)
+	}
+}

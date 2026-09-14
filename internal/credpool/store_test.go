@@ -177,6 +177,11 @@ func TestMemberAvailability(t *testing.T) {
 	if !valid.IsAvailable() {
 		t.Error("valid member should be available")
 	}
+
+	cooledPast := Member{Status: StatusCoolingDown, CooldownUntil: &past}
+	if !cooledPast.IsAvailable() {
+		t.Error("cooling down member with past cooldown should be available")
+	}
 }
 
 func TestRotationPolicyCRUD(t *testing.T) {

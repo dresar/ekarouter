@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -84,6 +85,11 @@ func (e *Engine) Select(ctx context.Context, req *SelectRequest) (*Member, error
 		selected, reason = e.selectQuotaAware(eligible)
 	case StrategyLowestFailureRate:
 		selected, reason = e.selectLowestFailureRate(eligible)
+	case StrategyEnvironmentAware:
+		selected, reason, err = e.selectEnvironmentAware(req.Environment, pool.Environment, eligible)
+		if err != nil {
+			return nil, err
+		}
 	case StrategyManual:
 		selected, reason, err = e.selectManual(req.MemberID, eligible)
 		if err != nil {
@@ -179,18 +185,27 @@ func (e *Engine) selectLRU(eligible []Member) (*Member, string) {
 		return nil, ""
 	}
 
-	oldest := &eligible[0]
-	for i := 1; i < len(eligible); i++ {
+	var oldest *Member
+	for i := range eligible {
 		m := &eligible[i]
 		if m.LastUsedAt == nil {
-			oldest = m
-			break
+			return m, "least_recently_used_never_used"
 		}
-		if oldest.LastUsedAt != nil && m.LastUsedAt.Before(*oldest.LastUsedAt) {
+		if oldest == nil || (oldest.LastUsedAt != nil && m.LastUsedAt.Before(*oldest.LastUsedAt)) {
 			oldest = m
 		}
 	}
 	return oldest, "least_recently_used"
+}
+
+func (e *Engine) selectEnvironmentAware(reqEnv, poolEnv string, eligible []Member) (*Member, string, error) {
+	if len(eligible) == 0 {
+		return nil, "", ErrAllCredentialsExhausted
+	}
+	if reqEnv != "" && poolEnv != "" && !strings.EqualFold(reqEnv, poolEnv) {
+		return &eligible[0], fmt.Sprintf("environment_mismatch_fallback_%s_vs_%s", reqEnv, poolEnv), nil
+	}
+	return &eligible[0], fmt.Sprintf("environment_matched_%s", poolEnv), nil
 }
 
 func (e *Engine) selectQuotaAware(eligible []Member) (*Member, string) {

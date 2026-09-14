@@ -1,44 +1,82 @@
-# EkaRouter Architecture Specification
+# EkaRouter Developer Platform Architecture
 
-## 1. Overview
+## 1. System Overview
 
-EkaRouter is a lightweight, single-process, CGO-free universal AI Gateway written in Go. It provides OpenAI-compatible interfaces (`/v1/models`, `/v1/chat/completions`, `/v1/responses`), intelligent routing, multi-account pooling, automated failover, token saver heuristic compactions, outbound proxy support with SSRF protection, and SQLite persistence.
-
-## 2. Package Boundaries & Dependency Graph
+EkaRouter is a lightweight, single-process, CGO-free universal API Gateway and Developer Management Platform written in Go. In addition to universal AI model routing, EkaRouter provides unified management, encrypted key vault storage, rate limiting, quota tracking, multi-strategy key rotation, generic external tool execution, inbound/outbound webhooks, and controlled API proxying across 11 major API categories.
 
 ```text
-cmd/ekarouter
-    └── internal/app
-            ├── internal/config
-            ├── internal/db
-            ├── internal/auth
-            ├── internal/proxy
-            ├── internal/tokensaver
-            ├── internal/providers
-            ├── internal/routing
-            ├── internal/gateway
-            ├── internal/usage
-            ├── internal/health
-            └── internal/httpapi
+                               +-----------------------------------------------------+
+                               |                   Client Applications               |
+                               | (Curl / Postman / SDK / Automation / Web Dashboard) |
+                               +-----------------------------------------------------+
+                                                          |
+                                                          | HTTP / HTTPS / SSE
+                                                          v
+                               +-----------------------------------------------------+
+                               |              Chi Router & Middleware                |
+                               |   - Recoverer          - Request ID                 |
+                               |   - Body Limiter       - CORS Engine                |
+                               |   - Session Auth       - Platform RBAC & Tokens     |
+                               +-----------------------------------------------------+
+                                      |                                    |
+            +-------------------------+                                    +--------------------------+
+            | OpenAI AI Gateway Path                                                                  | Unified Developer Platform Path
+            v                                                                                         v
++-------------------------------+                                                      +-------------------------------+
+|     /v1/chat/completions      |                                                      |          /api/v1/*            |
+|       /v1/models              |                                                      |  - /providers     - /creds    |
+|       /v1/responses           |                                                      |  - /tools         - /projects |
++-------------------------------+                                                      |  - /health        - /usage    |
+            |                                                                          |  - /proxy/*       - /audit    |
+            v                                                                          +-------------------------------+
++-------------------------------+                                                                     |
+|    AI Router & Token Saver    |                                                                     v
+|  - Heuristic compaction       |                                                      +-------------------------------+
+|  - Multi-account failover     |                                                      |       Universal Platform      |
+|  - Account pool rotation      |                                                      |  - Credential Vault (AES-GCM) |
+|  - Cooldown manager           |                                                      |  - Rotator (Multi-strategy)   |
++-------------------------------+                                                      |  - Limits & Quota Engine      |
+            |                                                                          |  - Tool Execution & Templates |
+            |                                                                          |  - SSRF Protection Guard      |
+            v                                                                          |  - In/Outbound Webhooks       |
++-------------------------------+                                                      +-------------------------------+
+|      AI Provider Adapters     |                                                                     |
+| OpenAI, Anthropic, Gemini,    |                                                                     v
+| Cloudflare, Groq, Ollama, ... |                                                      +-------------------------------+
++-------------------------------+                                                      |    Category Provider Adapters |
+            |                                                                          | Cloudflare, GitHub, Resend,   |
+            |                                                                          | Sentry, Stripe, PostHog, ...  |
+            |                                                                          +-------------------------------+
+            |                                                                                         |
+            +------------------------------------+----------------------------------------------------+
+                                                 |
+                                                 v
+                               +-----------------------------------+
+                               |     SQLite Database Engine        |
+                               |    (Pure Go, WAL mode enabled)    |
+                               |  - vault_credentials              |
+                               |  - tool_definitions               |
+                               |  - scheduled_tasks & task_runs    |
+                               |  - quota_records & rate_limits    |
+                               |  - audit_logs & webhooks          |
+                               +-----------------------------------+
 ```
 
-- `internal/config`: Loads and validates application configuration from CLI flags and environment variables.
-- `internal/db`: Pure-Go SQLite driver (`modernc.org/sqlite`) connection pool, WAL configuration, and schema migrations.
-- `internal/auth`: Cryptographic hashing (SHA-256 for API keys and sessions) and AES-256-GCM authenticated encryption for provider secrets.
-- `internal/proxy`: Reusable `http.Transport` instances with connection reuse, timeouts, proxy profile support, and strict SSRF destination validation.
-- `internal/tokensaver`: Safe CPU-bounded text compactions (git diff, grep, find, logs, etc.) running fail-open before upstream dispatch.
-- `internal/providers`: Provider abstraction and adapters for OpenAI-compatible, Anthropic-style, Gemini-style, and Custom HTTP endpoints.
-- `internal/routing`: Route definitions, combos, model alias mapping, account pool rotation (priority and round-robin), cooldown management, and error classification.
-- `internal/gateway`: Core orchestration pipeline: request normalization, token saver execution, route and account selection, bounded retries with exponential backoff, SSE streaming chunks, client context cancellation propagation, and asynchronous usage logging.
-- `internal/usage`: Usage and request metadata persistence with bounded retention and background pruning.
-- `internal/health`: Liveness (`/health`) and readiness (`/ready`) endpoints.
-- `internal/httpapi`: Chi router, HTTP middleware (request ID, CORS, max body limit, authentication), and API endpoints.
+## 2. Key Architecture Pillars
 
-## 3. Strict Architectural Rules
+### 2.1 CGO-Free & Standalone
+- Uses `modernc.org/sqlite` allowing compilation to a single executable without requiring GCC, MSVC, or external runtime libraries.
+- Compiles as a native Windows EXE (`ekarouter.exe`) or Linux binary.
 
-1. **No Source Comments**: In accordance with the `/nokomen` standard, Go source files must contain zero comments. Explanations reside entirely in Markdown files.
-2. **File Size Limit**: No source file may exceed 1000 lines. The preferred range is 100-500 lines per file.
-3. **No Dumping Grounds**: Avoid generic `utils` or `helpers` packages.
-4. **Folder Documentation**: Every directory containing Go code must have a concise `README.md`.
-5. **Fail-Open Token Saver**: Token saving operations must never fail the user request. If a transform fails or grows in size, the original prompt is preserved.
-6. **Streaming Integrity**: Never buffer entire streaming responses. SSE events must be decoded and piped directly to the client as neutral chunks.
+### 2.2 Security by Construction
+- **Zero Raw Secrets in Storage or Logs:** Authenticated AES-256-GCM symmetric encryption with unique 12-byte initialization vectors (nonces) and versioned ciphertext (`v1:<nonce>:<tag+ciphertext>`).
+- **Secret Masking:** Plaintext secrets are masked on ingest (`sk-****abcd`, `ghp_****91xz`, `Bearer ****ef12`) and never returned in full.
+- **Strict SSRF Guard:** All outbound network operations (tools, proxy, webhooks) check IP ranges, loopback (`127.0.0.1`), link-local (`169.254.0.0/16`), and AWS/GCP cloud metadata endpoints (`169.254.169.254`).
+
+### 2.3 Modular Provider Framework
+- Extensible `ProviderAdapter` contract with category tags, authentication configurations, explicit capability flags, credential validation, and health checks.
+- 11 supported categories: Developer, Communication, Monitoring, Automation, Scraping & Data, Storage, Payments, Analytics, Maps, Security, and Custom.
+
+### 2.4 Asynchronous Logging & Graceful Shutdown
+- Usage recording, audit logs, and delivery events are buffered via non-blocking channels and processed by bounded background worker routines.
+- System traps `SIGINT` and `SIGTERM`, shuts down the HTTP server gracefully within a 10-second deadline, cancels background workers, stops the scheduler, and closes database handles.

@@ -250,3 +250,63 @@ func TestGatewayTokenSaverOptOut(t *testing.T) {
 		t.Errorf("expected untouched text when OptOutTokenSaver is true")
 	}
 }
+
+func TestGatewayFallbackOnAuthError(t *testing.T) {
+	cd := routing.NewCooldownManager()
+	router := routing.NewRouter(cd)
+
+	router.SetAccount(&routing.Account{ID: "acc-expired", ProviderID: "p1", State: "active", Enabled: true})
+	router.SetAccount(&routing.Account{ID: "acc-healthy", ProviderID: "p2", State: "active", Enabled: true})
+
+	route := &routing.Route{
+		Name:     "gpt-4o",
+		Strategy: routing.StrategyPriority,
+		Enabled:  true,
+		Items: []routing.RouteItem{
+			{ProviderID: "p1", ProviderKind: "kind1", AccountID: "acc-expired", ModelName: "gpt-4o", Priority: 10, Enabled: true, MaxRetries: 1},
+			{ProviderID: "p2", ProviderKind: "kind2", AccountID: "acc-healthy", ModelName: "gpt-4o", Priority: 20, Enabled: true, MaxRetries: 1},
+		},
+	}
+	router.SetRoute(route)
+
+	reg := providers.NewRegistry()
+	reg.Register("kind1", &mockAdapter{
+		kind: "kind1",
+		executeFn: func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (*providers.Response, error) {
+			return nil, providers.ClassifyHTTPError(http.StatusUnauthorized, "invalid api key")
+		},
+	})
+	reg.Register("kind2", &mockAdapter{
+		kind: "kind2",
+		executeFn: func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (*providers.Response, error) {
+			return &providers.Response{
+				ID:      "resp-auth-fallback",
+				Model:   "gpt-4o",
+				Role:    "assistant",
+				Content: "fallback success after 401",
+			}, nil
+		},
+	})
+
+	credResolver := func(ctx context.Context, accountID string) (*providers.Credentials, error) {
+		return &providers.Credentials{APIKey: "key-" + accountID}, nil
+	}
+
+	gw := NewGateway(router, reg, nil, cd, nil, credResolver)
+	resp, err := gw.Execute(context.Background(), &providers.Request{
+		Model: "gpt-4o",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("expected successful failover, got error: %v", err)
+	}
+	if resp.Content != "fallback success after 401" {
+		t.Errorf("unexpected content: %s", resp.Content)
+	}
+	if !cd.IsCoolingDown("acc-expired") {
+		t.Errorf("expected acc-expired to be put into cooldown")
+	}
+}

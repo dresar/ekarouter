@@ -2,7 +2,9 @@
   "publicGateway": [
     { "method": "GET", "path": "/v1/models", "purpose": "OpenAI-compatible model list" },
     { "method": "POST", "path": "/v1/chat/completions", "purpose": "OpenAI-compatible chat completions with SSE streaming" },
-    { "method": "POST", "path": "/v1/responses", "purpose": "Compatibility route for normalized chat responses" }
+    { "method": "POST", "path": "/v1/responses", "purpose": "Compatibility route for normalized chat responses" },
+    { "method": "POST", "path": "/v1/messages", "purpose": "Native Anthropic messages format ingress (Planned)" },
+    { "method": "POST", "path": "/v1/embeddings", "purpose": "Vector embeddings proxy (Planned)" }
   ],
   "managementApi": [
     { "method": "POST", "path": "/api/auth/login", "purpose": "Dashboard session login" },
@@ -14,19 +16,93 @@
     { "method": "GET", "path": "/api/accounts", "purpose": "List accounts with state, quota snapshot, priority" },
     { "method": "POST", "path": "/api/accounts", "purpose": "Create provider account with credentials" },
     { "method": "DELETE", "path": "/api/accounts/{id}", "purpose": "Delete account" },
+    { "method": "POST", "path": "/api/accounts/oauth/start", "purpose": "Start OAuth PKCE flow" },
+    { "method": "POST", "path": "/api/accounts/oauth/callback", "purpose": "Complete OAuth PKCE flow" },
+    { "method": "GET", "path": "/api/credentials", "purpose": "List legacy credentials (masked/fingerprint)" },
+    { "method": "GET", "path": "/api/credentials/{id}", "purpose": "Get legacy credential metadata" },
     { "method": "GET", "path": "/api/routes", "purpose": "List combos and routes" },
     { "method": "POST", "path": "/api/routes", "purpose": "Create or update combo/route with ordered targets" },
     { "method": "DELETE", "path": "/api/routes/{id}", "purpose": "Delete route" },
+    { "method": "GET", "path": "/api/models", "purpose": "List custom and provider model registrations" },
+    { "method": "POST", "path": "/api/models", "purpose": "Create or update model registration" },
+    { "method": "DELETE", "path": "/api/models/{id}", "purpose": "Delete model registration" },
     { "method": "GET", "path": "/api/keys", "purpose": "List API keys (hashes/prefixes only)" },
     { "method": "POST", "path": "/api/keys", "purpose": "Generate new API key" },
     { "method": "DELETE", "path": "/api/keys/{id}", "purpose": "Revoke API key" },
+    { "method": "GET", "path": "/api/settings", "purpose": "Get system settings map" },
+    { "method": "PUT", "path": "/api/settings", "purpose": "Update system setting key-value" },
     { "method": "GET", "path": "/api/usage", "purpose": "Aggregate token usage and request statistics" },
     { "method": "GET", "path": "/api/proxies", "purpose": "List outbound proxy profiles" },
     { "method": "POST", "path": "/api/proxies", "purpose": "Create proxy profile" },
-    { "method": "POST", "path": "/api/tokensaver/preview", "purpose": "Test token saver reduction on sample text" }
+    { "method": "DELETE", "path": "/api/proxies/{id}", "purpose": "Delete proxy profile" },
+    { "method": "POST", "path": "/api/proxies/{id}/test", "purpose": "Test proxy profile connectivity and latency" },
+    { "method": "POST", "path": "/api/tokensaver/preview", "purpose": "Test token saver reduction on sample text" },
+    { "method": "GET", "path": "/api/backup", "purpose": "List SQLite backup files" },
+    { "method": "POST", "path": "/api/backup", "purpose": "Trigger online VACUUM INTO backup" }
+  ],
+  "credentialPoolsApi": [
+    { "method": "GET", "path": "/api/credential-pools", "purpose": "List credential pools" },
+    { "method": "POST", "path": "/api/credential-pools", "purpose": "Create credential pool" },
+    { "method": "GET", "path": "/api/credential-pools/{id}", "purpose": "Get credential pool details" },
+    { "method": "DELETE", "path": "/api/credential-pools/{id}", "purpose": "Delete credential pool" },
+    { "method": "GET", "path": "/api/credential-pools/{id}/credentials", "purpose": "List pool members" },
+    { "method": "POST", "path": "/api/credential-pools/{id}/credentials", "purpose": "Add account to pool" },
+    { "method": "DELETE", "path": "/api/credential-pools/{id}/credentials/{mid}", "purpose": "Remove member from pool" },
+    { "method": "GET", "path": "/api/credential-pools/{id}/policy", "purpose": "Get pool rotation policy" },
+    { "method": "PUT", "path": "/api/credential-pools/{id}/policy", "purpose": "Update pool rotation policy" },
+    { "method": "POST", "path": "/api/credential-pools/{id}/health", "purpose": "Trigger health check across pool members" },
+    { "method": "POST", "path": "/api/credential-pools/{id}/rotate", "purpose": "Manually trigger rotation algorithm selection" },
+    { "method": "POST", "path": "/api/credential-pools/{id}/pause", "purpose": "Pause pool operations" },
+    { "method": "POST", "path": "/api/credential-pools/{id}/resume", "purpose": "Resume pool operations" },
+    { "method": "GET", "path": "/api/credential-pools/{id}/usage", "purpose": "Get pool request and error statistics" }
+  ],
+  "freeTiersApi": [
+    { "method": "GET", "path": "/api/free-tiers", "purpose": "List free tier catalog entries" },
+    { "method": "GET", "path": "/api/free-tiers/categories", "purpose": "List available free tier categories" },
+    { "method": "GET", "path": "/api/free-tiers/verified", "purpose": "List verified working free tiers" },
+    { "method": "POST", "path": "/api/free-tiers/refresh", "purpose": "Refresh catalog status" },
+    { "method": "GET", "path": "/api/free-tiers/{id}", "purpose": "Get free tier details" },
+    { "method": "GET", "path": "/api/free-tiers/{id}/sources", "purpose": "Get free tier source links" }
+  ],
+  "devToolsApi": [
+    { "method": "GET", "path": "/api/devtools/templates", "purpose": "List request and provider templates" },
+    { "method": "POST", "path": "/api/devtools/templates", "purpose": "Create request template" },
+    { "method": "POST", "path": "/api/devtools/import-openapi", "purpose": "Preview OpenAPI 3.x document import" },
+    { "method": "POST", "path": "/api/devtools/confirm-openapi", "purpose": "Confirm and persist OpenAPI operations" },
+    { "method": "POST", "path": "/api/devtools/generate-curl", "purpose": "Synthesize curl command from template" }
+  ],
+  "developerPlatformApi": [
+    { "method": "GET", "path": "/api/v1/providers", "purpose": "List universal platform providers across 11 categories" },
+    { "method": "GET", "path": "/api/v1/providers/{id}", "purpose": "Get provider metadata" },
+    { "method": "POST", "path": "/api/v1/providers/{id}/validate", "purpose": "Validate credential format for provider" },
+    { "method": "POST", "path": "/api/v1/providers/{id}/health", "purpose": "Check provider health status" },
+    { "method": "GET", "path": "/api/v1/providers/{id}/capabilities", "purpose": "Get explicit capability declarations" },
+    { "method": "GET", "path": "/api/v1/providers/{id}/docs", "purpose": "Get provider documentation and free-tier links" },
+    { "method": "GET", "path": "/api/v1/credentials", "purpose": "List encrypted vault credentials with masking" },
+    { "method": "POST", "path": "/api/v1/credentials", "purpose": "Store encrypted credential in vault" },
+    { "method": "GET", "path": "/api/v1/credentials/{id}", "purpose": "Get masked credential metadata" },
+    { "method": "PATCH", "path": "/api/v1/credentials/{id}", "purpose": "Update credential priority, tags, notes" },
+    { "method": "DELETE", "path": "/api/v1/credentials/{id}", "purpose": "Delete credential from vault" },
+    { "method": "POST", "path": "/api/v1/credentials/{id}/test", "purpose": "Test credential connectivity against provider" },
+    { "method": "POST", "path": "/api/v1/credentials/{id}/rotate", "purpose": "Rotate credential secret version" },
+    { "method": "GET", "path": "/api/v1/credentials/{id}/usage", "purpose": "Get credential request and error counts" },
+    { "method": "GET", "path": "/api/v1/credentials/{id}/health", "purpose": "Get credential health and cooldown state" },
+    { "method": "GET", "path": "/api/v1/projects", "purpose": "List development projects" },
+    { "method": "POST", "path": "/api/v1/projects", "purpose": "Create project" },
+    { "method": "GET", "path": "/api/v1/environments", "purpose": "List environments" },
+    { "method": "POST", "path": "/api/v1/environments", "purpose": "Create environment" },
+    { "method": "GET", "path": "/api/v1/tools", "purpose": "List generic tool definitions" },
+    { "method": "POST", "path": "/api/v1/tools", "purpose": "Create parameterized tool definition" },
+    { "method": "GET", "path": "/api/v1/tools/{id}", "purpose": "Get tool definition" },
+    { "method": "POST", "path": "/api/v1/tools/{id}/execute", "purpose": "Execute tool with variable interpolation and SSRF guard" },
+    { "method": "GET", "path": "/api/v1/usage", "purpose": "Get platform usage summary" },
+    { "method": "GET", "path": "/api/v1/health", "purpose": "Get platform health summary" },
+    { "method": "GET", "path": "/api/v1/audit-logs", "purpose": "Query immutable audit logs" },
+    { "method": "ALL", "path": "/api/v1/proxy/{provider}/*", "purpose": "Controlled API reverse proxy injecting vault credentials" }
   ],
   "systemHealth": [
     { "method": "GET", "path": "/health", "purpose": "Basic process liveness check" },
-    { "method": "GET", "path": "/ready", "purpose": "Database & migration readiness check" }
+    { "method": "GET", "path": "/ready", "purpose": "Database & migration readiness check" },
+    { "method": "GET", "path": "/live", "purpose": "Server liveness probe" }
   ]
 }
