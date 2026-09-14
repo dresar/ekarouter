@@ -281,15 +281,90 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/v1/tools failed: %d %s", res.Code, res.Body.String())
 	}
 
+	var toolCreated struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(res.Body.Bytes(), &toolCreated)
+	toolID := toolCreated.Data.ID
+
 	res = authGet("/api/v1/tools")
 	if res.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/tools failed: %d", res.Code)
 	}
 
-	// 5. Usage & Health & Audit
+	res = authGet("/api/v1/tools/" + toolID + "/schema")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/tools/:id/schema failed: %d", res.Code)
+	}
+
+	res = authPost("/api/v1/request-templates", map[string]any{
+		"name":   "Get Cloudflare Zones",
+		"method": "GET",
+		"path":   "https://api.cloudflare.com/client/v4/zones",
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/request-templates failed: %d %s", res.Code, res.Body.String())
+	}
+	var tmplCreated struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(res.Body.Bytes(), &tmplCreated)
+	tmplID := tmplCreated.Data.ID
+
+	res = authGet("/api/v1/request-templates")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/request-templates failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/request-templates/" + tmplID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/request-templates/:id failed: %d", res.Code)
+	}
+
+	res = authPatch("/api/v1/request-templates/"+tmplID, map[string]string{
+		"name": "Updated Get Cloudflare Zones",
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("PATCH /api/v1/request-templates/:id failed: %d", res.Code)
+	}
+
+	res = authPost("/api/v1/request-templates/"+tmplID+"/execute", map[string]any{})
+	if res.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/request-templates/:id/execute failed: %d %s", res.Code, res.Body.String())
+	}
+
+	res = authDelete("/api/v1/request-templates/" + tmplID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/v1/request-templates/:id failed: %d", res.Code)
+	}
+
 	res = authGet("/api/v1/usage")
 	if res.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/usage failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/usage/summary")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/usage/summary failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/usage/providers")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/usage/providers failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/usage/credentials")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/usage/credentials failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/usage/projects")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/usage/projects failed: %d", res.Code)
 	}
 
 	res = authGet("/api/v1/health")
@@ -312,9 +387,18 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /api/v1/audit-logs failed: %d", res.Code)
 	}
 
-	// 6. Delete Credential
 	res = authDelete("/api/v1/credentials/" + credID)
 	if res.Code != http.StatusOK {
 		t.Fatalf("DELETE /api/v1/credentials/:id failed: %d", res.Code)
+	}
+
+	res = authDelete("/api/v1/environments/" + envID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/v1/environments/:id failed: %d", res.Code)
+	}
+
+	res = authDelete("/api/v1/projects/" + projID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/v1/projects/:id failed: %d", res.Code)
 	}
 }

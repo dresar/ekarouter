@@ -8,6 +8,7 @@ Schema versioning is managed via sequential SQL files under `migrations/`:
 1. `0001_initial.sql`: Core schema (`providers`, `accounts`, `credentials`, `models`, `routes`, `route_items`, `api_keys`, `sessions`, `proxy_profiles`, `usage_logs`, `request_logs`, `quota_snapshots`, `oauth_states`).
 2. `0002_credential_pools.sql`: Credential pools, rotation policies, free-tier catalog, provider templates, request templates, API operations, projects, quota limits.
 3. `0003_developer_platform.sql`: Multi-tenant user RBAC, client tokens, vault credentials, credential versions, cooldowns, webhook deliveries, tool definitions, tool executions, scheduled tasks, task runs, and immutable audit logs.
+4. `0004_platform_extensions.sql`: Complete developer platform extensions (`credential_assignments`, `credential_permissions`, `credential_health`, `credential_usage`, `api_requests`, `api_request_attempts`, `api_request_logs`, `usage_records`, `routing_rules`, `tool_actions`, `openapi_documents`, `notifications`, `system_settings`, unique index on `quota_records`).
 
 ## Core Tables for Developer Platform
 

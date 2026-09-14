@@ -899,7 +899,7 @@ FROM request_templates ORDER BY name ASC`)
 	for rows.Next() {
 		var id, name, ptID, method, path, hdrs, qry, bodySch, credRef, redact string
 		var timeout, retry int
-		var ca, ua time.Time
+		var ca, ua any
 		if err := rows.Scan(&id, &name, &ptID, &method, &path, &hdrs, &qry, &bodySch, &credRef, &timeout, &retry, &redact, &ca, &ua); err == nil {
 			list = append(list, map[string]any{
 				"id":                   id,
@@ -953,12 +953,17 @@ func (h *PlatformHandler) CreateRequestTemplate(w http.ResponseWriter, r *http.R
 	}
 	now := time.Now().UTC()
 
+	var ptID any
+	if body.ProviderTemplateID != "" {
+		ptID = body.ProviderTemplateID
+	}
+
 	_, err := h.db.ExecContext(r.Context(), `
 INSERT INTO request_templates (id, name, provider_template_id, method, path, headers,
     query_params, body_schema, credential_ref, timeout_ms, retry_count, redaction_rules,
     created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, body.Name, body.ProviderTemplateID, body.Method, body.Path, body.Headers,
+		id, body.Name, ptID, body.Method, body.Path, body.Headers,
 		body.QueryParams, body.BodySchema, body.CredentialRef, body.TimeoutMs, body.RetryCount,
 		body.RedactionRules, now, now)
 	if err != nil {
@@ -979,10 +984,10 @@ func (h *PlatformHandler) GetRequestTemplate(w http.ResponseWriter, r *http.Requ
 	id := chi.URLParam(r, "id")
 	var name, ptID, method, path, hdrs, qry, bodySch, credRef, redact string
 	var timeout, retry int
-	var ca, ua time.Time
+	var ca, ua any
 
 	err := h.db.QueryRowContext(r.Context(), `
-SELECT name, provider_template_id, method, path, headers, query_params,
+SELECT name, COALESCE(provider_template_id, ''), method, path, headers, query_params,
        body_schema, credential_ref, timeout_ms, retry_count, redaction_rules,
        created_at, updated_at
 FROM request_templates WHERE id = ?`, id).Scan(&name, &ptID, &method, &path, &hdrs, &qry, &bodySch, &credRef, &timeout, &retry, &redact, &ca, &ua)
@@ -1076,7 +1081,7 @@ func (h *PlatformHandler) ExecuteRequestTemplate(w http.ResponseWriter, r *http.
 
 	var name, ptID, method, pathTpl string
 	var timeoutMs int
-	err := h.db.QueryRowContext(r.Context(), "SELECT name, provider_template_id, method, path, timeout_ms FROM request_templates WHERE id = ?", id).Scan(&name, &ptID, &method, &pathTpl, &timeoutMs)
+	err := h.db.QueryRowContext(r.Context(), "SELECT name, COALESCE(provider_template_id, ''), method, path, timeout_ms FROM request_templates WHERE id = ?", id).Scan(&name, &ptID, &method, &pathTpl, &timeoutMs)
 	if err != nil {
 		h.writeError(w, r, http.StatusNotFound, "not_found", "Request template not found", nil)
 		return
