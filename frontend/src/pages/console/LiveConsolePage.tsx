@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
+import { RightDrawer } from '../../components/ui/RightDrawer.tsx'
 import { api } from '../../api/client.ts'
 import { AuditRecord } from '../../types/api.ts'
 
@@ -446,26 +447,58 @@ export function LiveConsolePage() {
         </div>
       </div>
 
-      {/* Expandable JSON Detail Drawer / Modal if clicked */}
-      {selectedEntry && selectedEntry.details && (
-        <div className="p-3 rounded-[8px] bg-[var(--bg-surface)] border border-[var(--border-strong)] text-[12px] space-y-2 animate-in fade-in-50">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-[var(--text-primary)]">
-              Event Details &bull; {selectedEntry.action}
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedEntry(null)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            >
-              Close
-            </button>
+      <RightDrawer
+        isOpen={Boolean(selectedEntry)}
+        onClose={() => setSelectedEntry(null)}
+        title={selectedEntry ? `Trace: ${selectedEntry.action || selectedEntry.level}` : 'Log Event'}
+        description={selectedEntry ? `${selectedEntry.timestamp} • Subsystem: ${selectedEntry.subsystem || 'gateway'}` : undefined}
+        footer={
+          <Button variant="secondary" size="compact" onClick={() => setSelectedEntry(null)}>
+            Close
+          </Button>
+        }
+      >
+        {selectedEntry && (
+          <div className="space-y-4 text-[12.5px]">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)]">
+                <span className="text-[10px] uppercase font-mono text-[var(--text-muted)] block">
+                  Severity Level
+                </span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {selectedEntry.level}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)]">
+                <span className="text-[10px] uppercase font-mono text-[var(--text-muted)] block">
+                  Subsystem Source
+                </span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {selectedEntry.subsystem || 'gateway'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-[6px] bg-[var(--bg-panel)]/50 border border-[var(--border-subtle)]">
+              <span className="text-[10px] uppercase font-mono text-[var(--text-muted)] block mb-1">
+                Event Message
+              </span>
+              <p className="font-mono text-[12px] text-[var(--text-primary)] break-all">
+                {selectedEntry.message}
+              </p>
+            </div>
+
+            <div>
+              <span className="text-[10.5px] font-semibold uppercase text-[var(--text-muted)] block mb-1.5">
+                Structured Payload
+              </span>
+              <pre className="bg-[#07090E] p-3 rounded-[6px] border border-[var(--border-subtle)] text-[11px] font-mono text-sky-300 overflow-x-auto leading-relaxed select-all">
+                {JSON.stringify(selectedEntry.details || selectedEntry, null, 2)}
+              </pre>
+            </div>
           </div>
-          <pre className="p-2.5 rounded-[5px] bg-[var(--bg-input)] border border-[var(--border-subtle)] font-mono text-[11px] text-sky-300 overflow-x-auto">
-            {JSON.stringify(selectedEntry.details, null, 2)}
-          </pre>
-        </div>
-      )}
+        )}
+      </RightDrawer>
     </div>
   )
 }

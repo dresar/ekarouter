@@ -5,20 +5,11 @@ import {
   Terminal,
   Server,
   GitFork,
-  Cpu,
-  Zap,
   KeyRound,
-  Wrench,
   Globe,
-  Sparkles,
-  Layers,
   Key,
-  BarChart3,
   FileText,
-  Gauge,
   Settings,
-  Database,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   X,
@@ -37,46 +28,27 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: 'OVERVIEW',
+    title: 'CORE GATEWAY',
     items: [
       { to: '/overview', label: 'Command Center', icon: Activity },
-      { to: '/console', label: 'Live Console', icon: Terminal },
-    ],
-  },
-  {
-    title: 'AI GATEWAY',
-    items: [
       { to: '/providers', label: 'AI Providers', icon: Server },
       { to: '/routing', label: 'Routing Combos', icon: GitFork },
-      { to: '/models', label: 'Model Catalog', icon: Cpu },
-      { to: '/token-saver', label: 'Token Saver', icon: Zap },
+      { to: '/api-keys', label: 'API Keys', icon: Key },
     ],
   },
   {
-    title: 'INFRASTRUCTURE',
+    title: 'SECURITY & EGRESS',
     items: [
       { to: '/vault', label: 'Credential Vault', icon: KeyRound },
-      { to: '/tools', label: 'Tools & Templates', icon: Wrench },
       { to: '/proxies', label: 'Outbound Proxies', icon: Globe },
-      { to: '/free-tiers', label: 'Free Tiers', icon: Sparkles },
-      { to: '/credential-pools', label: 'HA Pools', icon: Layers },
     ],
   },
   {
-    title: 'OBSERVABILITY',
+    title: 'OBSERVABILITY & SYSTEM',
     items: [
-      { to: '/api-keys', label: 'Ingress API Keys', icon: Key },
-      { to: '/usage', label: 'Usage & Telemetry', icon: BarChart3 },
+      { to: '/console', label: 'Live Console', icon: Terminal },
       { to: '/audit-logs', label: 'Audit Logs', icon: FileText },
-      { to: '/quota', label: 'Quotas & Circuits', icon: Gauge },
-    ],
-  },
-  {
-    title: 'SYSTEM',
-    items: [
       { to: '/settings', label: 'Settings', icon: Settings },
-      { to: '/backup', label: 'Database Backup', icon: Database },
-      { to: '/api-docs', label: 'API Reference', icon: BookOpen },
     ],
   },
 ]
@@ -125,7 +97,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                   EkaRouter
                 </span>
                 <span className="text-[10px] text-[var(--text-muted)] font-mono font-medium truncate">
-                  Universal AI Gateway
+                  AI Gateway
                 </span>
               </div>
             )}
@@ -136,14 +108,14 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
               type="button"
               onClick={onToggleCollapse}
               title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="hidden lg:flex p-1 rounded-[5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] transition-colors"
+              className="hidden lg:flex p-1 rounded-[5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] transition-colors cursor-pointer"
             >
               {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-[5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] lg:hidden"
+              className="p-1 rounded-[5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] lg:hidden cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -220,9 +192,6 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                 </div>
               )}
             </div>
-            {!isCollapsed && (
-              <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
-            )}
           </div>
         </div>
       </aside>

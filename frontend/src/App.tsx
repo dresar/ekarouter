@@ -13,7 +13,7 @@ import { ProviderDetailPage } from './pages/providers/ProviderDetailPage.tsx'
 import { RoutingListPage } from './pages/routing/RoutingListPage.tsx'
 import { RouteCreatePage } from './pages/routing/RouteCreatePage.tsx'
 import { RouteDetailPage } from './pages/routing/RouteDetailPage.tsx'
-import { ModelsPage } from './pages/models/ModelsPage.tsx'
+import { BoostPage } from './pages/boost/BoostPage.tsx'
 import { TokenSaverPage } from './pages/tokensaver/TokenSaverPage.tsx'
 import { VaultListPage } from './pages/vault/VaultListPage.tsx'
 import { VaultCreatePage } from './pages/vault/VaultCreatePage.tsx'
@@ -68,39 +68,40 @@ export function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
 
-            <Route element={<ProtectedLayout />}>
-              <Route path="/" element={<Navigate to="/overview" replace />} />
-              <Route path="/overview" element={<OverviewPage />} />
-              <Route path="/console" element={<LiveConsolePage />} />
-              <Route path="/providers" element={<ProvidersListPage />} />
-              <Route path="/providers/new" element={<ProviderCreatePage />} />
-              <Route path="/providers/:id" element={<ProviderDetailPage />} />
-              <Route path="/routing" element={<RoutingListPage />} />
-              <Route path="/routing/new" element={<RouteCreatePage />} />
-              <Route path="/routing/:id" element={<RouteDetailPage />} />
-              <Route path="/models" element={<ModelsPage />} />
-              <Route path="/token-saver" element={<TokenSaverPage />} />
-              <Route path="/vault" element={<VaultListPage />} />
-              <Route path="/vault/new" element={<VaultCreatePage />} />
-              <Route path="/vault/:id" element={<VaultDetailPage />} />
-              <Route path="/tools" element={<ToolsListPage />} />
-              <Route path="/tools/new" element={<ToolCreatePage />} />
-              <Route path="/tools/:id" element={<ToolDetailPage />} />
-              <Route path="/proxies" element={<ProxiesListPage />} />
-              <Route path="/proxies/new" element={<ProxyCreatePage />} />
-              <Route path="/free-tiers" element={<FreeTiersPage />} />
-              <Route path="/credential-pools" element={<PoolsListPage />} />
-              <Route path="/credential-pools/:id" element={<PoolDetailPage />} />
-              <Route path="/api-keys" element={<ApiKeysPage />} />
-              <Route path="/usage" element={<UsagePage />} />
-              <Route path="/audit-logs" element={<AuditLogsPage />} />
-              <Route path="/quota" element={<QuotaPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/backup" element={<BackupPage />} />
-              <Route path="/api-docs" element={<ApiDocsPage />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Route>
-          </Routes>
+              <Route element={<ProtectedLayout />}>
+                <Route path="/" element={<Navigate to="/overview" replace />} />
+                <Route path="/overview" element={<OverviewPage />} />
+                <Route path="/console" element={<LiveConsolePage />} />
+                <Route path="/providers" element={<ProvidersListPage />} />
+                <Route path="/providers/new" element={<ProviderCreatePage />} />
+                <Route path="/providers/:id" element={<ProviderDetailPage />} />
+                <Route path="/routing" element={<RoutingListPage />} />
+                <Route path="/routing/new" element={<RouteCreatePage />} />
+                <Route path="/routing/:id" element={<RouteDetailPage />} />
+                <Route path="/models" element={<Navigate to="/providers" replace />} />
+                <Route path="/boost" element={<BoostPage />} />
+                <Route path="/token-saver" element={<TokenSaverPage />} />
+                <Route path="/vault" element={<VaultListPage />} />
+                <Route path="/vault/new" element={<VaultCreatePage />} />
+                <Route path="/vault/:id" element={<VaultDetailPage />} />
+                <Route path="/tools" element={<ToolsListPage />} />
+                <Route path="/tools/new" element={<ToolCreatePage />} />
+                <Route path="/tools/:id" element={<ToolDetailPage />} />
+                <Route path="/proxies" element={<ProxiesListPage />} />
+                <Route path="/proxies/new" element={<ProxyCreatePage />} />
+                <Route path="/free-tiers" element={<FreeTiersPage />} />
+                <Route path="/credential-pools" element={<PoolsListPage />} />
+                <Route path="/credential-pools/:id" element={<PoolDetailPage />} />
+                <Route path="/api-keys" element={<ApiKeysPage />} />
+                <Route path="/usage" element={<UsagePage />} />
+                <Route path="/audit-logs" element={<AuditLogsPage />} />
+                <Route path="/quota" element={<QuotaPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/backup" element={<BackupPage />} />
+                <Route path="/api-docs" element={<ApiDocsPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Route>
+            </Routes>
           </BrowserRouter>
         </AuthProvider>
       </ThemeProvider>

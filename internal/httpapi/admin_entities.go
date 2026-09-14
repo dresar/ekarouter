@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/dresar/ekarouter/internal/proxy"
@@ -114,7 +116,25 @@ func (a *AdminHandler) DeleteProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *AdminHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), "SELECT id, provider_id, name, auth_type, state, priority, enabled FROM accounts")
+	proxyMap := make(map[string]ProxyProfileDTO)
+	if pRows, err := a.db.QueryContext(r.Context(), "SELECT id, name, scheme, host, port, enabled FROM proxy_profiles"); err == nil {
+		for pRows.Next() {
+			var p ProxyProfileDTO
+			var en int
+			if err := pRows.Scan(&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &en); err == nil {
+				p.Enabled = en == 1
+				proxyMap[p.ID] = p
+			}
+		}
+		pRows.Close()
+	}
+
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT a.id, a.provider_id, a.name, a.auth_type, a.state, a.priority, a.enabled,
+		       COALESCE(c.encrypted_access, ''), COALESCE(c.encrypted_secret, '')
+		FROM accounts a
+		LEFT JOIN credentials c ON a.id = c.account_id
+	`)
 	if err != nil {
 		http.Error(w, `{"error":"failed to query accounts"}`, http.StatusInternalServerError)
 		return
@@ -122,21 +142,68 @@ func (a *AdminHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type Acc struct {
-		ID         string `json:"id"`
-		ProviderID string `json:"provider_id"`
-		Name       string `json:"name"`
-		AuthType   string `json:"auth_type"`
-		State      string `json:"state"`
-		Priority   int    `json:"priority"`
-		Enabled    bool   `json:"enabled"`
+		ID           string `json:"id"`
+		ProviderID   string `json:"provider_id"`
+		Name         string `json:"name"`
+		AuthType     string `json:"auth_type"`
+		State        string `json:"state"`
+		Priority     int    `json:"priority"`
+		Enabled      bool   `json:"enabled"`
+		ProxyPoolID  string `json:"proxy_pool_id,omitempty"`
+		ProxyName    string `json:"proxy_name,omitempty"`
+		ProxyURL     string `json:"proxy_url,omitempty"`
+		MaskedSecret string `json:"masked_secret,omitempty"`
+		LastError    string `json:"last_error,omitempty"`
 	}
 
 	var list []Acc
 	for rows.Next() {
 		var acc Acc
 		var enabledInt int
-		if err := rows.Scan(&acc.ID, &acc.ProviderID, &acc.Name, &acc.AuthType, &acc.State, &acc.Priority, &enabledInt); err == nil {
+		var encAccess, encSecret string
+		if err := rows.Scan(&acc.ID, &acc.ProviderID, &acc.Name, &acc.AuthType, &acc.State, &acc.Priority, &enabledInt, &encAccess, &encSecret); err == nil {
 			acc.Enabled = enabledInt == 1
+
+			if a.crypto != nil {
+				if encAccess != "" {
+					if decAccess, err := a.crypto.Decrypt(encAccess); err == nil && decAccess != "" {
+						if len(decAccess) > 10 {
+							acc.MaskedSecret = decAccess[:6] + "..." + decAccess[len(decAccess)-4:]
+						} else {
+							acc.MaskedSecret = "••••••••"
+						}
+					}
+				}
+
+				if encSecret != "" {
+					if decSecret, err := a.crypto.Decrypt(encSecret); err == nil && decSecret != "" {
+						var meta map[string]any
+						if err := json.Unmarshal([]byte(decSecret), &meta); err == nil {
+							poolID, _ := meta["proxyPoolId"].(string)
+							if poolID == "" {
+								if psd, ok := meta["providerSpecificData"].(map[string]any); ok {
+									poolID, _ = psd["proxyPoolId"].(string)
+								}
+							}
+							if poolID != "" {
+								acc.ProxyPoolID = poolID
+								if prof, ok := proxyMap[poolID]; ok {
+									acc.ProxyName = prof.Name
+									if prof.Port > 0 && prof.Port != 80 && prof.Port != 443 {
+										acc.ProxyURL = fmt.Sprintf("%s://%s:%d", prof.Scheme, prof.Host, prof.Port)
+									} else {
+										acc.ProxyURL = fmt.Sprintf("%s://%s", prof.Scheme, prof.Host)
+									}
+								}
+							}
+							if lastErr, ok := meta["lastError"].(string); ok && lastErr != "" {
+								acc.LastError = lastErr
+							}
+						}
+					}
+				}
+			}
+
 			list = append(list, acc)
 		}
 	}
@@ -147,13 +214,14 @@ func (a *AdminHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 
 func (a *AdminHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ID         string `json:"id"`
-		ProviderID string `json:"provider_id"`
-		Name       string `json:"name"`
-		AuthType   string `json:"auth_type"`
-		Priority   int    `json:"priority"`
-		APIKey     string `json:"api_key"`
-		SecretKey  string `json:"secret_key"`
+		ID          string `json:"id"`
+		ProviderID  string `json:"provider_id"`
+		Name        string `json:"name"`
+		AuthType    string `json:"auth_type"`
+		Priority    int    `json:"priority"`
+		APIKey      string `json:"api_key"`
+		SecretKey   string `json:"secret_key"`
+		ProxyPoolID string `json:"proxy_pool_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
@@ -195,7 +263,19 @@ func (a *AdminHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encKey, _ := a.crypto.Encrypt(body.APIKey)
-	encSecret, _ := a.crypto.Encrypt(body.SecretKey)
+
+	meta := make(map[string]any)
+	if body.SecretKey != "" {
+		_ = json.Unmarshal([]byte(body.SecretKey), &meta)
+		if meta == nil {
+			meta = map[string]any{"secret": body.SecretKey}
+		}
+	}
+	if body.ProxyPoolID != "" {
+		meta["proxyPoolId"] = body.ProxyPoolID
+	}
+	metaBytes, _ := json.Marshal(meta)
+	encSecret, _ := a.crypto.Encrypt(string(metaBytes))
 
 	_, err = tx.ExecContext(r.Context(),
 		`INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
@@ -223,6 +303,79 @@ func (a *AdminHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "created", "id": body.ID})
 }
 
+func (a *AdminHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name        *string `json:"name"`
+		Priority    *int    `json:"priority"`
+		Enabled     *bool   `json:"enabled"`
+		State       *string `json:"state"`
+		ProxyPoolID *string `json:"proxy_pool_id"`
+		APIKey      *string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	if body.Name != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", *body.Name, id)
+	}
+	if body.Priority != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", *body.Priority, id)
+	}
+	if body.Enabled != nil {
+		en := 0
+		if *body.Enabled {
+			en = 1
+		}
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", en, id)
+	}
+	if body.State != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET state = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", *body.State, id)
+	}
+	if body.ProxyPoolID != nil && a.crypto != nil {
+		var encSec string
+		_ = a.db.QueryRowContext(r.Context(), "SELECT encrypted_secret FROM credentials WHERE account_id = ?", id).Scan(&encSec)
+		var meta map[string]any
+		if encSec != "" {
+			if sec, err := a.crypto.Decrypt(encSec); err == nil {
+				_ = json.Unmarshal([]byte(sec), &meta)
+			}
+		}
+		if meta == nil {
+			meta = make(map[string]any)
+		}
+		meta["proxyPoolId"] = *body.ProxyPoolID
+		bytes, _ := json.Marshal(meta)
+		newEnc, _ := a.crypto.Encrypt(string(bytes))
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
+			VALUES (?, ?, '', ?)
+			ON CONFLICT(account_id) DO UPDATE SET
+				encrypted_secret = excluded.encrypted_secret,
+				updated_at = CURRENT_TIMESTAMP`,
+			"cred_"+id, id, newEnc)
+	}
+	if body.APIKey != nil && a.crypto != nil {
+		newKey, _ := a.crypto.Encrypt(*body.APIKey)
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
+			VALUES (?, ?, ?, '')
+			ON CONFLICT(account_id) DO UPDATE SET
+				encrypted_access = excluded.encrypted_access,
+				updated_at = CURRENT_TIMESTAMP`,
+			"cred_"+id, id, newKey)
+	}
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "updated", "id": id})
+}
+
 func (a *AdminHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	_, err := a.db.ExecContext(r.Context(), "DELETE FROM accounts WHERE id = ?", id)
@@ -237,6 +390,252 @@ func (a *AdminHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
+
+func (a *AdminHandler) ApplyBatchProxy(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProviderID  string `json:"provider_id"`
+		Mode        string `json:"mode"`
+		ProxyPoolID string `json:"proxy_pool_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ProviderID == "" {
+		http.Error(w, `{"error":"provider_id and mode required"}`, http.StatusBadRequest)
+		return
+	}
+
+	accRows, err := a.db.QueryContext(r.Context(), "SELECT a.id, COALESCE(c.encrypted_secret, '') FROM accounts a LEFT JOIN credentials c ON c.account_id = a.id WHERE a.provider_id = ? ORDER BY a.priority DESC, a.name ASC", body.ProviderID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to query accounts"}`, http.StatusInternalServerError)
+		return
+	}
+	defer accRows.Close()
+
+	type accItem struct {
+		id        string
+		encSecret string
+	}
+	var accList []accItem
+	for accRows.Next() {
+		var item accItem
+		if err := accRows.Scan(&item.id, &item.encSecret); err == nil {
+			accList = append(accList, item)
+		}
+	}
+
+	if len(accList) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"updated": 0, "status": "no_accounts"})
+		return
+	}
+
+	var proxyList []string
+	if body.Mode == "rotate" {
+		pRows, err := a.db.QueryContext(r.Context(), "SELECT id FROM proxy_profiles WHERE enabled = 1 ORDER BY id ASC")
+		if err == nil {
+			for pRows.Next() {
+				var pid string
+				if err := pRows.Scan(&pid); err == nil {
+					proxyList = append(proxyList, pid)
+				}
+			}
+			pRows.Close()
+		}
+		if len(proxyList) == 0 {
+			pRows2, err := a.db.QueryContext(r.Context(), "SELECT id FROM proxy_profiles ORDER BY id ASC")
+			if err == nil {
+				for pRows2.Next() {
+					var pid string
+					if err := pRows2.Scan(&pid); err == nil {
+						proxyList = append(proxyList, pid)
+					}
+				}
+				pRows2.Close()
+			}
+		}
+		if len(proxyList) == 0 {
+			http.Error(w, `{"error":"No proxies available to rotate"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	count := 0
+	for i, acc := range accList {
+		targetProxy := ""
+		if body.Mode == "rotate" {
+			targetProxy = proxyList[i%len(proxyList)]
+		} else if body.Mode == "single" {
+			targetProxy = body.ProxyPoolID
+		} else if body.Mode == "none" {
+			targetProxy = ""
+		}
+
+		var meta map[string]any
+		if acc.encSecret != "" && a.crypto != nil {
+			if sec, err := a.crypto.Decrypt(acc.encSecret); err == nil {
+				_ = json.Unmarshal([]byte(sec), &meta)
+			}
+		}
+		if meta == nil {
+			meta = make(map[string]any)
+		}
+
+		if targetProxy == "" {
+			delete(meta, "proxyPoolId")
+		} else {
+			meta["proxyPoolId"] = targetProxy
+		}
+
+		newEnc := ""
+		if a.crypto != nil {
+			bytes, _ := json.Marshal(meta)
+			newEnc, _ = a.crypto.Encrypt(string(bytes))
+		}
+
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
+			VALUES (?, ?, '', ?)
+			ON CONFLICT(account_id) DO UPDATE SET
+				encrypted_secret = excluded.encrypted_secret,
+				updated_at = CURRENT_TIMESTAMP`,
+			"cred_"+acc.id, acc.id, newEnc)
+		count++
+	}
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":  "ok",
+		"mode":    body.Mode,
+		"updated": count,
+	})
+}
+
+func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var providerID string
+	var enabledInt int
+	var encAccess, encSecret string
+	err := a.db.QueryRowContext(r.Context(), `
+		SELECT a.provider_id, a.enabled, COALESCE(c.encrypted_access, ''), COALESCE(c.encrypted_secret, '')
+		FROM accounts a
+		LEFT JOIN credentials c ON c.account_id = a.id
+		WHERE a.id = ?`, id).Scan(&providerID, &enabledInt, &encAccess, &encSecret)
+
+	if err != nil {
+		http.Error(w, `{"error":"account not found"}`, http.StatusNotFound)
+		return
+	}
+
+	apiKey := ""
+	if encAccess != "" && a.crypto != nil {
+		apiKey, _ = a.crypto.Decrypt(encAccess)
+	}
+
+	var meta map[string]any
+	if encSecret != "" && a.crypto != nil {
+		if sec, err := a.crypto.Decrypt(encSecret); err == nil {
+			_ = json.Unmarshal([]byte(sec), &meta)
+		}
+	}
+	if meta == nil {
+		meta = make(map[string]any)
+	}
+
+	proxyPoolID, _ := meta["proxyPoolId"].(string)
+	var proxyURL string
+	if proxyPoolID != "" {
+		var scheme, host string
+		var port int
+		var user sql.NullString
+		if err := a.db.QueryRowContext(r.Context(), "SELECT scheme, host, port, username FROM proxy_profiles WHERE id = ?", proxyPoolID).Scan(&scheme, &host, &port, &user); err == nil {
+			proxyURL = fmt.Sprintf("%s://%s:%d", scheme, host, port)
+		}
+	}
+
+	start := time.Now()
+	httpClient := &http.Client{Timeout: 7 * time.Second}
+	if proxyURL != "" {
+		if parsedURL, err := url.Parse(proxyURL); err == nil {
+			httpClient.Transport = &http.Transport{
+				Proxy: http.ProxyURL(parsedURL),
+			}
+		}
+	}
+
+	testURL := ""
+	var testReq *http.Request
+
+	switch providerID {
+	case "gemini", "gemini-cli":
+		testURL = fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", apiKey)
+		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
+	case "groq":
+		testURL = "https://api.groq.com/openai/v1/models"
+		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
+		testReq.Header.Set("Authorization", "Bearer "+apiKey)
+	case "openrouter":
+		testURL = "https://openrouter.ai/api/v1/models"
+		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
+		testReq.Header.Set("Authorization", "Bearer "+apiKey)
+	case "openai":
+		testURL = "https://api.openai.com/v1/models"
+		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
+		testReq.Header.Set("Authorization", "Bearer "+apiKey)
+	default:
+		testURL = fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", apiKey)
+		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
+	}
+
+	resp, err := httpClient.Do(testReq)
+	latency := time.Since(start).Milliseconds()
+
+	healthy := false
+	statusMsg := ""
+
+	if err != nil {
+		statusMsg = err.Error()
+	} else {
+		defer resp.Body.Close()
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			healthy = true
+			statusMsg = "OK"
+		} else {
+			bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			statusMsg = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+		}
+	}
+
+	if healthy {
+		delete(meta, "lastError")
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET state = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+	} else {
+		meta["lastError"] = statusMsg
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET state = 'cooling_down', updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+	}
+
+	if a.crypto != nil {
+		bytes, _ := json.Marshal(meta)
+		newEnc, _ := a.crypto.Encrypt(string(bytes))
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
+			VALUES (?, ?, '', ?)
+			ON CONFLICT(account_id) DO UPDATE SET
+				encrypted_secret = excluded.encrypted_secret,
+				updated_at = CURRENT_TIMESTAMP`,
+			"cred_"+id, id, newEnc)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"healthy": healthy,
+		"latency": latency,
+		"message": statusMsg,
+	})
+}
+
 
 type RouteItemDTO struct {
 	ID         string `json:"id"`
@@ -539,6 +938,72 @@ func (a *AdminHandler) DeleteModel(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
+
+func (a *AdminHandler) UpdateModel(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Enabled     *bool   `json:"enabled"`
+		DisplayName *string `json:"display_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	if body.Enabled != nil {
+		en := 0
+		if *body.Enabled {
+			en = 1
+		}
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE models SET enabled = ? WHERE id = ?", en, id)
+	}
+	if body.DisplayName != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE models SET display_name = ? WHERE id = ?", *body.DisplayName, id)
+	}
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "updated", "id": id})
+}
+
+func (a *AdminHandler) BatchToggleModels(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProviderID string `json:"provider_id"`
+		Enabled    bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ProviderID == "" {
+		http.Error(w, `{"error":"provider_id and enabled required"}`, http.StatusBadRequest)
+		return
+	}
+
+	en := 0
+	if body.Enabled {
+		en = 1
+	}
+
+	res, err := a.db.ExecContext(r.Context(), "UPDATE models SET enabled = ? WHERE provider_id = ?", en, body.ProviderID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to update models"}`, http.StatusInternalServerError)
+		return
+	}
+	count, _ := res.RowsAffected()
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":      "ok",
+		"provider_id": body.ProviderID,
+		"enabled":     body.Enabled,
+		"count":       count,
+	})
+}
+
 
 type ProxyProfileDTO struct {
 	ID             string `json:"id"`

@@ -190,6 +190,10 @@ func NewServer(
 
 			authApi.Get("/accounts", adminHandler.ListAccounts)
 			authApi.Post("/accounts", adminHandler.CreateAccount)
+			authApi.Post("/accounts/batch-proxy", adminHandler.ApplyBatchProxy)
+			authApi.Post("/accounts/{id}/test", adminHandler.TestAccount)
+			authApi.Put("/accounts/{id}", adminHandler.UpdateAccount)
+			authApi.Patch("/accounts/{id}", adminHandler.UpdateAccount)
 			authApi.Delete("/accounts/{id}", adminHandler.DeleteAccount)
 			authApi.Post("/accounts/oauth/start", adminHandler.OAuthStart)
 			authApi.Post("/accounts/oauth/callback", adminHandler.OAuthCallback)
@@ -204,6 +208,9 @@ func NewServer(
 
 			authApi.Get("/models", adminHandler.ListModelsAdmin)
 			authApi.Post("/models", adminHandler.CreateModel)
+			authApi.Post("/models/batch-toggle", adminHandler.BatchToggleModels)
+			authApi.Put("/models/{id}", adminHandler.UpdateModel)
+			authApi.Patch("/models/{id}", adminHandler.UpdateModel)
 			authApi.Delete("/models/{id}", adminHandler.DeleteModel)
 
 			authApi.Get("/proxy-profiles", adminHandler.ListProxyProfiles)

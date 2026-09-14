@@ -70,11 +70,16 @@ export interface Account {
   provider_id: string
   name: string
   auth_type: string
-  state: 'active' | 'cooling_down' | 'disabled'
+  state: 'active' | 'cooling_down' | 'disabled' | 'unavailable' | string
   priority: number
   enabled: boolean
   consecutive_failures?: number
   cooldown_until?: string
+  proxy_pool_id?: string
+  proxy_name?: string
+  proxy_url?: string
+  masked_secret?: string
+  last_error?: string
 }
 
 export interface RouteItem {
@@ -131,6 +136,7 @@ export interface VaultCredential {
   error_count: number
   last_used_at?: string
   last_validated_at?: string
+  notes?: string
   created_at: string
 }
 
