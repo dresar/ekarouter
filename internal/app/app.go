@@ -16,6 +16,10 @@ import (
 	"github.com/dresar/ekarouter/internal/httpapi"
 	"github.com/dresar/ekarouter/internal/oauth"
 	"github.com/dresar/ekarouter/internal/providers"
+	"github.com/dresar/ekarouter/internal/providers/anthropic"
+	"github.com/dresar/ekarouter/internal/providers/custom"
+	"github.com/dresar/ekarouter/internal/providers/gemini"
+	"github.com/dresar/ekarouter/internal/providers/openai"
 	"github.com/dresar/ekarouter/internal/proxy"
 	"github.com/dresar/ekarouter/internal/routing"
 	"github.com/dresar/ekarouter/internal/tokensaver"
@@ -58,17 +62,25 @@ func Setup(cfg *config.Config, migrationsDir string) (*Application, error) {
 	}
 
 	registry := providers.NewRegistry()
-	registry.Register("openai", providers.NewOpenAIAdapter(sharedClient))
-	registry.Register("anthropic", providers.NewAnthropicAdapter(sharedClient))
-	registry.Register("gemini", providers.NewGeminiAdapter(sharedClient))
-	customAdapter := providers.NewCustomAdapter(sharedClient)
+	registry.Register("openai", openai.NewAdapter(sharedClient))
+	registry.Register("codex", openai.NewCodexAdapter(sharedClient))
+	registry.Register("anthropic", anthropic.NewAdapter(sharedClient))
+	geminiAdapter := gemini.NewAdapter(sharedClient)
+	registry.Register("gemini", geminiAdapter)
+	registry.Register("gemini-cli", gemini.NewCLIAdapter(sharedClient))
+	antigravityAdapter := gemini.NewAntigravityAdapter(sharedClient)
+	registry.Register("antigravity", antigravityAdapter)
+	registry.Register("gemini-agy", antigravityAdapter)
+	customAdapter := custom.NewAdapter(sharedClient)
 	registry.Register("custom", customAdapter)
-	registry.Register("deepseek", customAdapter)
-	registry.Register("groq", customAdapter)
-	registry.Register("openrouter", customAdapter)
-	registry.Register("ollama", customAdapter)
-	registry.Register("mistral", customAdapter)
-	registry.Register("together", customAdapter)
+	registry.Register("deepseek", custom.NewBackendAdapter("deepseek", sharedClient))
+	registry.Register("groq", custom.NewBackendAdapter("groq", sharedClient))
+	registry.Register("openrouter", custom.NewBackendAdapter("openrouter", sharedClient))
+	registry.Register("ollama", custom.NewBackendAdapter("ollama", sharedClient))
+	registry.Register("mistral", custom.NewBackendAdapter("mistral", sharedClient))
+	registry.Register("together", custom.NewBackendAdapter("together", sharedClient))
+	registry.Register("vllm", custom.NewBackendAdapter("vllm", sharedClient))
+	registry.Register("localai", custom.NewBackendAdapter("localai", sharedClient))
 
 	cd := routing.NewCooldownManager()
 	router := routing.NewRouter(cd)
