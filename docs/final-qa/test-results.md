@@ -16,15 +16,18 @@
 - `TestSystemEndpoints/GET_/health`: **PASS** (HTTP 200, system ok)
 - `TestSystemEndpoints/GET_/live`: **PASS** (HTTP 200, process active)
 - `TestSystemEndpoints/GET_/ready`: **PASS** (HTTP 200, database connection verified)
+- `TestSystemEndpoints/GET_/version`: **PASS** (HTTP 200, version 1.0.0 returned)
 - `TestSystemEndpoints/GET_/api/v1/health`: **PASS** (HTTP 200, health metrics counters)
 - `TestSystemEndpoints/GET_/api/v1/health/providers`: **PASS** (HTTP 200, provider health records)
 - `TestSystemEndpoints/GET_/api/v1/health/credentials`: **PASS** (HTTP 200, credential health states)
-- `TestSystemEndpoints/Unimplemented_Endpoints`: **PASS** (HTTP 404 cleanly returned for `/version`, `/metrics`, `/api/v1/system/settings`)
+- `TestSystemEndpoints/GET_PATCH_PUT_/api/v1/system/settings`: **PASS** (HTTP 200, system settings map and updates)
+- `TestSystemEndpoints/Unimplemented_Endpoints`: **PASS** (HTTP 404 cleanly returned for `/metrics`)
 
 ### B. Authentication & Identity
 - `TestAuthAndSessionEndpoints/POST_/api/auth/login_valid`: **PASS** (HTTP 200, session token cookie & JSON payload)
 - `TestAuthAndSessionEndpoints/POST_/api/auth/login_invalid`: **PASS** (HTTP 401 Unauthorized)
 - `TestAuthAndSessionEndpoints/GET_/api/auth/me`: **PASS** (HTTP 200, current user identity returned)
+- `TestAuthAndSessionEndpoints/Sessions_List_And_Revoke`: **PASS** (HTTP 200, active sessions listed and revoked)
 - `TestAuthAndSessionEndpoints/POST_/api/auth/logout`: **PASS** (HTTP 200, session cookie cleared)
 - `TestAuthAndSessionEndpoints/PostLogout_Me_Check`: **PASS** (HTTP 401 Unauthorized after session invalidation)
 
