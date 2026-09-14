@@ -11,9 +11,9 @@ import (
 )
 
 type mockAdapter struct {
-	kind       string
-	executeFn  func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (*providers.Response, error)
-	streamFn   func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (<-chan providers.StreamEvent, error)
+	kind      string
+	executeFn func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (*providers.Response, error)
+	streamFn  func(ctx context.Context, req *providers.Request, creds *providers.Credentials) (<-chan providers.StreamEvent, error)
 }
 
 func (m *mockAdapter) Kind() string { return m.kind }
