@@ -39,6 +39,15 @@ The EkaRouter backend has undergone comprehensive quality assurance, integration
 3. **Template Header Parsing in Devtools (`internal/httpapi/admin_devtools.go`)**:
    - *Problem*: Request template header definition in devtools required valid JSON string serialization for cURL generation.
    - *Fix*: Validated header serialization and updated test fixtures.
+4. **Missing Proxy Profile Lifecycle & Route Detail (`internal/httpapi/admin_entities.go`, `internal/httpapi/router.go`)**:
+   - *Problem*: GET/PUT/enable/disable for proxy profiles and GET for individual routes were missing from router endpoints.
+   - *Fix*: Implemented `GetProxyProfile` (with password masked as `••••••••`), `UpdateProxyProfile` (with re-encryption), `EnableProxyProfile`, `DisableProxyProfile`, and `GetRoute`, wired under `/api/proxies`, `/api/proxy-profiles`, and `/api/v1/proxy/routes`.
+5. **Missing System Settings, Session Management, & Version Endpoints (`internal/health/health.go`, `internal/httpapi/admin_handlers.go`, `internal/httpapi/router.go`)**:
+   - *Problem*: `GET /version`, `/api/v1/system/settings`, and `/api/auth/sessions` were returning 404.
+   - *Fix*: Implemented `checker.VersionHandler`, wired settings endpoints, and implemented session listing and revocation (`ListSessions`, `RevokeSession`).
+6. **Sham/Theater Test Replacement in Integration Suite (`tests/integration/auth_security_test.go`)**:
+   - *Problem*: Security test for CRLF header injection previously exercised standard library string replacement rather than production sanitization logic.
+   - *Fix*: Replaced with tests directly exercising production `executor.SanitizeHeaderKey` and `executor.SanitizeHeaderValue`.
 
 ---
 

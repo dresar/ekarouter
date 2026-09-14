@@ -44,6 +44,9 @@
 ### D. Outbound Proxy Profiles & CRUD
 - `TestProxyProfilesCRUD/Create_Proxy_Profile`: **PASS** (HTTP 201, auto-generated ID, password encrypted)
 - `TestProxyProfilesCRUD/List_Proxies_Masking`: **PASS** (HTTP 200, passwords strictly masked)
+- `TestProxyProfilesCRUD/Get_Proxy_Profile`: **PASS** (HTTP 200, single proxy retrieved with password masked as `••••••••`)
+- `TestProxyProfilesCRUD/Update_Proxy_Profile`: **PASS** (HTTP 200, proxy protocol/host/port updated and re-encrypted)
+- `TestProxyProfilesCRUD/Enable_Disable_Proxy_Profile`: **PASS** (HTTP 200, toggles enabled/disabled state)
 - `TestProxyProfilesCRUD/Test_Proxy_Connection`: **PASS** (Structured response returned without server crash)
 - `TestProxyProfilesCRUD/Delete_Proxy_Profile`: **PASS** (HTTP 200, profile deleted)
 - `TestUniversalPlatformProxyEndpoint`: **PASS** (Auth enforced, SSRF filter applied)
