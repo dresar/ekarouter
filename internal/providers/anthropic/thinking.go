@@ -30,6 +30,9 @@ func ApplyAnthropicHeaders(h http.Header, creds *providers.Credentials, hasThink
 		} else if creds.AccessToken != "" {
 			h.Set("Authorization", "Bearer "+creds.AccessToken)
 		}
+		for k, v := range creds.Headers {
+			h.Set(k, v)
+		}
 	}
 }
 
@@ -52,6 +55,35 @@ func CloakToolName(name string) string {
 
 func DecloakToolName(name string) string {
 	return strings.TrimSuffix(name, "_ide")
+}
+
+func CloakTools(tools []any) []any {
+	cloaked := make([]any, len(tools))
+	for i, t := range tools {
+		if tm, ok := t.(map[string]any); ok {
+			cp := make(map[string]any)
+			for k, v := range tm {
+				cp[k] = v
+			}
+			if name, ok := cp["name"].(string); ok && name != "" {
+				cp["name"] = CloakToolName(name)
+			}
+			if fn, ok := cp["function"].(map[string]any); ok {
+				fnCp := make(map[string]any)
+				for k, v := range fn {
+					fnCp[k] = v
+				}
+				if fnName, ok := fnCp["name"].(string); ok && fnName != "" {
+					fnCp["name"] = CloakToolName(fnName)
+				}
+				cp["function"] = fnCp
+			}
+			cloaked[i] = cp
+		} else {
+			cloaked[i] = t
+		}
+	}
+	return cloaked
 }
 
 func ConfigureThinking(body map[string]any, req *providers.Request) bool {

@@ -41,16 +41,23 @@ func BuildCLIHeaders(creds *providers.Credentials) http.Header {
 		} else if creds.APIKey != "" {
 			h.Set("Authorization", "Bearer "+creds.APIKey)
 		}
+		for k, v := range creds.Headers {
+			h.Set(k, v)
+		}
 	}
 	return h
 }
 
-func BuildCLIURL(baseURL, model string) string {
+func BuildCLIURL(baseURL, model string, stream bool) string {
 	cleaned := strings.TrimRight(baseURL, "/")
 	if cleaned == "" {
 		cleaned = "https://cloudaicompanion.googleapis.com/v1"
 	}
-	return fmt.Sprintf("%s/models/%s:generateContent", cleaned, model)
+	action := "generateContent"
+	if stream {
+		action = "streamGenerateContent?alt=sse"
+	}
+	return fmt.Sprintf("%s/models/%s:%s", cleaned, model, action)
 }
 
 func WrapCLIRequest(projectID, model string, body map[string]any) map[string]any {

@@ -194,18 +194,32 @@ func (a *AdminHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *AdminHandler) ListRoutes(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), "SELECT id, name, strategy, enabled FROM routes")
+	rows, err := a.db.QueryContext(r.Context(), "SELECT id, name, strategy, enabled FROM routes ORDER BY name ASC")
 	if err != nil {
 		http.Error(w, `{"error":"failed to query routes"}`, http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
 
+	type RouteItemDTO struct {
+		ID         string `json:"id"`
+		ProviderID string `json:"provider_id"`
+		AccountID  string `json:"account_id"`
+		ModelID    string `json:"model_id"`
+		Priority   int    `json:"priority"`
+		Weight     int    `json:"weight"`
+		TimeoutMs  int    `json:"timeout_ms"`
+		MaxRetries int    `json:"max_retries"`
+		Enabled    bool   `json:"enabled"`
+	}
+
 	type RouteDTO struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Strategy string `json:"strategy"`
-		Enabled  bool   `json:"enabled"`
+		ID        string         `json:"id"`
+		Name      string         `json:"name"`
+		Strategy  string         `json:"strategy"`
+		Enabled   bool           `json:"enabled"`
+		ItemCount int            `json:"item_count"`
+		Items     []RouteItemDTO `json:"items"`
 	}
 
 	var list []RouteDTO
@@ -214,6 +228,22 @@ func (a *AdminHandler) ListRoutes(w http.ResponseWriter, r *http.Request) {
 		var enabledInt int
 		if err := rows.Scan(&rd.ID, &rd.Name, &rd.Strategy, &enabledInt); err == nil {
 			rd.Enabled = enabledInt == 1
+			itemRows, err := a.db.QueryContext(r.Context(), "SELECT id, provider_id, COALESCE(account_id, ''), COALESCE(model_id, ''), priority, weight, timeout_ms, max_retries, enabled FROM route_items WHERE route_id = ? ORDER BY priority ASC", rd.ID)
+			if err == nil {
+				for itemRows.Next() {
+					var item RouteItemDTO
+					var itEnabled int
+					if err := itemRows.Scan(&item.ID, &item.ProviderID, &item.AccountID, &item.ModelID, &item.Priority, &item.Weight, &item.TimeoutMs, &item.MaxRetries, &itEnabled); err == nil {
+						item.Enabled = itEnabled == 1
+						rd.Items = append(rd.Items, item)
+					}
+				}
+				itemRows.Close()
+			}
+			if rd.Items == nil {
+				rd.Items = make([]RouteItemDTO, 0)
+			}
+			rd.ItemCount = len(rd.Items)
 			list = append(list, rd)
 		}
 	}

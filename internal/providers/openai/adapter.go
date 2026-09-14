@@ -118,6 +118,29 @@ func (a *Adapter) buildEndpointURL(creds *providers.Credentials) string {
 }
 
 func (a *Adapter) BuildRequestBody(req *providers.Request, stream bool) map[string]any {
+	if a.mode == ModeCodex {
+		input := BuildCodexInput(req.Messages)
+		bodyData := map[string]any{
+			"model":  req.Model,
+			"input":  input,
+			"stream": stream,
+			"store":  false,
+		}
+		if req.Temperature != nil {
+			bodyData["temperature"] = *req.Temperature
+		}
+		if len(req.Tools) > 0 {
+			bodyData["tools"] = NormalizeCodexTools(req.Tools)
+		}
+		if req.ToolChoice != nil {
+			bodyData["tool_choice"] = req.ToolChoice
+		}
+		if req.MaxTokens != nil && *req.MaxTokens > 0 {
+			bodyData["max_output_tokens"] = *req.MaxTokens
+		}
+		return bodyData
+	}
+
 	isReasoning := IsReasoningModel(req.Model)
 	messages := AdaptMessagesForReasoning(req.Messages, isReasoning)
 
@@ -179,6 +202,9 @@ func (a *Adapter) prepareHTTPRequest(ctx context.Context, req *providers.Request
 		} else if creds.AccessToken != "" {
 			httpReq.Header.Set("Authorization", "Bearer "+creds.AccessToken)
 		}
+		for k, v := range creds.Headers {
+			httpReq.Header.Set(k, v)
+		}
 	}
 
 	return httpReq, nil
@@ -204,6 +230,26 @@ func (a *Adapter) Execute(ctx context.Context, req *providers.Request, creds *pr
 	rawBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if a.mode == ModeCodex {
+		codexResp, err := ParseResponsesResponse(rawBytes)
+		if err == nil && (len(codexResp.Output) > 0 || codexResp.Status != "") {
+			res := &providers.Response{
+				ID:           codexResp.ID,
+				Model:        codexResp.Model,
+				Role:         "assistant",
+				Content:      ExtractResponsesOutputText(codexResp.Output),
+				FinishReason: codexResp.Status,
+			}
+			if codexResp.Usage != nil {
+				u := ExtractResponsesUsage(codexResp.Usage)
+				if u != nil {
+					res.Usage = *u
+				}
+			}
+			return res, nil
+		}
 	}
 
 	openAIResp, err := ParseChatResponse(rawBytes)
@@ -286,6 +332,21 @@ func (a *Adapter) ExecuteStream(ctx context.Context, req *providers.Request, cre
 				return
 			}
 
+			if a.mode == ModeCodex {
+				codexChunk, err := ParseResponsesChunk([]byte(data))
+				if err == nil && codexChunk.Delta != "" {
+					select {
+					case events <- providers.StreamEvent{
+						Type:  providers.StreamEventDelta,
+						Delta: codexChunk.Delta,
+					}:
+					case <-ctx.Done():
+						return
+					}
+					continue
+				}
+			}
+
 			chunk, err := ParseChatChunk([]byte(data))
 			if err != nil {
 				continue
@@ -335,6 +396,12 @@ func (a *Adapter) ExecuteStream(ctx context.Context, req *providers.Request, cre
 			case events <- providers.StreamEvent{Type: providers.StreamEventError, Error: err}:
 			case <-ctx.Done():
 			}
+			return
+		}
+
+		select {
+		case events <- providers.StreamEvent{Type: providers.StreamEventDone}:
+		case <-ctx.Done():
 		}
 	}()
 

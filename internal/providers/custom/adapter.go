@@ -33,17 +33,20 @@ func (a *Adapter) Kind() string {
 
 func (a *Adapter) ensureCreds(creds *providers.Credentials) *providers.Credentials {
 	resolvedBase := ResolveBaseURL(a.backend, creds)
-	if creds == nil {
-		return &providers.Credentials{
-			BaseURL: resolvedBase,
-		}
+	res := &providers.Credentials{}
+	if creds != nil {
+		*res = *creds
 	}
-	if creds.BaseURL == "" {
-		cp := *creds
-		cp.BaseURL = resolvedBase
-		return &cp
+	if res.BaseURL == "" {
+		res.BaseURL = resolvedBase
 	}
-	return creds
+	headers := make(map[string]string)
+	for k, v := range res.Headers {
+		headers[k] = v
+	}
+	ApplyBackendCustomHeaders(a.backend, headers)
+	res.Headers = headers
+	return res
 }
 
 func (a *Adapter) Models(ctx context.Context, creds *providers.Credentials) ([]providers.ModelInfo, error) {

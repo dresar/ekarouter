@@ -115,7 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
 CREATE TABLE IF NOT EXISTS proxy_profiles (
     id TEXT PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
     scheme TEXT NOT NULL,
     host TEXT NOT NULL,
     port INTEGER NOT NULL,

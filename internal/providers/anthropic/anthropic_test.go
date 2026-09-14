@@ -98,7 +98,7 @@ func TestThinkingConfiguration(t *testing.T) {
 		ThinkingBudget: &budget,
 	}
 
-	body, hasThinking := adapter.BuildRequestBody(req, false)
+	body, hasThinking := adapter.BuildRequestBody(req, nil, false)
 	if !hasThinking {
 		t.Fatal("expected hasThinking to be true")
 	}
@@ -121,7 +121,7 @@ func TestAnthropicMultiSystem(t *testing.T) {
 			{Role: "user", Content: "Hello"},
 		},
 	}
-	body, _ := adapter.BuildRequestBody(req, false)
+	body, _ := adapter.BuildRequestBody(req, nil, false)
 	sysStr, ok := body["system"].(string)
 	if !ok || sysStr != "System 1\n\nSystem 2" {
 		t.Errorf("expected concatenated system prompt, got: %v", body["system"])
@@ -140,6 +140,36 @@ func TestToolCloaking(t *testing.T) {
 	decloaked := DecloakToolName("bash_ide")
 	if decloaked != "bash" {
 		t.Errorf("expected bash, got %s", decloaked)
+	}
+
+	adapter := NewAdapter(nil)
+	req := &providers.Request{
+		Model: "claude-3-7-sonnet-20250219",
+		Tools: []any{
+			map[string]any{"name": "read_file"},
+		},
+	}
+
+	oauthCreds := &providers.Credentials{AccessToken: "oauth-token-123"}
+	oauthBody, _ := adapter.BuildRequestBody(req, oauthCreds, false)
+	oauthTools, ok := oauthBody["tools"].([]any)
+	if !ok || len(oauthTools) != 1 {
+		t.Fatalf("expected 1 tool in oauthBody, got %v", oauthBody["tools"])
+	}
+	t1 := oauthTools[0].(map[string]any)
+	if t1["name"] != "read_file_ide" {
+		t.Errorf("expected cloaked tool name read_file_ide, got %v", t1["name"])
+	}
+
+	apiKeyCreds := &providers.Credentials{APIKey: "sk-ant-key"}
+	apiBody, _ := adapter.BuildRequestBody(req, apiKeyCreds, false)
+	apiTools, ok := apiBody["tools"].([]any)
+	if !ok || len(apiTools) != 1 {
+		t.Fatalf("expected 1 tool in apiBody, got %v", apiBody["tools"])
+	}
+	t2 := apiTools[0].(map[string]any)
+	if t2["name"] != "read_file" {
+		t.Errorf("expected uncloaked tool name read_file for API key, got %v", t2["name"])
 	}
 }
 

@@ -216,6 +216,17 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 			if r.cooldowns.IsCoolingDown(item.AccountID) {
 				continue
 			}
+		} else {
+			hasActive := false
+			for _, acc := range r.accounts {
+				if acc.ProviderID == item.ProviderID && acc.IsActive() && !r.cooldowns.IsCoolingDown(acc.ID) {
+					hasActive = true
+					break
+				}
+			}
+			if !hasActive {
+				continue
+			}
 		}
 		eligible = append(eligible, item)
 	}
@@ -238,6 +249,9 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 		eligible = rotated
 	}
 
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	var targets []Target
 	for _, item := range eligible {
 		timeout := 60 * time.Second
@@ -248,14 +262,37 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 		if item.MaxRetries > 0 {
 			retries = item.MaxRetries
 		}
-		targets = append(targets, Target{
-			ProviderID:   item.ProviderID,
-			ProviderKind: item.ProviderKind,
-			AccountID:    item.AccountID,
-			ModelName:    item.ModelName,
-			Timeout:      timeout,
-			MaxRetries:   retries,
-		})
+
+		if item.AccountID != "" {
+			targets = append(targets, Target{
+				ProviderID:   item.ProviderID,
+				ProviderKind: item.ProviderKind,
+				AccountID:    item.AccountID,
+				ModelName:    item.ModelName,
+				Timeout:      timeout,
+				MaxRetries:   retries,
+			})
+		} else {
+			var matching []*Account
+			for _, acc := range r.accounts {
+				if acc.ProviderID == item.ProviderID && acc.IsActive() && !r.cooldowns.IsCoolingDown(acc.ID) {
+					matching = append(matching, acc)
+				}
+			}
+			sort.SliceStable(matching, func(i, j int) bool {
+				return matching[i].Priority < matching[j].Priority
+			})
+			for _, acc := range matching {
+				targets = append(targets, Target{
+					ProviderID:   item.ProviderID,
+					ProviderKind: item.ProviderKind,
+					AccountID:    acc.ID,
+					ModelName:    item.ModelName,
+					Timeout:      timeout,
+					MaxRetries:   retries,
+				})
+			}
+		}
 	}
 
 	return targets, nil

@@ -51,7 +51,7 @@ func (a *Adapter) buildEndpointURL(creds *providers.Credentials) string {
 	return baseURL + "/messages"
 }
 
-func (a *Adapter) BuildRequestBody(req *providers.Request, stream bool) (map[string]any, bool) {
+func (a *Adapter) BuildRequestBody(req *providers.Request, creds *providers.Credentials, stream bool) (map[string]any, bool) {
 	systemPrompt := ConcatenateSystemPrompts(req.Messages)
 	var nonSystemMsgs []map[string]any
 
@@ -101,7 +101,11 @@ func (a *Adapter) BuildRequestBody(req *providers.Request, stream bool) (map[str
 		bodyData["stop_sequences"] = req.Stop
 	}
 	if len(req.Tools) > 0 {
-		bodyData["tools"] = req.Tools
+		if creds != nil && creds.AccessToken != "" {
+			bodyData["tools"] = CloakTools(req.Tools)
+		} else {
+			bodyData["tools"] = req.Tools
+		}
 	}
 
 	hasThinking := ConfigureThinking(bodyData, req)
@@ -111,7 +115,7 @@ func (a *Adapter) BuildRequestBody(req *providers.Request, stream bool) (map[str
 
 func (a *Adapter) prepareHTTPRequest(ctx context.Context, req *providers.Request, creds *providers.Credentials, stream bool) (*http.Request, error) {
 	url := a.buildEndpointURL(creds)
-	bodyData, hasThinking := a.BuildRequestBody(req, stream)
+	bodyData, hasThinking := a.BuildRequestBody(req, creds, stream)
 
 	bodyBytes, err := json.Marshal(bodyData)
 	if err != nil {

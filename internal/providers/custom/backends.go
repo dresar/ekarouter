@@ -66,5 +66,15 @@ func ApplyBackendHeaders(backend string, creds *providers.Credentials, h http.He
 		} else if creds.AccessToken != "" {
 			h.Set("Authorization", "Bearer "+creds.AccessToken)
 		}
+		for k, v := range creds.Headers {
+			h.Set(k, v)
+		}
+	}
+}
+
+func ApplyBackendCustomHeaders(backend string, h map[string]string) {
+	if strings.ToLower(backend) == BackendOpenRouter {
+		h["HTTP-Referer"] = "https://github.com/dresar/ekarouter"
+		h["X-Title"] = "EkaRouter"
 	}
 }

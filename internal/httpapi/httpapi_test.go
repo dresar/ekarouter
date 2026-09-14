@@ -39,7 +39,8 @@ func (d *dummyAdapter) Execute(ctx context.Context, req *providers.Request, cred
 	}, nil
 }
 func (d *dummyAdapter) ExecuteStream(ctx context.Context, req *providers.Request, creds *providers.Credentials) (<-chan providers.StreamEvent, error) {
-	ch := make(chan providers.StreamEvent, 2)
+	ch := make(chan providers.StreamEvent, 3)
+	ch <- providers.StreamEvent{Type: providers.StreamEventReasoning, Reasoning: "deep reasoning"}
 	ch <- providers.StreamEvent{Type: providers.StreamEventDelta, Delta: "chunk"}
 	ch <- providers.StreamEvent{Type: providers.StreamEventDone}
 	close(ch)
@@ -154,6 +155,24 @@ func TestGatewayAuthAndChatCompletions(t *testing.T) {
 
 	if len(resp.Choices) == 0 || resp.Choices[0].Message.Content != "Gateway response success" {
 		t.Errorf("unexpected completion content: %v", resp)
+	}
+
+	streamReqBody := `{"model":"gpt-4o","stream":true,"messages":[{"role":"user","content":"Hello stream"}]}`
+	reqStream := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(streamReqBody))
+	reqStream.Header.Set("Content-Type", "application/json")
+	reqStream.Header.Set("Authorization", "Bearer "+validKey)
+	recStream := httptest.NewRecorder()
+	server.ServeHTTP(recStream, reqStream)
+
+	if recStream.Code != http.StatusOK {
+		t.Fatalf("expected 200 for stream, got %d: %s", recStream.Code, recStream.Body.String())
+	}
+	streamOutput := recStream.Body.String()
+	if !strings.Contains(streamOutput, "reasoning_content") || !strings.Contains(streamOutput, "deep reasoning") {
+		t.Errorf("expected stream to contain reasoning_content, got: %s", streamOutput)
+	}
+	if !strings.Contains(streamOutput, "data: [DONE]") {
+		t.Errorf("expected stream to finish with [DONE], got: %s", streamOutput)
 	}
 }
 

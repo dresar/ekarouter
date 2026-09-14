@@ -223,6 +223,68 @@ func TestThoughtSignatureStore(t *testing.T) {
 	if store.Get("sess-1") != "" {
 		t.Errorf("expected empty string after clear, got %s", store.Get("sess-1"))
 	}
+
+	for i := 0; i < 2500; i++ {
+		store.Store(fmt.Sprintf("key-%d", i), fmt.Sprintf("sig-%d", i))
+	}
+	if store.Size() > 2000 {
+		t.Errorf("expected store to cap at 2000, got %d", store.Size())
+	}
+}
+
+func TestAntigravityAndCLIStreamingURLs(t *testing.T) {
+	agStreamURL := BuildAntigravityURL("https://daily-cloudcode-pa.googleapis.com", true, false)
+	if !strings.Contains(agStreamURL, "streamGenerateContent?alt=sse") {
+		t.Errorf("expected streamGenerateContent?alt=sse, got %s", agStreamURL)
+	}
+
+	agImageURL := BuildAntigravityURL("https://daily-cloudcode-pa.googleapis.com", true, true)
+	if strings.Contains(agImageURL, "streamGenerateContent") || !strings.Contains(agImageURL, "generateContent") {
+		t.Errorf("expected generateContent for image model, got %s", agImageURL)
+	}
+
+	cliStreamURL := BuildCLIURL("https://cloudaicompanion.googleapis.com/v1", "gemini-2.5-flash", true)
+	if !strings.Contains(cliStreamURL, "streamGenerateContent?alt=sse") {
+		t.Errorf("expected streamGenerateContent?alt=sse for cli, got %s", cliStreamURL)
+	}
+}
+
+func TestAntigravityToolCallSignatureBackfill(t *testing.T) {
+	adapter := NewAntigravityAdapter(nil)
+	req := &providers.Request{
+		Model: "gemini-2.5-pro",
+		Messages: []providers.Message{
+			{
+				Role: "assistant",
+				ToolCalls: []providers.ToolCall{
+					{
+						ID: "call_123",
+						Function: providers.FunctionCall{
+							Name:      "read_file",
+							Arguments: `{"path":"foo.go"}`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	body := adapter.BuildRequestBody(req, nil)
+	reqMap, ok := body["request"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected request envelope, got %v", body)
+	}
+	contents, ok := reqMap["contents"].([]map[string]any)
+	if !ok || len(contents) == 0 {
+		t.Fatalf("expected contents array, got %v", reqMap["contents"])
+	}
+	parts, ok := contents[0]["parts"].([]map[string]any)
+	if !ok || len(parts) == 0 {
+		t.Fatalf("expected parts array, got %v", contents[0]["parts"])
+	}
+	if parts[0]["thoughtSignature"] == "" {
+		t.Error("expected backfilled thoughtSignature for first function call part")
+	}
 }
 
 func TestGeminiCapabilities(t *testing.T) {

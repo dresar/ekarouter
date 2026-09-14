@@ -208,3 +208,116 @@ func TestOpenAICapabilities(t *testing.T) {
 		t.Error("expected gpt-4o to have reasoning false")
 	}
 }
+
+func TestCodexAdapterExecuteAndStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/responses" {
+			if r.Header.Get("Accept") == "text/event-stream" {
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprintf(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Codex stream\"}\n\n")
+				fmt.Fprintf(w, "data: [DONE]\n\n")
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"id":"resp_123",
+				"model":"codex-mini",
+				"status":"completed",
+				"output":[
+					{
+						"type":"message",
+						"role":"assistant",
+						"content":[{"type":"output_text","text":"Codex OK"}]
+					}
+				],
+				"usage":{"input_tokens":8,"output_tokens":4}
+			}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	adapter := NewCodexAdapter(server.Client())
+	if adapter.Kind() != "codex" {
+		t.Errorf("expected codex kind, got %s", adapter.Kind())
+	}
+
+	creds := &providers.Credentials{BaseURL: server.URL, APIKey: "test-codex-key"}
+	req := &providers.Request{
+		Model: "codex-mini",
+		Messages: []providers.Message{
+			{Role: "system", Content: "Instructions"},
+			{Role: "user", Content: "Hello"},
+		},
+	}
+
+	res, err := adapter.Execute(context.Background(), req, creds)
+	if err != nil {
+		t.Fatalf("unexpected codex execute error: %v", err)
+	}
+	if res.Content != "Codex OK" {
+		t.Errorf("expected Codex OK, got %s", res.Content)
+	}
+	if res.Usage.TotalTokens != 12 {
+		t.Errorf("expected 12 total tokens, got %d", res.Usage.TotalTokens)
+	}
+
+	streamChan, err := adapter.ExecuteStream(context.Background(), req, creds)
+	if err != nil {
+		t.Fatalf("unexpected codex stream error: %v", err)
+	}
+	var streamText string
+	for ev := range streamChan {
+		if ev.Type == providers.StreamEventDelta {
+			streamText += ev.Delta
+		}
+	}
+	if streamText != "Codex stream" {
+		t.Errorf("expected 'Codex stream', got '%s'", streamText)
+	}
+}
+
+func TestCodexToolNormalization(t *testing.T) {
+	tools := []any{
+		map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "test_func",
+				"description": "A test function",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type":    "string",
+							"pattern": `^\p{L}+$`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	normalized := NormalizeCodexTools(tools)
+	if len(normalized) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(normalized))
+	}
+	if normalized[0]["name"] != "test_func" {
+		t.Errorf("expected test_func, got %v", normalized[0]["name"])
+	}
+	params, ok := normalized[0]["parameters"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected parameters map, got %v", normalized[0]["parameters"])
+	}
+	props, ok := params["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties map, got %v", params["properties"])
+	}
+	nameProp, ok := props["name"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected name prop, got %v", props["name"])
+	}
+	if pattern, ok := nameProp["pattern"].(string); ok && strings.Contains(pattern, `\p{`) {
+		t.Errorf("expected unicode escape to be stripped, got %s", pattern)
+	}
+}

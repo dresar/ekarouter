@@ -7,9 +7,16 @@ import (
 	"github.com/dresar/ekarouter/internal/providers"
 )
 
+type FunctionCallPart struct {
+	Name string `json:"name"`
+	Args any    `json:"args"`
+}
+
 type ContentPart struct {
-	Text    string `json:"text,omitempty"`
-	Thought bool   `json:"thought,omitempty"`
+	Text             string            `json:"text,omitempty"`
+	Thought          bool              `json:"thought,omitempty"`
+	ThoughtSignature string            `json:"thoughtSignature,omitempty"`
+	FunctionCall     *FunctionCallPart `json:"functionCall,omitempty"`
 }
 
 type CandidateContent struct {

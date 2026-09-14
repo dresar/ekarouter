@@ -82,17 +82,18 @@ func (a *Adapter) buildEndpointURL(req *providers.Request, creds *providers.Cred
 		apiKey = creds.APIKey
 	}
 
+	isImage := IsImageModel(req.Model)
 	switch a.mode {
 	case ModeAntigravity:
-		return BuildAntigravityURL(baseURL)
+		return BuildAntigravityURL(baseURL, stream, isImage)
 	case ModeCLI:
-		return BuildCLIURL(baseURL, req.Model)
+		return BuildCLIURL(baseURL, req.Model, stream)
 	default:
 		cleaned := strings.TrimRight(baseURL, "/")
 		if cleaned == "" {
 			cleaned = "https://generativelanguage.googleapis.com/v1beta/models"
 		}
-		if stream {
+		if stream && !isImage {
 			return fmt.Sprintf("%s/%s:streamGenerateContent?alt=sse&key=%s", cleaned, req.Model, apiKey)
 		}
 		return fmt.Sprintf("%s/%s:generateContent?key=%s", cleaned, req.Model, apiKey)
@@ -100,30 +101,79 @@ func (a *Adapter) buildEndpointURL(req *providers.Request, creds *providers.Cred
 }
 
 func (a *Adapter) BuildRequestBody(req *providers.Request, creds *providers.Credentials) map[string]any {
-	type part struct {
-		Text string `json:"text"`
-	}
-	type content struct {
-		Role  string `json:"role"`
-		Parts []part `json:"parts"`
-	}
-
-	var contents []content
-	var systemParts []part
+	var contents []map[string]any
+	var systemParts []map[string]any
 
 	for _, m := range req.Messages {
 		r := strings.ToLower(m.Role)
 		if r == "system" {
-			systemParts = append(systemParts, part{Text: m.Content})
+			systemParts = append(systemParts, map[string]any{"text": m.Content})
 			continue
 		}
 		role := "user"
 		if r == "assistant" || r == "model" {
 			role = "model"
 		}
-		contents = append(contents, content{
-			Role:  role,
-			Parts: []part{{Text: m.Content}},
+
+		var parts []map[string]any
+		if m.Content != "" {
+			parts = append(parts, map[string]any{"text": m.Content})
+		}
+
+		if len(m.ToolCalls) > 0 {
+			firstCall := true
+			for _, tc := range m.ToolCalls {
+				var args map[string]any
+				if tc.Function.Arguments != "" {
+					_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				}
+				if args == nil {
+					args = make(map[string]any)
+				}
+				fCall := map[string]any{
+					"name": SanitizeToolName(tc.Function.Name),
+					"args": args,
+				}
+				p := map[string]any{"functionCall": fCall}
+				if a.mode == ModeAntigravity && firstCall {
+					sig := ""
+					if tc.ID != "" && a.signatures != nil {
+						sig = a.signatures.Get(tc.ID)
+					}
+					if sig == "" && req.ID != "" && a.signatures != nil {
+						sig = a.signatures.Get(req.ID)
+					}
+					if sig == "" {
+						sig = DefaultThinkingAGSignature
+					}
+					p["thoughtSignature"] = sig
+					firstCall = false
+				}
+				parts = append(parts, p)
+			}
+		}
+
+		if r == "tool" {
+			role = "user"
+			var respObj map[string]any
+			if err := json.Unmarshal([]byte(m.Content), &respObj); err != nil {
+				respObj = map[string]any{"result": m.Content}
+			}
+			parts = append(parts, map[string]any{
+				"functionResponse": map[string]any{
+					"name":     SanitizeToolName(m.Name),
+					"response": respObj,
+				},
+			})
+		}
+
+		if len(parts) == 0 {
+			parts = append(parts, map[string]any{"text": ""})
+		}
+
+		contents = append(contents, map[string]any{
+			"role":  role,
+			"parts": parts,
 		})
 	}
 
@@ -137,6 +187,13 @@ func (a *Adapter) BuildRequestBody(req *providers.Request, creds *providers.Cred
 	if req.MaxTokens != nil {
 		genConfig["maxOutputTokens"] = *req.MaxTokens
 	}
+	if IsImageModel(req.Model) {
+		promptConcat := ""
+		for _, m := range req.Messages {
+			promptConcat += " " + m.Content
+		}
+		genConfig["aspectRatio"] = ExtractAspectRatio(promptConcat)
+	}
 
 	coreBody := map[string]any{
 		"contents": contents,
@@ -148,6 +205,36 @@ func (a *Adapter) BuildRequestBody(req *providers.Request, creds *providers.Cred
 	}
 	if len(genConfig) > 0 {
 		coreBody["generationConfig"] = genConfig
+	}
+
+	if len(req.Tools) > 0 {
+		var decls []map[string]any
+		for _, t := range req.Tools {
+			if tm, ok := t.(map[string]any); ok {
+				if fn, ok := tm["function"].(map[string]any); ok {
+					name, _ := fn["name"].(string)
+					desc, _ := fn["description"].(string)
+					params := fn["parameters"]
+					decls = append(decls, map[string]any{
+						"name":        SanitizeToolName(name),
+						"description": desc,
+						"parameters":  params,
+					})
+				}
+			}
+		}
+		if len(decls) > 0 {
+			coreBody["tools"] = []map[string]any{
+				{"functionDeclarations": decls},
+			}
+			if a.mode == ModeAntigravity {
+				coreBody["toolConfig"] = map[string]any{
+					"functionCallingConfig": map[string]any{
+						"mode": "VALIDATED",
+					},
+				}
+			}
+		}
 	}
 
 	switch a.mode {
@@ -246,6 +333,16 @@ func (a *Adapter) Execute(ctx context.Context, req *providers.Request, creds *pr
 		text, reasoning := ExtractCandidateTextAndReasoning(cand)
 		res.Content = text
 		res.Reasoning = reasoning
+		for _, part := range cand.Content.Parts {
+			if part.ThoughtSignature != "" && a.signatures != nil {
+				if part.FunctionCall != nil && part.FunctionCall.Name != "" {
+					a.signatures.Store(part.FunctionCall.Name, part.ThoughtSignature)
+				}
+				if req.ID != "" {
+					a.signatures.Store(req.ID, part.ThoughtSignature)
+				}
+			}
+		}
 	}
 
 	return res, nil
@@ -295,6 +392,14 @@ func (a *Adapter) ExecuteStream(ctx context.Context, req *providers.Request, cre
 			}
 
 			data := strings.TrimPrefix(line, "data: ")
+			if strings.TrimSpace(data) == "[DONE]" {
+				select {
+				case events <- providers.StreamEvent{Type: providers.StreamEventDone}:
+				case <-ctx.Done():
+				}
+				return
+			}
+
 			payload, err := ParseResponsePayload([]byte(data))
 			if err != nil {
 				continue
@@ -317,6 +422,14 @@ func (a *Adapter) ExecuteStream(ctx context.Context, req *providers.Request, cre
 			if len(payload.Candidates) > 0 {
 				cand := payload.Candidates[0]
 				for _, part := range cand.Content.Parts {
+					if part.ThoughtSignature != "" && a.signatures != nil {
+						if part.FunctionCall != nil && part.FunctionCall.Name != "" {
+							a.signatures.Store(part.FunctionCall.Name, part.ThoughtSignature)
+						}
+						if req.ID != "" {
+							a.signatures.Store(req.ID, part.ThoughtSignature)
+						}
+					}
 					if part.Thought && part.Text != "" {
 						select {
 						case events <- providers.StreamEvent{

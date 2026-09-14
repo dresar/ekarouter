@@ -143,6 +143,44 @@ func (h *GatewayHandler) ChatCompletions(w http.ResponseWriter, r *http.Request)
 				fmt.Fprintf(w, "data: %s\n\n", bytes)
 				flusher.Flush()
 
+			case providers.StreamEventReasoning:
+				chunk := map[string]any{
+					"id":      req.ID,
+					"object":  "chat.completion.chunk",
+					"created": created,
+					"model":   req.Model,
+					"choices": []map[string]any{
+						{
+							"index": 0,
+							"delta": map[string]string{
+								"reasoning_content": ev.Reasoning,
+							},
+						},
+					},
+				}
+				bytes, _ := json.Marshal(chunk)
+				fmt.Fprintf(w, "data: %s\n\n", bytes)
+				flusher.Flush()
+
+			case providers.StreamEventUsage:
+				if ev.Usage != nil {
+					chunk := map[string]any{
+						"id":      req.ID,
+						"object":  "chat.completion.chunk",
+						"created": created,
+						"model":   req.Model,
+						"choices": []any{},
+						"usage": map[string]int{
+							"prompt_tokens":     ev.Usage.PromptTokens,
+							"completion_tokens": ev.Usage.CompletionTokens,
+							"total_tokens":      ev.Usage.TotalTokens,
+						},
+					}
+					bytes, _ := json.Marshal(chunk)
+					fmt.Fprintf(w, "data: %s\n\n", bytes)
+					flusher.Flush()
+				}
+
 			case providers.StreamEventDone:
 				fmt.Fprintf(w, "data: [DONE]\n\n")
 				flusher.Flush()

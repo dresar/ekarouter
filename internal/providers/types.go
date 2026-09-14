@@ -100,6 +100,7 @@ type Credentials struct {
 	BaseURL     string
 	ProjectID   string
 	HTTPClient  *http.Client
+	Headers     map[string]string
 }
 
 type Adapter interface {

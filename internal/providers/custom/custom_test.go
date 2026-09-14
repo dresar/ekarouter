@@ -100,3 +100,37 @@ func TestBackendCapabilities(t *testing.T) {
 		t.Error("expected Ollama to have prompt caching false")
 	}
 }
+
+func TestOpenRouterCustomHeadersInjection(t *testing.T) {
+	var gotReferer, gotTitle string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotReferer = r.Header.Get("HTTP-Referer")
+		gotTitle = r.Header.Get("X-Title")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"or-1","choices":[{"message":{"role":"assistant","content":"OR OK"}}]}`))
+	}))
+	defer server.Close()
+
+	adapter := NewBackendAdapter("openrouter", server.Client())
+	creds := &providers.Credentials{BaseURL: server.URL, APIKey: "test-or-key"}
+	req := &providers.Request{
+		Model: "anthropic/claude-3-opus",
+		Messages: []providers.Message{
+			{Role: "user", Content: "Hello OpenRouter"},
+		},
+	}
+
+	res, err := adapter.Execute(context.Background(), req, creds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Content != "OR OK" {
+		t.Errorf("expected OR OK, got %s", res.Content)
+	}
+	if gotReferer != "https://github.com/dresar/ekarouter" {
+		t.Errorf("expected HTTP-Referer header, got '%s'", gotReferer)
+	}
+	if gotTitle != "EkaRouter" {
+		t.Errorf("expected X-Title header, got '%s'", gotTitle)
+	}
+}
