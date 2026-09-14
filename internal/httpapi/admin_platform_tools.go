@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -356,18 +358,128 @@ func (h *PlatformHandler) ExecuteRequestTemplate(w http.ResponseWriter, r *http.
 	}
 	_ = json.NewDecoder(r.Body).Decode(&execParams)
 
-	var name, ptID, method, pathTpl string
+	var name, ptID, method, pathTpl, hdrsStr, qryStr, credRef string
 	var timeoutMs int
-	err := h.db.QueryRowContext(r.Context(), "SELECT name, COALESCE(provider_template_id, ''), method, path, timeout_ms FROM request_templates WHERE id = ?", id).Scan(&name, &ptID, &method, &pathTpl, &timeoutMs)
+	err := h.db.QueryRowContext(r.Context(), `
+SELECT name, COALESCE(provider_template_id, ''), method, path, headers, query_params, credential_ref, timeout_ms 
+FROM request_templates WHERE id = ?`, id).Scan(&name, &ptID, &method, &pathTpl, &hdrsStr, &qryStr, &credRef, &timeoutMs)
 	if err != nil {
 		h.writeError(w, r, http.StatusNotFound, "not_found", "Request template not found", nil)
 		return
 	}
 
 	finalURL := executor.InterpolateString(pathTpl, execParams.Variables)
-	if err := platform.ValidateSSRF(finalURL); err != nil {
-		h.writeError(w, r, http.StatusBadRequest, "ssrf_violation", err.Error(), nil)
+	if !h.allowLocal {
+		if err := platform.ValidateSSRF(finalURL); err != nil {
+			h.writeError(w, r, http.StatusBadRequest, "ssrf_violation", err.Error(), nil)
+			return
+		}
+	}
+
+	u, err := url.Parse(finalURL)
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_url", err.Error(), nil)
 		return
+	}
+
+	var headersTpl map[string]string
+	_ = json.Unmarshal([]byte(hdrsStr), &headersTpl)
+	finalHeaders, err := executor.InterpolateHeaders(headersTpl, execParams.Variables)
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "header_error", err.Error(), nil)
+		return
+	}
+
+	var queryTpl map[string]string
+	_ = json.Unmarshal([]byte(qryStr), &queryTpl)
+	q := u.Query()
+	for k, v := range queryTpl {
+		q.Set(k, executor.InterpolateString(v, execParams.Variables))
+	}
+	for k, v := range execParams.QueryParams {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	var secret string
+	if credRef != "" {
+		if sec, decErr := h.vaultStore.GetDecryptedSecret(r.Context(), credRef); decErr == nil {
+			secret = sec
+		}
+	} else if ptID != "" {
+		creds, cErr := h.vaultStore.ListCredentials(r.Context(), ptID, execParams.ProjectID, execParams.Environment)
+		if cErr == nil && len(creds) == 0 && execParams.ProjectID != "" {
+			creds, cErr = h.vaultStore.ListCredentials(r.Context(), ptID, "", execParams.Environment)
+		}
+		if cErr == nil && len(creds) > 0 {
+			sel, selErr := h.rotator.Select(creds, rotator.StrategyPriority)
+			if selErr == nil && sel != nil {
+				if sec, decErr := h.vaultStore.GetDecryptedSecret(r.Context(), sel.ID); decErr == nil {
+					secret = sec
+					_ = h.vaultStore.RecordUsage(r.Context(), sel.ID, false)
+				}
+			}
+		}
+	}
+
+	var bodyReader io.Reader
+	if len(execParams.Body) > 0 {
+		bodyReader = bytes.NewReader(execParams.Body)
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), method, u.String(), bodyReader)
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "request_creation_failed", err.Error(), nil)
+		return
+	}
+
+	for k, v := range finalHeaders {
+		req.Header.Set(k, v)
+	}
+	if secret != "" && req.Header.Get("Authorization") == "" {
+		if strings.HasPrefix(strings.ToLower(secret), "bearer ") || strings.HasPrefix(strings.ToLower(secret), "basic ") {
+			req.Header.Set("Authorization", secret)
+		} else {
+			req.Header.Set("Authorization", "Bearer "+secret)
+		}
+	}
+	if len(execParams.Body) > 0 && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	timeout := 30 * time.Second
+	if timeoutMs > 0 {
+		timeout = time.Duration(timeoutMs) * time.Millisecond
+	}
+
+	client := platform.NewSafeHTTPClient(timeout, h.allowLocal)
+	start := time.Now()
+	resp, err := client.Do(req)
+	latency := time.Since(start)
+
+	if err != nil {
+		h.auditLogger.Log(&audit.Record{
+			ActorID:      "user",
+			Action:       "request_template.execute",
+			ResourceType: "request_template",
+			ResourceID:   id,
+			ProjectID:    execParams.ProjectID,
+			RequestID:    GetRequestID(r.Context()),
+			Result:       "error",
+		})
+		h.writeError(w, r, http.StatusBadGateway, "execution_error", err.Error(), map[string]any{
+			"template_id":  id,
+			"resolved_url": u.String(),
+			"latency_ms":   latency.Milliseconds(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
+	respHeaders := make(map[string]string)
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
 	}
 
 	h.auditLogger.Log(&audit.Record{
@@ -383,8 +495,11 @@ func (h *PlatformHandler) ExecuteRequestTemplate(w http.ResponseWriter, r *http.
 	h.writeSuccess(w, r, map[string]any{
 		"template_id":  id,
 		"name":         name,
-		"resolved_url": finalURL,
+		"resolved_url": u.String(),
 		"method":       method,
-		"status":       "executed",
+		"status_code":  resp.StatusCode,
+		"latency_ms":   latency.Milliseconds(),
+		"headers":      respHeaders,
+		"body":         string(respBytes),
 	})
 }

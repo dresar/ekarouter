@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dresar/ekarouter/internal/platform"
 )
 
 type Profile struct {
@@ -230,12 +232,25 @@ func (m *Manager) GetTransport(profile *Profile) (*http.Transport, error) {
 	}
 
 	customDialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		host, _, err := net.SplitHostPort(addr)
+		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
 			host = addr
+			port = "80"
 		}
 		if err := m.ValidateDestination(host); err != nil {
 			return nil, err
+		}
+		if !m.allowLocalProviders {
+			ip := net.ParseIP(host)
+			if ip != nil {
+				return dialer.DialContext(ctx, network, addr)
+			}
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+			if err != nil || len(ips) == 0 {
+				return nil, fmt.Errorf("SSRF resolution failed for %s: %w", host, err)
+			}
+			targetAddr := net.JoinHostPort(ips[0].String(), port)
+			return dialer.DialContext(ctx, network, targetAddr)
 		}
 		return dialer.DialContext(ctx, network, addr)
 	}
@@ -268,17 +283,36 @@ func (m *Manager) ValidateDestination(host string) error {
 		return nil
 	}
 
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		ip := net.ParseIP(host)
-		if ip == nil {
-			return fmt.Errorf("lookup host failed: %w", err)
-		}
-		ips = []net.IP{ip}
+	trimmedHost := strings.TrimSuffix(strings.ToLower(host), ".")
+	if trimmedHost == "localhost" || trimmedHost == "0.0.0.0" || trimmedHost == "127.0.0.1" || trimmedHost == "::1" ||
+		trimmedHost == "169.254.169.254" || trimmedHost == "100.100.100.200" || trimmedHost == "168.63.129.16" ||
+		trimmedHost == "metadata.google.internal" || trimmedHost == "metadata.internal" {
+		return errors.New("access to private, local, or loopback network blocked by SSRF policy")
 	}
 
-	for _, ip := range ips {
-		if isPrivateOrLocal(ip) {
+	if strings.HasSuffix(trimmedHost, ".local") || strings.HasSuffix(trimmedHost, ".internal") ||
+		strings.HasSuffix(trimmedHost, ".localhost") || strings.HasSuffix(trimmedHost, ".arpa") {
+		return errors.New("access to private, local, or loopback network blocked by SSRF policy")
+	}
+
+	ip := net.ParseIP(trimmedHost)
+	if ip != nil {
+		if platform.IsPrivateIP(ip) {
+			return errors.New("access to private, local, or loopback network blocked by SSRF policy")
+		}
+		return nil
+	}
+
+	ips, err := net.LookupIP(trimmedHost)
+	if err != nil {
+		return fmt.Errorf("lookup host failed: %w", err)
+	}
+	if len(ips) == 0 {
+		return errors.New("lookup host returned no IP addresses")
+	}
+
+	for _, rip := range ips {
+		if platform.IsPrivateIP(rip) {
 			return errors.New("access to private, local, or loopback network blocked by SSRF policy")
 		}
 	}
@@ -287,32 +321,5 @@ func (m *Manager) ValidateDestination(host string) error {
 }
 
 func isPrivateOrLocal(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
-		return true
-	}
-
-	ip4 := ip.To4()
-	if ip4 != nil {
-		if ip4[0] == 10 {
-			return true
-		}
-		if ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31 {
-			return true
-		}
-		if ip4[0] == 192 && ip4[1] == 168 {
-			return true
-		}
-		if ip4[0] == 169 && ip4[1] == 254 {
-			return true
-		}
-		return false
-	}
-
-	if len(ip) == net.IPv6len {
-		if ip[0] == 0xfc || ip[0] == 0xfd {
-			return true
-		}
-	}
-
-	return false
+	return platform.IsPrivateIP(ip)
 }

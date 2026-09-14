@@ -23,6 +23,10 @@ func NewStore(db *sql.DB, vault *Vault) *Store {
 	}
 }
 
+func (s *Store) Vault() *Vault {
+	return s.vault
+}
+
 func (s *Store) CreateCredential(ctx context.Context, cred *Credential, rawSecret string) error {
 	if cred.Name == "" || cred.ProviderID == "" || rawSecret == "" {
 		return errors.New("name, provider_id, and secret value are required")

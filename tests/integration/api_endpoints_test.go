@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
+
+	"github.com/dresar/ekarouter/internal/auth"
+	"github.com/dresar/ekarouter/tests/mocks"
 )
 
 func TestSystemEndpoints(t *testing.T) {
@@ -53,16 +57,41 @@ func TestSystemEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("GET /version returns 200 and version 1.0.0", func(t *testing.T) {
+		res := env.Request(http.MethodGet, "/version", nil, "")
+		if res.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for /version, got %d", res.Code)
+		}
+		var payload struct {
+			Version string `json:"version"`
+		}
+		_ = json.Unmarshal(res.Body.Bytes(), &payload)
+		if payload.Version != "1.0.0" {
+			t.Fatalf("Expected version 1.0.0, got %s", payload.Version)
+		}
+	})
+
+	t.Run("GET & PATCH /api/v1/system/settings", func(t *testing.T) {
+		resGet := env.AdminReq(http.MethodGet, "/api/v1/system/settings", nil)
+		if resGet.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for GET /api/v1/system/settings, got %d", resGet.Code)
+		}
+
+		resPatch := env.AdminReq(http.MethodPatch, "/api/v1/system/settings", map[string]string{
+			"key":   "system_mode",
+			"value": "production_ready",
+		})
+		if resPatch.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for PATCH /api/v1/system/settings, got %d", resPatch.Code)
+		}
+	})
+
 	t.Run("Unimplemented system endpoints return 404", func(t *testing.T) {
-		for _, path := range []string{"/version", "/metrics"} {
+		for _, path := range []string{"/metrics"} {
 			res := env.Request(http.MethodGet, path, nil, "")
 			if res.Code != http.StatusNotFound {
 				t.Fatalf("Expected 404 for %s, got %d", path, res.Code)
 			}
-		}
-		res := env.AdminReq(http.MethodGet, "/api/v1/system/settings", nil)
-		if res.Code != http.StatusNotFound {
-			t.Fatalf("Expected 404 for /api/v1/system/settings, got %d", res.Code)
 		}
 	})
 }
@@ -92,6 +121,55 @@ func TestAuthAndSessionEndpoints(t *testing.T) {
 		_ = json.Unmarshal(res.Body.Bytes(), &payload)
 		if payload.User != "admin" {
 			t.Fatalf("Expected admin user, got %s", payload.User)
+		}
+	})
+
+	t.Run("POST /auth/login and GET /auth/me root alias", func(t *testing.T) {
+		resLogin := env.Request(http.MethodPost, "/auth/login", map[string]string{
+			"username": "admin",
+			"password": "admin12345",
+		}, "")
+		if resLogin.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for /auth/login alias, got %d", resLogin.Code)
+		}
+		var sessionTok string
+		for _, c := range resLogin.Result().Cookies() {
+			if c.Name == "session_token" {
+				sessionTok = c.Value
+				break
+			}
+		}
+		if sessionTok != "" {
+			resMe := env.Request(http.MethodGet, "/auth/me", nil, "Bearer "+sessionTok)
+			if resMe.Code != http.StatusOK {
+				t.Fatalf("Expected 200 for /auth/me alias, got %d", resMe.Code)
+			}
+		}
+	})
+
+	t.Run("GET /auth/sessions and DELETE /auth/sessions/:id", func(t *testing.T) {
+		dummyToken := "test_revokable_session_token_123"
+		_, err := env.DB.Exec("INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES ('sess_revoke_target', 'admin', ?, datetime('now', '+1 hour'))", auth.HashToken(dummyToken))
+		if err != nil {
+			t.Fatalf("Insert dummy session: %v", err)
+		}
+
+		resSessions := env.AdminReq(http.MethodGet, "/auth/sessions", nil)
+		if resSessions.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for /auth/sessions, got %d", resSessions.Code)
+		}
+		var sessions []struct {
+			ID     string `json:"id"`
+			UserID string `json:"user_id"`
+		}
+		_ = json.Unmarshal(resSessions.Body.Bytes(), &sessions)
+		if len(sessions) == 0 {
+			t.Fatalf("Expected at least 1 session in /auth/sessions")
+		}
+
+		resRevoke := env.AdminReq(http.MethodDelete, "/auth/sessions/sess_revoke_target", nil)
+		if resRevoke.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for DELETE /auth/sessions/:id, got %d", resRevoke.Code)
 		}
 	})
 
@@ -409,6 +487,64 @@ func TestGatewayRoutesAndCompletions(t *testing.T) {
 		})
 		if res.Code != http.StatusBadRequest {
 			t.Fatalf("Expected 400 for empty model, got %d", res.Code)
+		}
+	})
+
+	t.Run("POST /v1/chat/completions non-streaming execution with mock upstream", func(t *testing.T) {
+		mockUpstream := mocks.NewMockUpstreamServer(mocks.UpstreamBehavior{
+			StatusCode:   200,
+			ResponseBody: `{"id":"chatcmpl-live-qa","object":"chat.completion","created":1700000000,"model":"mock-live-gpt4","choices":[{"index":0,"message":{"role":"assistant","content":"Hello from verified mock!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":6,"total_tokens":18}}`,
+		})
+		defer mockUpstream.Close()
+
+		env.SeedLiveMockRoute(t, "mock-live-gpt4", mockUpstream.URL+"/v1")
+
+		res := env.GatewayReq(http.MethodPost, "/v1/chat/completions", map[string]any{
+			"model": "mock-live-gpt4",
+			"messages": []map[string]string{
+				{"role": "user", "content": "hello verified test"},
+			},
+		})
+		if res.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for chat completions, got %d: %s", res.Code, res.Body.String())
+		}
+		var resp struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		_ = json.Unmarshal(res.Body.Bytes(), &resp)
+		if len(resp.Choices) == 0 || resp.Choices[0].Message.Content != "Hello from verified mock!" {
+			t.Fatalf("Unexpected completion response: %s", res.Body.String())
+		}
+	})
+
+	t.Run("POST /v1/chat/completions SSE streaming execution with mock upstream", func(t *testing.T) {
+		mockStream := mocks.NewMockUpstreamServer(mocks.UpstreamBehavior{
+			StreamChunks: []string{
+				`{"id":"chatcmpl-chunk-1","object":"chat.completion.chunk","choices":[{"delta":{"content":"Live stream chunk 1"}}]}`,
+				`{"id":"chatcmpl-chunk-2","object":"chat.completion.chunk","choices":[{"delta":{"content":" and chunk 2"}}]}`,
+			},
+		})
+		defer mockStream.Close()
+
+		env.SeedLiveMockRoute(t, "mock-live-stream", mockStream.URL+"/v1")
+
+		res := env.GatewayReq(http.MethodPost, "/v1/chat/completions", map[string]any{
+			"model":  "mock-live-stream",
+			"stream": true,
+			"messages": []map[string]string{
+				{"role": "user", "content": "stream test"},
+			},
+		})
+		if res.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for stream, got %d: %s", res.Code, res.Body.String())
+		}
+		bodyStr := res.Body.String()
+		if !strings.Contains(bodyStr, "Live stream chunk 1") || !strings.Contains(bodyStr, "[DONE]") {
+			t.Fatalf("Streaming response missing expected chunks: %s", bodyStr)
 		}
 	})
 }

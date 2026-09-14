@@ -26,7 +26,11 @@ func TestProfileURL(t *testing.T) {
 func TestSSRFBlocked(t *testing.T) {
 	m := NewManager(false)
 
-	blockedHosts := []string{"127.0.0.1", "10.1.2.3", "192.168.1.1", "172.16.0.5"}
+	blockedHosts := []string{
+		"127.0.0.1", "10.1.2.3", "192.168.1.1", "172.16.0.5",
+		"::127.0.0.1", "::169.254.169.254", "localhost.", "168.63.129.16",
+		"100.100.100.200", "169.254.169.254",
+	}
 	for _, h := range blockedHosts {
 		if err := m.ValidateDestination(h); err == nil {
 			t.Errorf("expected SSRF error for %s", h)
@@ -45,6 +49,9 @@ func TestSSRFAllowedWhenEnabled(t *testing.T) {
 func TestIsPrivateOrLocal(t *testing.T) {
 	if !isPrivateOrLocal(net.ParseIP("127.0.0.1")) {
 		t.Error("expected 127.0.0.1 to be private/local")
+	}
+	if !isPrivateOrLocal(net.ParseIP("::127.0.0.1")) {
+		t.Error("expected ::127.0.0.1 to be private/local")
 	}
 	if !isPrivateOrLocal(net.ParseIP("10.0.0.1")) {
 		t.Error("expected 10.0.0.1 to be private/local")

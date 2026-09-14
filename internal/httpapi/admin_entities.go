@@ -238,6 +238,27 @@ func (a *AdminHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
+type RouteItemDTO struct {
+	ID         string `json:"id"`
+	ProviderID string `json:"provider_id"`
+	AccountID  string `json:"account_id"`
+	ModelID    string `json:"model_id"`
+	Priority   int    `json:"priority"`
+	Weight     int    `json:"weight"`
+	TimeoutMs  int    `json:"timeout_ms"`
+	MaxRetries int    `json:"max_retries"`
+	Enabled    bool   `json:"enabled"`
+}
+
+type RouteDTO struct {
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Strategy  string         `json:"strategy"`
+	Enabled   bool           `json:"enabled"`
+	ItemCount int            `json:"item_count"`
+	Items     []RouteItemDTO `json:"items"`
+}
+
 func (a *AdminHandler) ListRoutes(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(), "SELECT id, name, strategy, enabled FROM routes ORDER BY name ASC")
 	if err != nil {
@@ -245,27 +266,6 @@ func (a *AdminHandler) ListRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-
-	type RouteItemDTO struct {
-		ID         string `json:"id"`
-		ProviderID string `json:"provider_id"`
-		AccountID  string `json:"account_id"`
-		ModelID    string `json:"model_id"`
-		Priority   int    `json:"priority"`
-		Weight     int    `json:"weight"`
-		TimeoutMs  int    `json:"timeout_ms"`
-		MaxRetries int    `json:"max_retries"`
-		Enabled    bool   `json:"enabled"`
-	}
-
-	type RouteDTO struct {
-		ID        string         `json:"id"`
-		Name      string         `json:"name"`
-		Strategy  string         `json:"strategy"`
-		Enabled   bool           `json:"enabled"`
-		ItemCount int            `json:"item_count"`
-		Items     []RouteItemDTO `json:"items"`
-	}
 
 	var list []RouteDTO
 	for rows.Next() {
@@ -414,6 +414,35 @@ func (a *AdminHandler) DeleteRoute(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
+func (a *AdminHandler) GetRoute(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var rd RouteDTO
+	var enabledInt int
+	err := a.db.QueryRowContext(r.Context(), "SELECT id, name, strategy, enabled FROM routes WHERE id = ?", id).Scan(
+		&rd.ID, &rd.Name, &rd.Strategy, &enabledInt)
+	if err != nil {
+		http.Error(w, `{"error":"route not found"}`, http.StatusNotFound)
+		return
+	}
+	rd.Enabled = enabledInt == 1
+	rd.Items = make([]RouteItemDTO, 0)
+	itemRows, err := a.db.QueryContext(r.Context(), "SELECT id, provider_id, COALESCE(account_id, ''), COALESCE(model_id, ''), priority, weight, timeout_ms, max_retries, enabled FROM route_items WHERE route_id = ? ORDER BY priority ASC", rd.ID)
+	if err == nil {
+		defer itemRows.Close()
+		for itemRows.Next() {
+			var item RouteItemDTO
+			var itEnabled int
+			if err := itemRows.Scan(&item.ID, &item.ProviderID, &item.AccountID, &item.ModelID, &item.Priority, &item.Weight, &item.TimeoutMs, &item.MaxRetries, &itEnabled); err == nil {
+				item.Enabled = itEnabled == 1
+				rd.Items = append(rd.Items, item)
+			}
+		}
+	}
+	rd.ItemCount = len(rd.Items)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(rd)
+}
+
 func (a *AdminHandler) ListModelsAdmin(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(), "SELECT id, provider_id, external_name, display_name, context_limit, input_capability, output_capability, streaming, enabled FROM models")
 	if err != nil {
@@ -511,6 +540,17 @@ func (a *AdminHandler) DeleteModel(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
+type ProxyProfileDTO struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Scheme         string `json:"scheme"`
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	Username       string `json:"username"`
+	MaskedPassword string `json:"masked_password,omitempty"`
+	Enabled        bool   `json:"enabled"`
+}
+
 func (a *AdminHandler) ListProxyProfiles(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(), "SELECT id, name, scheme, host, port, username, enabled FROM proxy_profiles")
 	if err != nil {
@@ -519,19 +559,9 @@ func (a *AdminHandler) ListProxyProfiles(w http.ResponseWriter, r *http.Request)
 	}
 	defer rows.Close()
 
-	type ProfileDTO struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Scheme   string `json:"scheme"`
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		Username string `json:"username"`
-		Enabled  bool   `json:"enabled"`
-	}
-
-	var list []ProfileDTO
+	var list []ProxyProfileDTO
 	for rows.Next() {
-		var p ProfileDTO
+		var p ProxyProfileDTO
 		var enabledInt int
 		var user sql.NullString
 		if err := rows.Scan(&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &enabledInt); err == nil {
@@ -539,6 +569,9 @@ func (a *AdminHandler) ListProxyProfiles(w http.ResponseWriter, r *http.Request)
 			p.Username = user.String
 			list = append(list, p)
 		}
+	}
+	if list == nil {
+		list = make([]ProxyProfileDTO, 0)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -599,12 +632,119 @@ enabled = excluded.enabled`,
 
 func (a *AdminHandler) DeleteProxyProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	_, err := a.db.ExecContext(r.Context(), "DELETE FROM proxy_profiles WHERE id = ?", id)
+	res, err := a.db.ExecContext(r.Context(), "DELETE FROM proxy_profiles WHERE id = ?", id)
 	if err != nil {
 		http.Error(w, `{"error":"failed to delete proxy profile"}`, http.StatusInternalServerError)
 		return
 	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
+		return
+	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+func (a *AdminHandler) GetProxyProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var p ProxyProfileDTO
+	var enabledInt int
+	var user, pass sql.NullString
+	err := a.db.QueryRowContext(r.Context(), "SELECT id, name, scheme, host, port, username, encrypted_password, enabled FROM proxy_profiles WHERE id = ?", id).Scan(
+		&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &pass, &enabledInt)
+	if err != nil {
+		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
+		return
+	}
+	p.Enabled = enabledInt == 1
+	p.Username = user.String
+	if pass.Valid && pass.String != "" {
+		p.MaskedPassword = "••••••••"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(p)
+}
+
+func (a *AdminHandler) UpdateProxyProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name     *string `json:"name"`
+		Scheme   *string `json:"scheme"`
+		Host     *string `json:"host"`
+		Port     *int    `json:"port"`
+		Username *string `json:"username"`
+		Password *string `json:"password"`
+		Enabled  *bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	var exists int
+	if err := a.db.QueryRowContext(r.Context(), "SELECT 1 FROM proxy_profiles WHERE id = ?", id).Scan(&exists); err != nil {
+		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if body.Name != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET name = ? WHERE id = ?", *body.Name, id)
+	}
+	if body.Scheme != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET scheme = ? WHERE id = ?", *body.Scheme, id)
+	}
+	if body.Host != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET host = ? WHERE id = ?", *body.Host, id)
+	}
+	if body.Port != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET port = ? WHERE id = ?", *body.Port, id)
+	}
+	if body.Username != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET username = ? WHERE id = ?", *body.Username, id)
+	}
+	if body.Password != nil && *body.Password != "" {
+		encPass, _ := a.crypto.Encrypt(*body.Password)
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET encrypted_password = ? WHERE id = ?", encPass, id)
+	}
+	if body.Enabled != nil {
+		en := 0
+		if *body.Enabled {
+			en = 1
+		}
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET enabled = ? WHERE id = ?", en, id)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated", "id": id})
+}
+
+func (a *AdminHandler) EnableProxyProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	res, err := a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET enabled = 1 WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, `{"error":"failed to enable proxy profile"}`, http.StatusInternalServerError)
+		return
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "enabled", "id": id})
+}
+
+func (a *AdminHandler) DisableProxyProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	res, err := a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET enabled = 0 WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, `{"error":"failed to disable proxy profile"}`, http.StatusInternalServerError)
+		return
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "disabled", "id": id})
 }
 
 func (a *AdminHandler) TestProxyProfile(w http.ResponseWriter, r *http.Request) {

@@ -37,8 +37,19 @@ Write-Host "`n[5/6] Running E2E Tests (tests/e2e/...)..." -ForegroundColor Yello
 go test ./tests/e2e/...
 Write-Host "E2E tests passed successfully." -ForegroundColor Green
 
-# 6. Binary Compilation Check
-Write-Host "`n[6/6] Verifying Windows Binary Build..." -ForegroundColor Yellow
+# 6. Report Generation Check
+Write-Host "`n[6/7] Verifying Test Reports Generation..." -ForegroundColor Yellow
+if (-not (Test-Path "tests/reports")) {
+    New-Item -ItemType Directory -Path "tests/reports" -Force | Out-Null
+}
+if (Test-Path "tests/reports/test-results.json") {
+    Write-Host "Test report tests/reports/test-results.json is present and verified." -ForegroundColor Green
+} else {
+    Write-Error "Test report tests/reports/test-results.json missing"
+}
+
+# 7. Binary Compilation Check
+Write-Host "`n[7/7] Verifying Windows Binary Build..." -ForegroundColor Yellow
 go build -o ekarouter.exe ./cmd/ekarouter
 if (Test-Path "ekarouter.exe") {
     $size = (Get-Item "ekarouter.exe").Length / 1MB

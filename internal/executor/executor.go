@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dresar/ekarouter/internal/platform"
+	"github.com/dresar/ekarouter/internal/rotator"
 	"github.com/dresar/ekarouter/internal/vault"
 	"github.com/google/uuid"
 )
@@ -58,14 +59,22 @@ type Executor struct {
 	registry   *platform.Registry
 	vault      *vault.Store
 	allowLocal bool
+	rotator    *rotator.Rotator
 }
 
-func NewExecutor(db *sql.DB, registry *platform.Registry, vaultStore *vault.Store, allowLocal bool) *Executor {
+func NewExecutor(db *sql.DB, registry *platform.Registry, vaultStore *vault.Store, allowLocal bool, rot ...*rotator.Rotator) *Executor {
+	var r *rotator.Rotator
+	if len(rot) > 0 && rot[0] != nil {
+		r = rot[0]
+	} else {
+		r = rotator.NewRotator()
+	}
 	return &Executor{
 		db:         db,
 		registry:   registry,
 		vault:      vaultStore,
 		allowLocal: allowLocal,
+		rotator:    r,
 	}
 }
 
@@ -188,13 +197,24 @@ func (e *Executor) ExecuteTool(ctx context.Context, params *ExecutionParams) (*E
 	}
 
 	var secret string
+	var selectedCredID string
 	if e.vault != nil {
 		creds, err := e.vault.ListCredentials(ctx, tool.ProviderID, params.ProjectID, env)
+		if err == nil && len(creds) == 0 && params.ProjectID != "" {
+			creds, err = e.vault.ListCredentials(ctx, tool.ProviderID, "", env)
+		}
 		if err == nil && len(creds) > 0 {
-			sec, err := e.vault.GetDecryptedSecret(ctx, creds[0].ID)
-			if err == nil {
-				secret = sec
-				_ = e.vault.RecordUsage(ctx, creds[0].ID, false)
+			rot := e.rotator
+			if rot == nil {
+				rot = rotator.NewRotator()
+			}
+			sel, selErr := rot.Select(creds, rotator.StrategyPriority)
+			if selErr == nil && sel != nil {
+				sec, decErr := e.vault.GetDecryptedSecret(ctx, sel.ID)
+				if decErr == nil {
+					secret = sec
+					selectedCredID = sel.ID
+				}
 			}
 		}
 	}
@@ -238,6 +258,11 @@ func (e *Executor) ExecuteTool(ctx context.Context, params *ExecutionParams) (*E
 	start := time.Now()
 	resp, err := adapter.Execute(execCtx, execReq)
 	latency := time.Since(start)
+
+	if selectedCredID != "" && e.vault != nil {
+		hasError := err != nil || (resp != nil && resp.StatusCode >= 500)
+		_ = e.vault.RecordUsage(ctx, selectedCredID, hasError)
+	}
 
 	execID := uuid.New().String()
 	res := &ExecutionResult{

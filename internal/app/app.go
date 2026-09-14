@@ -63,6 +63,7 @@ type Application struct {
 	UsageRec  *usage.Recorder
 	Scheduler *scheduler.Scheduler
 	AuditLog  *audit.Logger
+	Router    *routing.Router
 }
 
 func Setup(cfg *config.Config, migrationsDir string) (*Application, error) {
@@ -247,10 +248,10 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 	vStore := vault.NewStore(database.DB, v)
 	limEng := limits.NewEngine(database.DB)
 	rot := rotator.NewRotator()
-	exec := executor.NewExecutor(database.DB, platRegistry, vStore, cfg.AllowLocalProviders)
+	exec := executor.NewExecutor(database.DB, platRegistry, vStore, cfg.AllowLocalProviders, rot)
 	rbacSvc := rbac.NewService(database.DB)
 	auditLog := audit.NewLogger(database.DB, 1000)
-	platHandler := httpapi.NewPlatformHandler(database.DB, platRegistry, vStore, limEng, rot, exec, rbacSvc, auditLog)
+	platHandler := httpapi.NewPlatformHandler(database.DB, platRegistry, vStore, limEng, rot, exec, rbacSvc, auditLog, cfg.AllowLocalProviders)
 	sched := scheduler.NewScheduler(database.DB, platRegistry, cfg.LogRetentionDays, 60*time.Second)
 
 	gw := gateway.NewGateway(router, registry, ts, cd, usageRec, credResolver)
@@ -272,6 +273,7 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 		UsageRec:  usageRec,
 		Scheduler: sched,
 		AuditLog:  auditLog,
+		Router:    router,
 	}, nil
 }
 

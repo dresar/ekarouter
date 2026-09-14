@@ -295,10 +295,33 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /api/v1/tools/:id/schema failed: %d", res.Code)
 	}
 
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","received":true}`))
+	}))
+	defer mockServer.Close()
+
+	res = authPost("/api/v1/providers", map[string]any{
+		"name":        "Custom Test Provider",
+		"base_url":    mockServer.URL,
+		"category":    "custom",
+		"auth_type":   "api_key_auth",
+		"description": "A custom provider registered via API",
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/providers failed: %d %s", res.Code, res.Body.String())
+	}
+
+	res = authGet("/api/v1/providers/custom-test-provider")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/providers/custom-test-provider failed: %d", res.Code)
+	}
+
 	res = authPost("/api/v1/request-templates", map[string]any{
-		"name":   "Get Cloudflare Zones",
-		"method": "GET",
-		"path":   "https://api.cloudflare.com/client/v4/zones",
+		"name":   "Mock Request Template",
+		"method": "POST",
+		"path":   mockServer.URL + "/api/v1/test",
 	})
 	if res.Code != http.StatusOK {
 		t.Fatalf("POST /api/v1/request-templates failed: %d %s", res.Code, res.Body.String())
@@ -322,7 +345,7 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 	}
 
 	res = authPatch("/api/v1/request-templates/"+tmplID, map[string]string{
-		"name": "Updated Get Cloudflare Zones",
+		"name": "Updated Mock Request Template",
 	})
 	if res.Code != http.StatusOK {
 		t.Fatalf("PATCH /api/v1/request-templates/:id failed: %d", res.Code)
@@ -336,6 +359,49 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 	res = authDelete("/api/v1/request-templates/" + tmplID)
 	if res.Code != http.StatusOK {
 		t.Fatalf("DELETE /api/v1/request-templates/:id failed: %d", res.Code)
+	}
+
+	res = authPost("/api/v1/webhooks", map[string]any{
+		"name":       "Test Dispatch Webhook",
+		"target_url": mockServer.URL + "/webhook/receive",
+		"events":     "all",
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/webhooks failed: %d %s", res.Code, res.Body.String())
+	}
+	var whCreated struct {
+		Data struct {
+			Webhook struct {
+				ID string `json:"id"`
+			} `json:"webhook"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(res.Body.Bytes(), &whCreated)
+	whID := whCreated.Data.Webhook.ID
+
+	res = authGet("/api/v1/webhooks")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/webhooks failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/webhooks/" + whID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/webhooks/:id failed: %d", res.Code)
+	}
+
+	res = authPost("/api/v1/webhooks/"+whID+"/test", nil)
+	if res.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/webhooks/:id/test failed: %d %s", res.Code, res.Body.String())
+	}
+
+	res = authGet("/api/v1/webhooks/" + whID + "/deliveries")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/webhooks/:id/deliveries failed: %d", res.Code)
+	}
+
+	res = authDelete("/api/v1/webhooks/" + whID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/v1/webhooks/:id failed: %d", res.Code)
 	}
 
 	res = authGet("/api/v1/usage")

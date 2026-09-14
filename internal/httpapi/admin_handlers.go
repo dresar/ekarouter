@@ -167,6 +167,60 @@ func (a *AdminHandler) Me(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), "SELECT id, user_id, expires_at, created_at, last_seen_at, revoked_at FROM sessions ORDER BY created_at DESC")
+	if err != nil {
+		http.Error(w, `{"error":"failed to query sessions"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type SessionDTO struct {
+		ID         string  `json:"id"`
+		UserID     string  `json:"user_id"`
+		ExpiresAt  string  `json:"expires_at"`
+		CreatedAt  string  `json:"created_at"`
+		LastSeenAt *string `json:"last_seen_at,omitempty"`
+		RevokedAt  *string `json:"revoked_at,omitempty"`
+	}
+
+	var list []SessionDTO
+	for rows.Next() {
+		var s SessionDTO
+		var lastSeen, revoked sql.NullString
+		if err := rows.Scan(&s.ID, &s.UserID, &s.ExpiresAt, &s.CreatedAt, &lastSeen, &revoked); err == nil {
+			if lastSeen.Valid {
+				s.LastSeenAt = &lastSeen.String
+			}
+			if revoked.Valid {
+				s.RevokedAt = &revoked.String
+			}
+			list = append(list, s)
+		}
+	}
+	if list == nil {
+		list = make([]SessionDTO, 0)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(list)
+}
+
+func (a *AdminHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	res, err := a.db.ExecContext(r.Context(), "UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, `{"error":"failed to revoke session"}`, http.StatusInternalServerError)
+		return
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		http.Error(w, `{"error":"session not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "revoked", "id": id})
+}
+
 func (a *AdminHandler) ListApiKeys(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(), "SELECT id, name, prefix, scopes, enabled, created_at, last_used_at FROM api_keys")
 	if err != nil {

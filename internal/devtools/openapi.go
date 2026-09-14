@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/url"
 	"strings"
 
+	"github.com/dresar/ekarouter/internal/platform"
 	"github.com/google/uuid"
 )
 
@@ -35,50 +35,23 @@ type OpenAPIImportResult struct {
 }
 
 func ValidateRemoteURL(rawURL string) error {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return fmt.Errorf("invalid url: %w", err)
-	}
-
-	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("only http and https schemes allowed, got: %s", scheme)
-	}
-
-	host := parsed.Hostname()
-	if host == "" {
-		return fmt.Errorf("empty hostname")
-	}
-
-	if isBlockedHost(host) {
-		return fmt.Errorf("blocked host: %s (local/private addresses not allowed)", host)
-	}
-
-	ips, err := net.LookupHost(host)
-	if err == nil {
-		for _, ip := range ips {
-			if isPrivateIP(ip) {
-				return fmt.Errorf("resolved to private IP: %s", ip)
-			}
-		}
-	}
-
-	return nil
+	return platform.ValidateSSRF(rawURL)
 }
 
 func isBlockedHost(host string) bool {
-	lower := strings.ToLower(host)
+	trimmedHost := strings.TrimSuffix(strings.ToLower(host), ".")
 	blocked := []string{
 		"localhost", "127.0.0.1", "::1", "0.0.0.0",
 		"169.254.169.254", "metadata.google.internal",
-		"metadata.internal", "100.100.100.200",
+		"metadata.internal", "100.100.100.200", "168.63.129.16",
 	}
 	for _, b := range blocked {
-		if lower == b {
+		if trimmedHost == b {
 			return true
 		}
 	}
-	if strings.HasSuffix(lower, ".local") || strings.HasSuffix(lower, ".internal") {
+	if strings.HasSuffix(trimmedHost, ".local") || strings.HasSuffix(trimmedHost, ".internal") ||
+		strings.HasSuffix(trimmedHost, ".localhost") || strings.HasSuffix(trimmedHost, ".arpa") {
 		return true
 	}
 	return false
@@ -89,19 +62,7 @@ func isPrivateIP(ip string) bool {
 	if parsed == nil {
 		return false
 	}
-
-	private := []string{
-		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
-		"127.0.0.0/8", "169.254.0.0/16", "::1/128",
-		"fc00::/7", "fe80::/10",
-	}
-	for _, cidr := range private {
-		_, network, err := net.ParseCIDR(cidr)
-		if err == nil && network.Contains(parsed) {
-			return true
-		}
-	}
-	return false
+	return platform.IsPrivateIP(parsed)
 }
 
 func ParseOpenAPIDocument(doc []byte) (*OpenAPIImportResult, error) {

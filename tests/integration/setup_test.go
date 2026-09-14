@@ -14,7 +14,6 @@ import (
 	"github.com/dresar/ekarouter/internal/app"
 	"github.com/dresar/ekarouter/internal/auth"
 	"github.com/dresar/ekarouter/internal/config"
-	"github.com/dresar/ekarouter/internal/routing"
 )
 
 type TestEnv struct {
@@ -153,6 +152,30 @@ func (e *TestEnv) SeedDummyRoute(t *testing.T, modelName string) {
 	encAccess, _ := crypto.Encrypt("sk-mock-secret-access")
 	_, _ = e.DB.Exec("INSERT OR REPLACE INTO credentials (id, account_id, encrypted_access) VALUES ('cred_mock', 'acc_mock', ?)", encAccess)
 
-	_ = e.App.Config
-	_ = routing.NewRouter(routing.NewCooldownManager()).LoadFromDB(context.Background(), e.DB)
+	if e.App.Router != nil {
+		_ = e.App.Router.LoadFromDB(context.Background(), e.DB)
+	}
+}
+
+func (e *TestEnv) SeedLiveMockRoute(t *testing.T, modelName, mockBaseURL string) {
+	provID := "prov_" + modelName
+	accID := "acc_" + modelName
+	modID := "mod_" + modelName
+	rtID := "rt_" + modelName
+	riID := "ri_" + modelName
+	credID := "cred_" + modelName
+
+	_, _ = e.DB.Exec("INSERT INTO providers (id, key, name, kind, base_url, enabled) VALUES (?, ?, 'Live Mock', 'openai', ?, 1) ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, enabled = 1", provID, modelName, mockBaseURL)
+	_, _ = e.DB.Exec("INSERT INTO accounts (id, provider_id, name, auth_type, state, priority, enabled) VALUES (?, ?, 'Live Mock Account', 'api_key', 'active', 1, 1) ON CONFLICT(id) DO UPDATE SET enabled = 1", accID, provID)
+	_, _ = e.DB.Exec("INSERT INTO models (id, provider_id, external_name, display_name, enabled) VALUES (?, ?, ?, ?, 1) ON CONFLICT(id) DO UPDATE SET enabled = 1", modID, provID, modelName, modelName)
+	_, _ = e.DB.Exec("INSERT INTO routes (id, name, strategy, enabled) VALUES (?, ?, 'priority', 1) ON CONFLICT(id) DO UPDATE SET name = excluded.name, enabled = 1", rtID, modelName)
+	_, _ = e.DB.Exec("INSERT INTO route_items (id, route_id, provider_id, account_id, model_id, priority, enabled) VALUES (?, ?, ?, ?, ?, 1, 1) ON CONFLICT(id) DO UPDATE SET enabled = 1", riID, rtID, provID, accID, modID)
+
+	crypto, _ := auth.NewCryptoService("very-strong-secret-key-32-chars-long")
+	encAccess, _ := crypto.Encrypt("sk-mock-secret-access")
+	_, _ = e.DB.Exec("INSERT INTO credentials (id, account_id, encrypted_access) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET encrypted_access = excluded.encrypted_access", credID, accID, encAccess)
+
+	if e.App.Router != nil {
+		_ = e.App.Router.LoadFromDB(context.Background(), e.DB)
+	}
 }

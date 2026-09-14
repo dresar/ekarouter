@@ -5,10 +5,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/dresar/ekarouter/internal/executor"
 	"github.com/dresar/ekarouter/internal/platform"
 )
 
@@ -56,12 +56,18 @@ func TestSecurityAndSecretMasking(t *testing.T) {
 		ssrfTargets := []string{
 			"http://127.0.0.1:8080/evil",
 			"http://localhost:8080/evil",
+			"http://localhost.:8080/evil",
 			"http://10.0.0.1/admin",
 			"http://172.16.0.1/secret",
 			"http://192.168.1.1/router",
 			"http://169.254.169.254/latest/meta-data/",
+			"http://168.63.129.16/metadata",
 			"http://metadata.google.internal/computeMetadata/v1/",
 			"http://100.64.0.1/cgnat",
+			"http://[::127.0.0.1]:8080/evil",
+			"http://[::169.254.169.254]/latest/meta-data/",
+			"http://[2002:7f00:1::]:8080/evil",
+			"http://[64:ff9b::127.0.0.1]:8080/evil",
 		}
 
 		for _, target := range ssrfTargets {
@@ -89,13 +95,25 @@ func TestSecurityAndSecretMasking(t *testing.T) {
 		}
 	})
 
-	t.Run("Header injection and CRLF sanitization", func(t *testing.T) {
-		maliciousHeader := "val\r\nInjected-Header: evil"
-		if strings.Contains(maliciousHeader, "\r") || strings.Contains(maliciousHeader, "\n") {
-			sanitized := strings.ReplaceAll(strings.ReplaceAll(maliciousHeader, "\r", ""), "\n", "")
-			if strings.Contains(sanitized, "\r") || strings.Contains(sanitized, "\n") {
-				t.Fatalf("CRLF sanitization failed")
-			}
+	t.Run("Header injection and CRLF sanitization via executor", func(t *testing.T) {
+		maliciousHeaderKey := "Host:\r\nInjected: evil"
+		if _, err := executor.SanitizeHeaderKey(maliciousHeaderKey); err == nil {
+			t.Fatalf("Expected error for CRLF injection in header key, got nil")
+		}
+
+		maliciousHeaderVal := "Bearer token\r\nX-Injected-Header: evil"
+		if _, err := executor.SanitizeHeaderValue(maliciousHeaderVal); err == nil {
+			t.Fatalf("Expected error for CRLF injection in header value, got nil")
+		}
+
+		cleanKey, err := executor.SanitizeHeaderKey("Authorization")
+		if err != nil || cleanKey != "Authorization" {
+			t.Fatalf("Expected valid header key to pass, got err=%v", err)
+		}
+
+		cleanVal, err := executor.SanitizeHeaderValue("Bearer sk-test-12345")
+		if err != nil || cleanVal != "Bearer sk-test-12345" {
+			t.Fatalf("Expected valid header val to pass, got err=%v", err)
 		}
 	})
 }

@@ -98,6 +98,14 @@ func (b *BaseAdapter) Execute(ctx context.Context, req *ExecutionRequest) (*Exec
 		}
 	}
 
+	if b.meta.BaseURL != "" && (strings.HasPrefix(req.Path, "http://") || strings.HasPrefix(req.Path, "https://")) {
+		baseU, err := url.Parse(b.meta.BaseURL)
+		targetU, err2 := url.Parse(targetURL)
+		if err == nil && err2 == nil && baseU.Host != "" && !strings.EqualFold(targetU.Host, baseU.Host) {
+			return nil, fmt.Errorf("target host %q does not match provider base host %q", targetU.Host, baseU.Host)
+		}
+	}
+
 	if !b.allowLocal {
 		if err := ValidateSSRF(targetURL); err != nil {
 			return nil, fmt.Errorf("SSRF violation: %w", err)
@@ -274,12 +282,13 @@ func ValidateSSRF(rawURL string) error {
 	}
 
 	hostname := strings.ToLower(u.Hostname())
+	hostname = strings.TrimSuffix(hostname, ".")
 	if hostname == "" {
 		return errors.New("empty hostname")
 	}
 
 	if hostname == "localhost" || hostname == "0.0.0.0" || hostname == "127.0.0.1" || hostname == "::1" ||
-		hostname == "169.254.169.254" || hostname == "100.100.100.200" ||
+		hostname == "169.254.169.254" || hostname == "100.100.100.200" || hostname == "168.63.129.16" ||
 		hostname == "metadata.google.internal" || hostname == "metadata.internal" {
 		return fmt.Errorf("target host %s is not permitted (loopback/metadata)", hostname)
 	}
@@ -297,7 +306,7 @@ func ValidateSSRF(rawURL string) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", hostname)
 	if err == nil {
@@ -334,6 +343,8 @@ func isPrivateIP(ip net.IP) bool {
 			return true
 		case ipv4[0] == 127:
 			return true
+		case ipv4[0] == 168 && ipv4[1] == 63 && ipv4[2] == 129 && ipv4[3] == 16:
+			return true
 		case ipv4[0] == 169 && ipv4[1] == 254:
 			return true
 		case ipv4[0] == 172 && ipv4[1] >= 16 && ipv4[1] <= 31:
@@ -356,24 +367,55 @@ func isPrivateIP(ip net.IP) bool {
 			return true
 		case ipv4[0] == 100 && ipv4[1] == 100 && ipv4[2] == 100 && ipv4[3] == 200:
 			return true
+		case ipv4[0] == 255 && ipv4[1] == 255 && ipv4[2] == 255 && ipv4[3] == 255:
+			return true
 		}
 		return false
 	}
 
-	if len(ip) == 16 && (ip[0]&0xfe) == 0xfc {
-		return true
-	}
-	if len(ip) == 16 && ip[0] == 0xfe && (ip[1]&0xc0) == 0x80 {
-		return true
-	}
-	if len(ip) == 16 && ip[0] == 0xff {
-		return true
-	}
-	if len(ip) == 16 && ip[0] == 0x20 && ip[1] == 0x01 && ip[2] == 0x0d && ip[3] == 0xb8 {
-		return true
-	}
-	if len(ip) == 16 && ip[0] == 0x01 && ip[1] == 0x00 && ip[2] == 0 && ip[3] == 0 {
-		return true
+	if len(ip) == 16 {
+		if ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 &&
+			ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
+			ip[8] == 0 && ip[9] == 0 && ip[10] == 0 && ip[11] == 0 {
+			embedded := net.IPv4(ip[12], ip[13], ip[14], ip[15])
+			return isPrivateIP(embedded)
+		}
+
+		if ip[0] == 0x20 && ip[1] == 0x02 {
+			embedded := net.IPv4(ip[2], ip[3], ip[4], ip[5])
+			return isPrivateIP(embedded)
+		}
+
+		if ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b &&
+			ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
+			ip[8] == 0 && ip[9] == 0 && ip[10] == 0 && ip[11] == 0 {
+			embedded := net.IPv4(ip[12], ip[13], ip[14], ip[15])
+			return isPrivateIP(embedded)
+		}
+
+		if ip[0] == 0x20 && ip[1] == 0x01 && ip[2] == 0x00 && ip[3] == 0x00 {
+			embedded := net.IPv4(^ip[12], ^ip[13], ^ip[14], ^ip[15])
+			return isPrivateIP(embedded)
+		}
+
+		if (ip[0] & 0xfe) == 0xfc {
+			return true
+		}
+		if ip[0] == 0xfe && (ip[1]&0xc0) == 0x80 {
+			return true
+		}
+		if ip[0] == 0xff {
+			return true
+		}
+		if ip[0] == 0x20 && ip[1] == 0x01 && ip[2] == 0x0d && ip[3] == 0xb8 {
+			return true
+		}
+		if ip[0] == 0x01 && ip[1] == 0x00 {
+			return true
+		}
+		if ip[0] == 0x20 && ip[1] == 0x01 && (ip[2] == 0x10 || ip[2] == 0x20) {
+			return true
+		}
 	}
 
 	return false

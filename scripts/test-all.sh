@@ -30,7 +30,16 @@ echo -e "\n[5/6] Running E2E Tests..."
 go test ./tests/e2e/...
 echo "E2E tests passed."
 
-echo -e "\n[6/6] Verifying Binary Build..."
+echo -e "\n[6/7] Verifying Test Reports Generation..."
+mkdir -p tests/reports
+if [ -f "tests/reports/test-results.json" ]; then
+    echo "Test report tests/reports/test-results.json is present and verified."
+else
+    echo "Test report tests/reports/test-results.json missing"
+    exit 1
+fi
+
+echo -e "\n[7/7] Verifying Binary Build..."
 go build -o ekarouter ./cmd/ekarouter
 echo "Build passed: ekarouter binary created."
 
