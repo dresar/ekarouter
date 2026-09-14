@@ -126,8 +126,12 @@ func (a *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"status":     "authenticated",
-		"token":      rawToken,
+		"status": "authenticated",
+		"token":  rawToken,
+		"user": map[string]any{
+			"username": body.Username,
+			"role":     "admin",
+		},
 		"expires_at": expiresAt.Format(time.RFC3339),
 	})
 }
@@ -161,9 +165,15 @@ func (a *AdminHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 func (a *AdminHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(userIDKey)
+	username := "admin"
+	if u, ok := userID.(string); ok && u != "" {
+		username = u
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"user": userID,
+		"user":     username,
+		"username": username,
+		"role":     "admin",
 	})
 }
 

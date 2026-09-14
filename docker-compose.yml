@@ -1,0 +1,39 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ekarouter:latest
+    container_name: ekarouter-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - EKAROUTER_HOST=0.0.0.0
+      - EKAROUTER_PORT=8080
+      - EKAROUTER_DB_PATH=/app/data/ekarouter.db
+      - EKAROUTER_SECRET_KEY=${EKAROUTER_SECRET_KEY:-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}
+      - EKAROUTER_ADMIN_USER=${EKAROUTER_ADMIN_USER:-admin}
+      - EKAROUTER_ADMIN_PASSWORD=${EKAROUTER_ADMIN_PASSWORD:-admin12345}
+      - EKAROUTER_ALLOW_LOCAL_PROVIDERS=false
+      - EKAROUTER_TOKEN_SAVER_MODE=safe
+      - EKAROUTER_CORS_ORIGINS=*
+      - EKAROUTER_READ_TIMEOUT=30s
+      - EKAROUTER_WRITE_TIMEOUT=120s
+      - EKAROUTER_IDLE_TIMEOUT=60s
+      - EKAROUTER_LOG_RETENTION_DAYS=30
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - ekarouter-network
+
+networks:
+  ekarouter-network:
+    name: ekarouter-network
+    driver: bridge

@@ -53,3 +53,5 @@ skills/
 EkaRouter_Backend_PRD/
 AGENTS.md
 GEMINI.md
+*.tsbuildinfo
+*.png

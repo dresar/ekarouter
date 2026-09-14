@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+:root[data-theme="dark"] {
+  --bg-app: #0A0D14;
+  --bg-sidebar: #0D1118;
+  --bg-surface: #11151F;
+  --bg-panel: #161A26;
+  --bg-card: #121622;
+  --bg-input: #0E121B;
+  --border-subtle: #1C2230;
+  --border-strong: #252D3E;
+
+  --brand-primary: #2563EB;
+  --brand-hover: #1D4ED8;
+  --brand-subtle: rgba(37, 99, 235, 0.12);
+  --brand-text: #60A5FA;
+
+  --text-primary: #EDEDED;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+
+  --status-success: #10B981;
+  --status-warning: #F59E0B;
+  --status-danger: #EF4444;
+  --status-info: #3B82F6;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg-app: #F8FAFC;
+  --bg-sidebar: #FFFFFF;
+  --bg-surface: #FFFFFF;
+  --bg-panel: #F1F5F9;
+  --bg-card: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --border-subtle: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  --brand-primary: #2563EB;
+  --brand-hover: #1D4ED8;
+  --brand-subtle: #EFF6FF;
+  --brand-text: #1E40AF;
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+
+  --status-success: #059669;
+  --status-warning: #D97706;
+  --status-danger: #DC2626;
+  --status-info: #2563EB;
+
+  color-scheme: light;
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+}
+
+.bg-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+}
+
+:root[data-theme="light"] .bg-grid {
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+}
+
+input, select, textarea {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
