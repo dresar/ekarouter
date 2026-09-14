@@ -1,0 +1,46 @@
+{
+  "sensitiveFields": [
+    {
+      "table": "providerConnections",
+      "column": "data",
+      "sensitivity": "HIGH_SECRET",
+      "description": "Contains plaintext API keys, access tokens, refresh tokens, client secrets",
+      "ekarouterHandling": "Must be encrypted in credentials table using AES-256-GCM. Never returned to frontend."
+    },
+    {
+      "table": "proxyPools",
+      "column": "data",
+      "sensitivity": "MEDIUM_SECRET",
+      "description": "May contain proxy passwords and cloud provider deployment tokens (Vercel, Cloudflare, Deno)",
+      "ekarouterHandling": "Encrypted proxy profile passwords in proxy_profiles.encrypted_password."
+    },
+    {
+      "table": "apiKeys",
+      "column": "key",
+      "sensitivity": "HIGH_SECRET",
+      "description": "In 9Router, API keys were stored as raw plaintext string",
+      "ekarouterHandling": "Store only SHA-256 hash and visible prefix (e.g. eka_live_xxxx). Never store raw key."
+    },
+    {
+      "table": "settings",
+      "column": "data",
+      "sensitivity": "LOW_TO_MEDIUM",
+      "description": "Contains dashboard password hash, jwt secrets, auth settings",
+      "ekarouterHandling": "Specific settings table with key/value, salt & secure password hash."
+    }
+  ],
+  "safeMetadataFields": [
+    {
+      "table": "providerConnections",
+      "columns": ["id", "provider", "authType", "name", "email", "priority", "isActive", "createdAt", "updatedAt"]
+    },
+    {
+      "table": "combos",
+      "columns": ["id", "name", "kind", "createdAt", "updatedAt"]
+    },
+    {
+      "table": "usageHistory",
+      "columns": ["id", "timestamp", "provider", "model", "endpoint", "promptTokens", "completionTokens", "cost", "status"]
+    }
+  ]
+}

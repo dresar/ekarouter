@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    "CREATE INDEX IF NOT EXISTS idx_pc_provider ON providerConnections(provider)",
+    "CREATE INDEX IF NOT EXISTS idx_pc_provider_active ON providerConnections(provider, isActive)",
+    "CREATE INDEX IF NOT EXISTS idx_pc_priority ON providerConnections(provider, priority)",
+    "CREATE INDEX IF NOT EXISTS idx_pn_type ON providerNodes(type)",
+    "CREATE INDEX IF NOT EXISTS idx_pp_active ON proxyPools(isActive)",
+    "CREATE INDEX IF NOT EXISTS idx_pp_status ON proxyPools(testStatus)",
+    "CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)",
+    "CREATE INDEX IF NOT EXISTS idx_combo_name ON combos(name)",
+    "CREATE INDEX IF NOT EXISTS idx_kv_scope ON kv(scope)",
+    "CREATE INDEX IF NOT EXISTS idx_uh_ts ON usageHistory(timestamp DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_uh_provider ON usageHistory(provider)",
+    "CREATE INDEX IF NOT EXISTS idx_uh_model ON usageHistory(model)",
+    "CREATE INDEX IF NOT EXISTS idx_uh_conn ON usageHistory(connectionId)",
+    "CREATE INDEX IF NOT EXISTS idx_rd_ts ON requestDetails(timestamp DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_rd_provider ON requestDetails(provider)",
+    "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
+    "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "relations": [
+    {
+      "from": "usageHistory.connectionId",
+      "to": "providerConnections.id",
+      "type": "many-to-one-logical"
+    },
+    {
+      "from": "requestDetails.connectionId",
+      "to": "providerConnections.id",
+      "type": "many-to-one-logical"
+    },
+    {
+      "from": "combos.models",
+      "to": "providerConnections / provider models",
+      "type": "json-embedded-references"
+    }
+  ],
+  "ekarouterTargetRelations": [
+    {
+      "from": "accounts.provider_id",
+      "to": "providers.id",
+      "type": "foreign_key",
+      "onDelete": "CASCADE"
+    },
+    {
+      "from": "credentials.account_id",
+      "to": "accounts.id",
+      "type": "foreign_key",
+      "onDelete": "CASCADE"
+    },
+    {
+      "from": "models.provider_id",
+      "to": "providers.id",
+      "type": "foreign_key",
+      "onDelete": "CASCADE"
+    },
+    {
+      "from": "route_items.route_id",
+      "to": "routes.id",
+      "type": "foreign_key",
+      "onDelete": "CASCADE"
+    },
+    {
+      "from": "route_items.provider_id",
+      "to": "providers.id",
+      "type": "foreign_key"
+    },
+    {
+      "from": "route_items.account_id",
+      "to": "accounts.id",
+      "type": "foreign_key"
+    },
+    {
+      "from": "usage_logs.provider_id",
+      "to": "providers.id",
+      "type": "foreign_key"
+    },
+    {
+      "from": "request_logs.provider_id",
+      "to": "providers.id",
+      "type": "foreign_key"
+    }
+  ]
+}

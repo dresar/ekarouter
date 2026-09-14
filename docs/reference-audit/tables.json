@@ -1,0 +1,106 @@
+{
+  "tables": {
+    "_meta": {
+      "columns": ["key TEXT PRIMARY KEY", "value TEXT NOT NULL"]
+    },
+    "settings": {
+      "columns": ["id INTEGER PRIMARY KEY CHECK (id = 1)", "data TEXT NOT NULL"]
+    },
+    "providerConnections": {
+      "columns": [
+        "id TEXT PRIMARY KEY",
+        "provider TEXT NOT NULL",
+        "authType TEXT NOT NULL",
+        "name TEXT",
+        "email TEXT",
+        "priority INTEGER",
+        "isActive INTEGER DEFAULT 1",
+        "data TEXT NOT NULL",
+        "createdAt TEXT NOT NULL",
+        "updatedAt TEXT NOT NULL"
+      ]
+    },
+    "providerNodes": {
+      "columns": [
+        "id TEXT PRIMARY KEY",
+        "type TEXT",
+        "name TEXT",
+        "data TEXT NOT NULL",
+        "createdAt TEXT NOT NULL",
+        "updatedAt TEXT NOT NULL"
+      ]
+    },
+    "proxyPools": {
+      "columns": [
+        "id TEXT PRIMARY KEY",
+        "isActive INTEGER DEFAULT 1",
+        "testStatus TEXT",
+        "data TEXT NOT NULL",
+        "createdAt TEXT NOT NULL",
+        "updatedAt TEXT NOT NULL"
+      ]
+    },
+    "apiKeys": {
+      "columns": [
+        "id TEXT PRIMARY KEY",
+        "key TEXT UNIQUE NOT NULL",
+        "name TEXT",
+        "machineId TEXT",
+        "isActive INTEGER DEFAULT 1",
+        "createdAt TEXT NOT NULL"
+      ]
+    },
+    "combos": {
+      "columns": [
+        "id TEXT PRIMARY KEY",
+        "name TEXT UNIQUE NOT NULL",
+        "kind TEXT",
+        "models TEXT NOT NULL",
+        "createdAt TEXT NOT NULL",
+        "updatedAt TEXT NOT NULL"
+      ]
+    },
+    "kv": {
+      "columns": [
+        "scope TEXT NOT NULL",
+        "key TEXT NOT NULL",
+        "value TEXT NOT NULL"
+      ],
+      "primaryKey": "PRIMARY KEY (scope, key)"
+    },
+    "usageHistory": {
+      "columns": [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "timestamp TEXT NOT NULL",
+        "provider TEXT",
+        "model TEXT",
+        "connectionId TEXT",
+        "apiKey TEXT",
+        "endpoint TEXT",
+        "promptTokens INTEGER DEFAULT 0",
+        "completionTokens INTEGER DEFAULT 0",
+        "cost REAL DEFAULT 0",
+        "status TEXT",
+        "tokens TEXT",
+        "meta TEXT"
+      ]
+    },
+    "usageDaily": {
+      "columns": [
+        "dateKey TEXT PRIMARY KEY",
+        "data TEXT NOT NULL"
+      ]
+    },
+    "requestDetails": {
+      "columns": [
+        "id TEXT PRIMARY KEY",
+        "timestamp TEXT NOT NULL",
+        "provider TEXT",
+        "model TEXT",
+        "connectionId TEXT",
+        "status TEXT",
+        "data TEXT NOT NULL"
+      ]
+    }
+  }
+}

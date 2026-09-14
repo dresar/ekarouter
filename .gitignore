@@ -1,0 +1,41 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+build/
+ekarouter
+ekarouter-*
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Database files & state
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
+*.db
+*.db-wal
+*.db-shm
+
+# Test artifacts & profiling
+*.out
+*.test
+*.prof
+coverage.html
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

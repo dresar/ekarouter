@@ -1,0 +1,32 @@
+{
+  "publicGateway": [
+    { "method": "GET", "path": "/v1/models", "purpose": "OpenAI-compatible model list" },
+    { "method": "POST", "path": "/v1/chat/completions", "purpose": "OpenAI-compatible chat completions with SSE streaming" },
+    { "method": "POST", "path": "/v1/responses", "purpose": "Compatibility route for normalized chat responses" }
+  ],
+  "managementApi": [
+    { "method": "POST", "path": "/api/auth/login", "purpose": "Dashboard session login" },
+    { "method": "POST", "path": "/api/auth/logout", "purpose": "Revoke active session" },
+    { "method": "GET", "path": "/api/auth/me", "purpose": "Current session state" },
+    { "method": "GET", "path": "/api/providers", "purpose": "List configured providers (sanitized)" },
+    { "method": "POST", "path": "/api/providers", "purpose": "Create or update provider configuration" },
+    { "method": "DELETE", "path": "/api/providers/{id}", "purpose": "Delete provider" },
+    { "method": "GET", "path": "/api/accounts", "purpose": "List accounts with state, quota snapshot, priority" },
+    { "method": "POST", "path": "/api/accounts", "purpose": "Create provider account with credentials" },
+    { "method": "DELETE", "path": "/api/accounts/{id}", "purpose": "Delete account" },
+    { "method": "GET", "path": "/api/routes", "purpose": "List combos and routes" },
+    { "method": "POST", "path": "/api/routes", "purpose": "Create or update combo/route with ordered targets" },
+    { "method": "DELETE", "path": "/api/routes/{id}", "purpose": "Delete route" },
+    { "method": "GET", "path": "/api/keys", "purpose": "List API keys (hashes/prefixes only)" },
+    { "method": "POST", "path": "/api/keys", "purpose": "Generate new API key" },
+    { "method": "DELETE", "path": "/api/keys/{id}", "purpose": "Revoke API key" },
+    { "method": "GET", "path": "/api/usage", "purpose": "Aggregate token usage and request statistics" },
+    { "method": "GET", "path": "/api/proxies", "purpose": "List outbound proxy profiles" },
+    { "method": "POST", "path": "/api/proxies", "purpose": "Create proxy profile" },
+    { "method": "POST", "path": "/api/tokensaver/preview", "purpose": "Test token saver reduction on sample text" }
+  ],
+  "systemHealth": [
+    { "method": "GET", "path": "/health", "purpose": "Basic process liveness check" },
+    { "method": "GET", "path": "/ready", "purpose": "Database & migration readiness check" }
+  ]
+}

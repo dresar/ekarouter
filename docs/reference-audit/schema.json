@@ -1,0 +1,26 @@
+{
+  "engine": "sqlite",
+  "version": 1,
+  "pragmas": {
+    "journal_mode": "WAL",
+    "synchronous": "NORMAL",
+    "temp_store": "MEMORY",
+    "mmap_size": 30000000,
+    "cache_size": -64000,
+    "foreign_keys": "ON",
+    "busy_timeout": 5000
+  },
+  "tables": [
+    "_meta",
+    "settings",
+    "providerConnections",
+    "providerNodes",
+    "proxyPools",
+    "apiKeys",
+    "combos",
+    "kv",
+    "usageHistory",
+    "usageDaily",
+    "requestDetails"
+  ]
+}

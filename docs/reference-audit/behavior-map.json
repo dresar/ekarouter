@@ -1,0 +1,15 @@
+{
+  "requestStages": [
+    { "stage": 1, "name": "HTTP Middleware", "behavior": "Body limits (default 10MB), Request ID generation, CORS validation" },
+    { "stage": 2, "name": "Authentication", "behavior": "Verify API key against SHA-256 hash or session cookie for /api/*" },
+    { "stage": 3, "name": "Decode & Normalize", "behavior": "Parse OpenAI/v1 or Responses format into neutral internal Request struct" },
+    { "stage": 4, "name": "Token Saver", "behavior": "If enabled (safe/balanced), run heuristic compactions (git diff, grep, find, logs) fail-open" },
+    { "stage": 5, "name": "Model & Route Resolution", "behavior": "Resolve model alias/combo, check route eligibility, sort by priority or round-robin" },
+    { "stage": 6, "name": "Account Selection", "behavior": "Filter accounts (active, credentials valid, not expired, cooldown expired), select via strategy" },
+    { "stage": 7, "name": "Provider Adapter", "behavior": "Translate neutral request to upstream JSON/headers, inject credentials/bearer" },
+    { "stage": 8, "name": "Shared Proxy Transport", "behavior": "Route via direct or proxy profile (HTTP/SOCKS5), enforce timeouts and SSRF checks" },
+    { "stage": 9, "name": "Execution & Streaming", "behavior": "Stream SSE chunks or return full JSON response; propagate client context cancellation" },
+    { "stage": 10, "name": "Fallback / Retry", "behavior": "On 429, quota exhausted, timeout, or 5xx, retry transient errors or fall back to next route/account" },
+    { "stage": 11, "name": "Usage & Audit Log", "behavior": "Record compact usage metrics (tokens, latency, status) asynchronously/incrementally" }
+  ]
+}
