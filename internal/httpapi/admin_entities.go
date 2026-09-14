@@ -3,6 +3,7 @@ package httpapi
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -289,7 +290,7 @@ func (a *AdminHandler) CreateRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, item := range body.Items {
+	for idx, item := range body.Items {
 		timeout := item.TimeoutMs
 		if timeout <= 0 {
 			timeout = 60000
@@ -298,9 +299,25 @@ func (a *AdminHandler) CreateRoute(w http.ResponseWriter, r *http.Request) {
 		if retries <= 0 {
 			retries = 2
 		}
+		weight := item.Weight
+		if weight <= 0 {
+			weight = 1
+		}
+		itemID := item.ID
+		if itemID == "" {
+			itemID = fmt.Sprintf("%s_item_%d", body.ID, idx+1)
+		}
+		var accID any = nil
+		if item.AccountID != "" {
+			accID = item.AccountID
+		}
+		var modelID any = nil
+		if item.ModelID != "" {
+			modelID = item.ModelID
+		}
 		_, err = tx.ExecContext(r.Context(),
 			"INSERT INTO route_items (id, route_id, provider_id, account_id, model_id, priority, weight, enabled, timeout_ms, max_retries) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-			item.ID, body.ID, item.ProviderID, item.AccountID, item.ModelID, item.Priority, item.Weight, timeout, retries)
+			itemID, body.ID, item.ProviderID, accID, modelID, item.Priority, weight, timeout, retries)
 		if err != nil {
 			http.Error(w, `{"error":"failed to insert route item"}`, http.StatusInternalServerError)
 			return

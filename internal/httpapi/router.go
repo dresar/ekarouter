@@ -69,6 +69,9 @@ func NewServer(
 			authApi.Post("/accounts/oauth/start", adminHandler.OAuthStart)
 			authApi.Post("/accounts/oauth/callback", adminHandler.OAuthCallback)
 
+			authApi.Get("/credentials", adminHandler.ListCredentials)
+			authApi.Get("/credentials/{id}", adminHandler.GetCredential)
+
 			authApi.Get("/routes", adminHandler.ListRoutes)
 			authApi.Post("/routes", adminHandler.CreateRoute)
 			authApi.Delete("/routes/{id}", adminHandler.DeleteRoute)
@@ -82,6 +85,11 @@ func NewServer(
 			authApi.Delete("/proxy-profiles/{id}", adminHandler.DeleteProxyProfile)
 			authApi.Post("/proxy-profiles/{id}/test", adminHandler.TestProxyProfile)
 
+			authApi.Get("/proxies", adminHandler.ListProxyProfiles)
+			authApi.Post("/proxies", adminHandler.CreateProxyProfile)
+			authApi.Delete("/proxies/{id}", adminHandler.DeleteProxyProfile)
+			authApi.Post("/proxies/{id}/test", adminHandler.TestProxyProfile)
+
 			authApi.Get("/keys", adminHandler.ListApiKeys)
 			authApi.Post("/keys", adminHandler.CreateApiKey)
 			authApi.Delete("/keys/{id}", adminHandler.DeleteApiKey)
@@ -91,6 +99,9 @@ func NewServer(
 
 			authApi.Get("/usage", adminHandler.GetUsageSummary)
 			authApi.Post("/tokensaver/preview", adminHandler.PreviewTokenSaver)
+
+			authApi.Get("/backup", adminHandler.ListBackups)
+			authApi.Post("/backup", adminHandler.CreateBackup)
 		})
 	})
 

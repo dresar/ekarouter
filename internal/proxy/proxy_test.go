@@ -142,4 +142,3 @@ func TestRelayTransportAndEdgeDetection(t *testing.T) {
 		t.Error("standard proxy should not be edge relay")
 	}
 }
-

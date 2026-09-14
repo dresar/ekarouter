@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -62,6 +65,7 @@ func setupTestServer(t *testing.T) (*Server, *db.DB, string) {
 	}
 
 	cfg := config.DefaultConfig()
+	cfg.DatabasePath = dbPath
 	crypto, _ := auth.NewCryptoService(cfg.SecretKey)
 	usageRec := usage.NewRecorder(database.DB, 100)
 	ts := tokensaver.New("safe")
@@ -382,5 +386,154 @@ func TestOAuthStartAndCallback(t *testing.T) {
 
 	if recCb.Code != http.StatusCreated {
 		t.Fatalf("expected 201 for oauth callback, got %d: %s", recCb.Code, recCb.Body.String())
+	}
+}
+
+func TestAllEndpointsComprehensive(t *testing.T) {
+	server, database, validKey := setupTestServer(t)
+	defer database.Close()
+
+	recHealth := httptest.NewRecorder()
+	server.ServeHTTP(recHealth, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if recHealth.Code != http.StatusOK {
+		t.Fatalf("GET /health failed: %d", recHealth.Code)
+	}
+
+	recReady := httptest.NewRecorder()
+	server.ServeHTTP(recReady, httptest.NewRequest(http.MethodGet, "/ready", nil))
+	if recReady.Code != http.StatusOK {
+		t.Fatalf("GET /ready failed: %d", recReady.Code)
+	}
+
+	reqModels := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	reqModels.Header.Set("Authorization", "Bearer "+validKey)
+	recModels := httptest.NewRecorder()
+	server.ServeHTTP(recModels, reqModels)
+	if recModels.Code != http.StatusOK {
+		t.Fatalf("GET /v1/models failed: %d", recModels.Code)
+	}
+
+	chatBody := `{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}`
+	reqChat := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(chatBody))
+	reqChat.Header.Set("Content-Type", "application/json")
+	reqChat.Header.Set("Authorization", "Bearer "+validKey)
+	recChat := httptest.NewRecorder()
+	server.ServeHTTP(recChat, reqChat)
+	if recChat.Code != http.StatusOK {
+		t.Fatalf("POST /v1/chat/completions failed: %d", recChat.Code)
+	}
+
+	respBody := `{"model":"gpt-4o","input":"ping"}`
+	reqResp := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(respBody))
+	reqResp.Header.Set("Content-Type", "application/json")
+	reqResp.Header.Set("Authorization", "Bearer "+validKey)
+	recResp := httptest.NewRecorder()
+	server.ServeHTTP(recResp, reqResp)
+	if recResp.Code != http.StatusOK {
+		t.Fatalf("POST /v1/responses failed: %d", recResp.Code)
+	}
+
+	loginBody := `{"username":"admin","password":"admin12345"}`
+	reqLogin := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(loginBody))
+	recLogin := httptest.NewRecorder()
+	server.ServeHTTP(recLogin, reqLogin)
+	if recLogin.Code != http.StatusOK {
+		t.Fatalf("POST /api/auth/login failed: %d", recLogin.Code)
+	}
+	var loginData struct {
+		Token string `json:"token"`
+	}
+	_ = json.NewDecoder(recLogin.Body).Decode(&loginData)
+	tok := loginData.Token
+
+	adminGet := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, req)
+		return rec
+	}
+
+	adminPost := func(path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+tok)
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, req)
+		return rec
+	}
+
+	if r := adminGet("/api/providers"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/providers failed: %d", r.Code)
+	}
+	if r := adminPost("/api/providers", `{"id":"p2","key":"k2","name":"P2","kind":"openai","base_url":"https://api.test","enabled":true}`); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/providers failed: %d", r.Code)
+	}
+
+	if r := adminGet("/api/accounts"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/accounts failed: %d", r.Code)
+	}
+	if r := adminPost("/api/accounts", `{"id":"a2","provider_id":"p2","name":"A2","auth_type":"apiKey","priority":1,"api_key":"sk-test"}`); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/accounts failed: %d", r.Code)
+	}
+
+	if r := adminGet("/api/credentials"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/credentials failed: %d", r.Code)
+	}
+	if r := adminGet("/api/credentials/cred_a2"); r.Code != http.StatusOK && r.Code != http.StatusNotFound {
+		t.Fatalf("GET /api/credentials/id failed: %d", r.Code)
+	}
+
+	if r := adminGet("/api/models"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/models failed: %d", r.Code)
+	}
+	if r := adminPost("/api/models", `{"id":"m2","provider_id":"p2","external_name":"m2-ext","display_name":"M2"}`); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/models failed: %d", r.Code)
+	}
+
+	if r := adminGet("/api/routes"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/routes failed: %d", r.Code)
+	}
+	if r := adminPost("/api/routes", `{"id":"r2","name":"combo2","strategy":"priority","items":[{"provider_id":"p2","priority":1}]}`); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/routes failed: %d", r.Code)
+	}
+
+	mockRelay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer mockRelay.Close()
+
+	uRelay, _ := url.Parse(mockRelay.URL)
+	portRelay, _ := strconv.Atoi(uRelay.Port())
+
+	if r := adminGet("/api/proxies"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/proxies failed: %d", r.Code)
+	}
+	proxyPayload := fmt.Sprintf(`{"id":"px2","name":"PX2","scheme":"relay","host":"%s","port":%d}`, uRelay.Hostname(), portRelay)
+	if r := adminPost("/api/proxies", proxyPayload); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/proxies failed: %d", r.Code)
+	}
+	if r := adminPost("/api/proxies/px2/test", ""); r.Code != http.StatusOK {
+		t.Fatalf("POST /api/proxies/px2/test failed: %d", r.Code)
+	}
+
+	if r := adminGet("/api/keys"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/keys failed: %d", r.Code)
+	}
+	if r := adminPost("/api/keys", `{"name":"test key"}`); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/keys failed: %d", r.Code)
+	}
+
+	if r := adminGet("/api/usage"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/usage failed: %d", r.Code)
+	}
+
+	backupFile := filepath.Join(t.TempDir(), "backup_test.db")
+	if r := adminPost("/api/backup", `{"dest_path":"`+strings.ReplaceAll(backupFile, `\`, `/`)+`"}`); r.Code != http.StatusCreated {
+		t.Fatalf("POST /api/backup failed: %d", r.Code)
+	}
+	if r := adminGet("/api/backup"); r.Code != http.StatusOK {
+		t.Fatalf("GET /api/backup failed: %d", r.Code)
 	}
 }

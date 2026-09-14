@@ -35,6 +35,9 @@ type backupRoot struct {
 	APIKeys             []map[string]any `json:"apiKeys"`
 	Combos              []map[string]any `json:"combos"`
 	CustomModels        []map[string]any `json:"customModels"`
+	ModelAliases        map[string]any   `json:"modelAliases"`
+	MitmAlias           map[string]any   `json:"mitmAlias"`
+	Pricing             map[string]any   `json:"pricing"`
 }
 
 var providerAliases = map[string]string{
@@ -152,6 +155,20 @@ func Import9RouterBackup(database *DB, crypto *auth.CryptoService, filePath stri
 		_, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", k, string(valBytes))
 		if err == nil {
 			stats.Settings++
+		}
+	}
+
+	for k, v := range map[string]any{
+		"modelAliases": root.ModelAliases,
+		"mitmAlias":    root.MitmAlias,
+		"pricing":      root.Pricing,
+	} {
+		if v != nil {
+			valBytes, _ := json.Marshal(v)
+			_, err := tx.ExecContext(ctx, "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", k, string(valBytes))
+			if err == nil {
+				stats.Settings++
+			}
 		}
 	}
 
@@ -316,6 +333,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, id, provider, name, authType, state, priority,
 			if strings.HasPrefix(k, "modelLock_") || k == "providerSpecificData" || k == "lastError" || k == "errorCode" || k == "backoffLevel" {
 				secretData[k] = v
 			}
+		}
+		if psd, ok := conn["providerSpecificData"].(map[string]any); ok {
+			if pId, ok := psd["proxyPoolId"].(string); ok && pId != "" {
+				secretData["proxyPoolId"] = pId
+			}
+		}
+		if pId, ok := conn["proxyPoolId"].(string); ok && pId != "" {
+			secretData["proxyPoolId"] = pId
 		}
 		secretBytes, _ := json.Marshal(secretData)
 

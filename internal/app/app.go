@@ -161,7 +161,13 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 		if secretKey != "" {
 			var meta map[string]any
 			if err := json.Unmarshal([]byte(secretKey), &meta); err == nil {
-				if poolID, ok := meta["proxyPoolId"].(string); ok && poolID != "" {
+				poolID, _ := meta["proxyPoolId"].(string)
+				if poolID == "" {
+					if psd, ok := meta["providerSpecificData"].(map[string]any); ok {
+						poolID, _ = psd["proxyPoolId"].(string)
+					}
+				}
+				if poolID != "" {
 					var pName, pScheme, pHost, pUser, pPass sql.NullString
 					var pPort, pEnabled int
 					_ = database.QueryRowContext(ctx, "SELECT name, scheme, host, port, username, encrypted_password, enabled FROM proxy_profiles WHERE id = ?", poolID).Scan(

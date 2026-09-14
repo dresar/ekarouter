@@ -86,6 +86,7 @@ func (t *RelayTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	relayReq.URL.Scheme = parsedRelay.Scheme
 	relayReq.URL.Host = parsedRelay.Host
 	relayReq.URL.Path = parsedRelay.Path
+	relayReq.URL.RawQuery = ""
 	relayReq.Host = parsedRelay.Host
 
 	base := t.Base
@@ -153,7 +154,7 @@ func TestProfile(ctx context.Context, p *Profile, timeout time.Duration) (bool, 
 		return false, 0, latency, err
 	}
 	defer resp.Body.Close()
-	ok := resp.StatusCode >= 200 && resp.StatusCode < 400
+	ok := (resp.StatusCode >= 200 && resp.StatusCode < 400) || resp.StatusCode == 401
 	return ok, resp.StatusCode, latency, nil
 }
 

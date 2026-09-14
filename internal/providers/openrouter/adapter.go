@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	DefaultBaseURL   = "https://openrouter.ai/api/v1"
-	RefererHeader    = "HTTP-Referer"
-	RefererValue     = "https://github.com/dresar/ekarouter"
-	TitleHeader      = "X-Title"
-	TitleValue       = "EkaRouter"
+	DefaultBaseURL = "https://openrouter.ai/api/v1"
+	RefererHeader  = "HTTP-Referer"
+	RefererValue   = "https://github.com/dresar/ekarouter"
+	TitleHeader    = "X-Title"
+	TitleValue     = "EkaRouter"
 )
 
 type Adapter struct {
