@@ -15,12 +15,14 @@
 | `GET` | `/health` | 200 OK | 200 OK | **PASS** | 2ms |
 | `GET` | `/live` | 200 OK | 200 OK | **PASS** | 1ms |
 | `GET` | `/ready` | 200 OK | 200 OK | **PASS** | 3ms |
-| `GET` | `/version` | 404 Not Found | 404 Not Found | **NOT_IMPLEMENTED** | 1ms |
+| `GET` | `/version` | 200 OK | 200 OK | **PASS** | 1ms |
 | `GET` | `/metrics` | 404 Not Found | 404 Not Found | **NOT_IMPLEMENTED** | 1ms |
 | `GET` | `/api/v1/health` | 200 OK | 200 OK | **PASS** | 4ms |
 | `GET` | `/api/v1/health/providers` | 200 OK | 200 OK | **PASS** | 5ms |
 | `GET` | `/api/v1/health/credentials` | 200 OK | 200 OK | **PASS** | 4ms |
-| `GET` | `/api/v1/system/settings` | 404 Not Found | 404 Not Found | **NOT_IMPLEMENTED** | 2ms |
+| `GET` | `/api/v1/system/settings` | 200 OK | 200 OK | **PASS** | 3ms |
+| `PATCH` | `/api/v1/system/settings` | 200 OK | 200 OK | **PASS** | 3ms |
+| `PUT` | `/api/v1/system/settings` | 200 OK | 200 OK | **PASS** | 3ms |
 
 ---
 
@@ -29,10 +31,17 @@
 | Method | Endpoint | Scenario | Expected Status | Actual Status | Result |
 |---|---|---|---|---|---|
 | `POST` | `/api/auth/login` | Valid admin credentials | 200 OK | 200 OK | **PASS** |
+| `POST` | `/auth/login` | Root alias login | 200 OK | 200 OK | **PASS** |
 | `POST` | `/api/auth/login` | Invalid password | 401 Unauthorized | 401 Unauthorized | **PASS** |
 | `GET` | `/api/auth/me` | Valid session cookie | 200 OK | 200 OK | **PASS** |
+| `GET` | `/auth/me` | Root alias identity | 200 OK | 200 OK | **PASS** |
 | `GET` | `/api/auth/me` | Missing session cookie | 401 Unauthorized | 401 Unauthorized | **PASS** |
-| `POST` | `/api/auth/logout` | Revoke session | 200 OK | 200 OK | **PASS** |
+| `GET` | `/api/auth/sessions` | List active admin sessions | 200 OK | 200 OK | **PASS** |
+| `GET` | `/auth/sessions` | List sessions root alias | 200 OK | 200 OK | **PASS** |
+| `DELETE` | `/api/auth/sessions/{id}` | Revoke session | 200 OK | 200 OK | **PASS** |
+| `DELETE` | `/auth/sessions/{id}` | Revoke session root alias | 200 OK | 200 OK | **PASS** |
+| `POST` | `/api/auth/logout` | Revoke current session | 200 OK | 200 OK | **PASS** |
+| `POST` | `/auth/logout` | Root alias logout | 200 OK | 200 OK | **PASS** |
 | `POST` | `/auth/register` | Self-registration | 404 Not Found | 404 Not Found | **NOT_IMPLEMENTED** |
 | `POST` | `/auth/refresh` | Token refresh | 404 Not Found | 404 Not Found | **NOT_IMPLEMENTED** |
 
@@ -114,8 +123,17 @@
 | `PUT` | `/api/settings` | Upsert system setting | 200 OK | **PASS** |
 | `GET` | `/api/proxies` | List outbound proxy profiles | 200 OK | **PASS** |
 | `POST` | `/api/proxies` | Create proxy profile | 201 Created | **PASS** |
+| `GET` | `/api/proxies/{id}` | Get single proxy profile (masked password) | 200 OK | **PASS** |
+| `PUT` | `/api/proxies/{id}` | Update proxy profile | 200 OK | **PASS** |
+| `PATCH` | `/api/proxies/{id}` | Patch proxy profile | 200 OK | **PASS** |
 | `DELETE` | `/api/proxies/{id}` | Delete proxy profile | 200 OK | **PASS** |
 | `POST` | `/api/proxies/{id}/test` | Test outbound proxy connection | 200 OK | **PASS** |
+| `POST` | `/api/proxies/{id}/enable` | Enable proxy profile | 200 OK | **PASS** |
+| `POST` | `/api/proxies/{id}/disable` | Disable proxy profile | 200 OK | **PASS** |
+| `GET` | `/api/routes` | List configured AI model routes | 200 OK | **PASS** |
+| `POST` | `/api/routes` | Create or update AI model route | 201 Created | **PASS** |
+| `GET` | `/api/routes/{id}` | Get AI model route detail | 200 OK | **PASS** |
+| `DELETE` | `/api/routes/{id}` | Delete AI model route | 200 OK | **PASS** |
 | `GET` | `/api/credential-pools` | List credential pools | 200 OK | **PASS** |
 | `POST` | `/api/credential-pools` | Create credential pool | 201 Created | **PASS** |
 | `POST` | `/api/credential-pools/{id}/pause` | Pause pool traffic | 200 OK | **PASS** |

@@ -13,7 +13,7 @@
 | `GET` | `/health` | Overall system health check | None | Public | **PASS** | Returns 200 `{"status":"ok"}` |
 | `GET` | `/ready` | Readiness check (validates DB connectivity) | None | Public | **PASS** | Returns 200 when SQLite connects |
 | `GET` | `/live` | Liveness check for process orchestrator | None | Public | **PASS** | Returns 200 |
-| `GET` | `/version` | System version string | None | Public | **NOT_IMPLEMENTED** | Supported via `-version` CLI flag |
+| `GET` | `/version` | System version string | None | Public | **PASS** | Returns 200 `{"version":"1.0.0","status":"ok"}` |
 | `GET` | `/metrics` | Prometheus metrics endpoint | None | Public | **NOT_IMPLEMENTED** | Internal counters in DB |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat completion proxy | Bearer API Key | `gateway.execute` | **PASS** | Streaming SSE & JSON supported |
 | `POST` | `/v1/responses` | Chat completions alternate endpoint | Bearer API Key | `gateway.execute` | **PASS** | Input string fallback supported |
@@ -65,10 +65,24 @@
 | `GET` | `/api/v1/health` | Health summary of platform | Session / Token | `health.read` | **PASS** | Provider & cred health |
 | `GET` | `/api/v1/audit-logs` | Query structured audit events | Session / Token | `audit.read` | **PASS** | Paginated audit log |
 | `GET` | `/api/v1/events` | Alias for audit-logs | Session / Token | `audit.read` | **PASS** | Event log |
+| `GET` | `/api/v1/system/settings` | Read platform system settings | Session / Token | `settings.read` | **PASS** | Settings map |
+| `PATCH` | `/api/v1/system/settings` | Update system setting | Session / Token | `settings.write` | **PASS** | Key-value upsert |
+| `PUT` | `/api/v1/system/settings` | Upsert system setting | Session / Token | `settings.write` | **PASS** | Key-value upsert |
+| `GET` | `/api/v1/proxy/routes` | List configured proxy routes | Session / Token | `routes.read` | **PASS** | Route list |
+| `POST` | `/api/v1/proxy/routes` | Create proxy route | Session / Token | `routes.create` | **PASS** | Route creation |
+| `GET` | `/api/v1/proxy/routes/{id}` | Get proxy route detail | Session / Token | `routes.read` | **PASS** | Route detail |
+| `DELETE` | `/api/v1/proxy/routes/{id}` | Delete proxy route | Session / Token | `routes.delete` | **PASS** | Route deletion |
 | `ANY` | `/api/v1/proxy/{provider}/*` | Universal proxy dispatch with SSRF filter | Session / Token | `proxy.execute` | **PASS** | Forwarding with creds |
 | `POST` | `/api/auth/login` | Administrator authentication | None | Public | **PASS** | Issues session cookie |
+| `POST` | `/auth/login` | Root alias administrator login | None | Public | **PASS** | Issues session cookie |
 | `POST` | `/api/auth/logout` | Revoke current admin session | Session Cookie | Admin | **PASS** | Clears session cookie |
+| `POST` | `/auth/logout` | Root alias logout | Session Cookie | Admin | **PASS** | Clears session cookie |
 | `GET` | `/api/auth/me` | Current authenticated admin identity | Session Cookie | Admin | **PASS** | Returns username |
+| `GET` | `/auth/me` | Root alias admin identity | Session Cookie | Admin | **PASS** | Returns username |
+| `GET` | `/api/auth/sessions` | List active admin sessions | Session Cookie | Admin | **PASS** | Session list |
+| `GET` | `/auth/sessions` | Root alias list sessions | Session Cookie | Admin | **PASS** | Session list |
+| `DELETE` | `/api/auth/sessions/{id}` | Revoke active admin session | Session Cookie | Admin | **PASS** | Revokes session |
+| `DELETE` | `/auth/sessions/{id}` | Root alias revoke session | Session Cookie | Admin | **PASS** | Revokes session |
 | `GET` | `/api/providers` | Admin list providers | Session Cookie | Admin | **PASS** | Provider registry |
 | `POST` | `/api/providers` | Register or update provider | Session Cookie | Admin | **PASS** | Key, kind, base_url |
 | `DELETE` | `/api/providers/{id}` | Delete registered provider | Session Cookie | Admin | **PASS** | Cascades accounts |
@@ -81,14 +95,20 @@
 | `GET` | `/api/credentials/{id}` | Admin get single account credential | Session Cookie | Admin | **PASS** | Account binding |
 | `GET` | `/api/routes` | List configured AI model routes | Session Cookie | Admin | **PASS** | Model routing rules |
 | `POST` | `/api/routes` | Create or update route & priority items | Session Cookie | Admin | **PASS** | Fallback chain setup |
+| `GET` | `/api/routes/{id}` | Get AI model route detail | Session Cookie | Admin | **PASS** | Model route detail |
 | `DELETE` | `/api/routes/{id}` | Delete AI model route | Session Cookie | Admin | **PASS** | Route deletion |
 | `GET` | `/api/models` | List models in catalog | Session Cookie | Admin | **PASS** | Model context & caps |
 | `POST` | `/api/models` | Add model to catalog | Session Cookie | Admin | **PASS** | Context limit, streaming |
 | `DELETE` | `/api/models/{id}` | Remove model from catalog | Session Cookie | Admin | **PASS** | Clean removal |
 | `GET` | `/api/proxies` | List outbound proxy profiles | Session Cookie | Admin | **PASS** | Password masked |
 | `POST` | `/api/proxies` | Create or update proxy profile | Session Cookie | Admin | **PASS** | Auto-ID generated |
+| `GET` | `/api/proxies/{id}` | Get proxy profile (password masked) | Session Cookie | Admin | **PASS** | Profile detail |
+| `PUT` | `/api/proxies/{id}` | Update proxy profile | Session Cookie | Admin | **PASS** | Update profile |
+| `PATCH` | `/api/proxies/{id}` | Patch proxy profile | Session Cookie | Admin | **PASS** | Patch profile |
 | `DELETE` | `/api/proxies/{id}` | Delete proxy profile | Session Cookie | Admin | **PASS** | Deletion verified |
 | `POST` | `/api/proxies/{id}/test` | Test outbound proxy connection | Session Cookie | Admin | **PASS** | Network probe |
+| `POST` | `/api/proxies/{id}/enable` | Enable proxy profile | Session Cookie | Admin | **PASS** | Sets enabled |
+| `POST` | `/api/proxies/{id}/disable` | Disable proxy profile | Session Cookie | Admin | **PASS** | Sets disabled |
 | `GET` | `/api/keys` | List generated client API keys | Session Cookie | Admin | **PASS** | Prefix & last used |
 | `POST` | `/api/keys` | Generate new client API key | Session Cookie | Admin | **PASS** | Returns full raw key once |
 | `DELETE` | `/api/keys/{id}` | Revoke client API key | Session Cookie | Admin | **PASS** | Immediate revocation |
