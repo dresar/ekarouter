@@ -30,6 +30,7 @@ func NewServer(
 	checker *health.Checker,
 	router *routing.Router,
 	oauthMgr *oauth.Manager,
+	extra ...any,
 ) *Server {
 	r := chi.NewRouter()
 
@@ -42,7 +43,7 @@ func NewServer(
 	r.Get("/ready", checker.ReadyHandler)
 
 	gwHandler := NewGatewayHandler(gw, db)
-	adminHandler := NewAdminHandler(db, cfg, crypto, usageRec, ts, router, oauthMgr)
+	adminHandler := NewAdminHandler(db, cfg, crypto, usageRec, ts, router, oauthMgr, extra...)
 
 	r.Route("/v1", func(v1 chi.Router) {
 		v1.Use(GatewayAuthMiddleware(db))
@@ -102,6 +103,40 @@ func NewServer(
 
 			authApi.Get("/backup", adminHandler.ListBackups)
 			authApi.Post("/backup", adminHandler.CreateBackup)
+
+			authApi.Route("/credential-pools", func(pools chi.Router) {
+				pools.Get("/", adminHandler.ListPools)
+				pools.Post("/", adminHandler.CreatePool)
+				pools.Get("/{id}", adminHandler.GetPool)
+				pools.Delete("/{id}", adminHandler.DeletePool)
+				pools.Get("/{id}/credentials", adminHandler.ListPoolMembers)
+				pools.Post("/{id}/credentials", adminHandler.AddPoolMember)
+				pools.Delete("/{id}/credentials/{mid}", adminHandler.RemovePoolMember)
+				pools.Get("/{id}/policy", adminHandler.GetPoolPolicy)
+				pools.Put("/{id}/policy", adminHandler.UpdatePoolPolicy)
+				pools.Post("/{id}/health", adminHandler.PoolHealthCheck)
+				pools.Post("/{id}/rotate", adminHandler.PoolRotate)
+				pools.Post("/{id}/pause", adminHandler.PausePool)
+				pools.Post("/{id}/resume", adminHandler.ResumePool)
+				pools.Get("/{id}/usage", adminHandler.PoolUsage)
+			})
+
+			authApi.Route("/free-tiers", func(ft chi.Router) {
+				ft.Get("/", adminHandler.ListFreeTiers)
+				ft.Get("/categories", adminHandler.ListFreeTierCategories)
+				ft.Get("/verified", adminHandler.ListVerifiedFreeTiers)
+				ft.Post("/refresh", adminHandler.RefreshFreeTiers)
+				ft.Get("/{id}", adminHandler.GetFreeTier)
+				ft.Get("/{id}/sources", adminHandler.GetFreeTierSources)
+			})
+
+			authApi.Route("/devtools", func(dt chi.Router) {
+				dt.Get("/templates", adminHandler.ListTemplates)
+				dt.Post("/templates", adminHandler.CreateTemplate)
+				dt.Post("/import-openapi", adminHandler.ImportOpenAPI)
+				dt.Post("/confirm-openapi", adminHandler.ConfirmOpenAPIImport)
+				dt.Post("/generate-curl", adminHandler.GenerateCurl)
+			})
 		})
 	})
 

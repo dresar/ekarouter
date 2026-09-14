@@ -7,9 +7,9 @@ import (
 )
 
 type LifecycleManager struct {
-	store     *Store
-	checker   *HealthChecker
-	mu        sync.Mutex
+	store      *Store
+	checker    *HealthChecker
+	mu         sync.Mutex
 	refreshing map[string]bool
 }
 
@@ -33,11 +33,11 @@ func (lm *LifecycleManager) DetectExpired(ctx context.Context, poolID string) ([
 		if m.ExpiresAt != nil && now.After(*m.ExpiresAt) && m.Status != StatusExpired {
 			_ = lm.store.UpdateMemberStatus(ctx, m.ID, StatusExpired)
 			_ = lm.store.RecordEvent(ctx, &Event{
-				PoolID:   poolID,
-				MemberID: m.ID,
+				PoolID:    poolID,
+				MemberID:  m.ID,
 				AccountID: m.AccountID,
-				Type:     EventExpired,
-				Details:  "credential expired at " + m.ExpiresAt.Format(time.RFC3339),
+				Type:      EventExpired,
+				Details:   "credential expired at " + m.ExpiresAt.Format(time.RFC3339),
 			})
 			m.Status = StatusExpired
 			expired = append(expired, m)
@@ -56,11 +56,11 @@ func (lm *LifecycleManager) PauseUnusable(ctx context.Context, poolID string) er
 		if shouldPause(m) {
 			_ = lm.store.UpdateMemberStatus(ctx, m.ID, StatusDisabled)
 			_ = lm.store.RecordEvent(ctx, &Event{
-				PoolID:   poolID,
-				MemberID: m.ID,
+				PoolID:    poolID,
+				MemberID:  m.ID,
 				AccountID: m.AccountID,
-				Type:     EventPaused,
-				Details:  "paused due to status: " + string(m.Status),
+				Type:      EventPaused,
+				Details:   "paused due to status: " + string(m.Status),
 			})
 		}
 	}
@@ -91,11 +91,11 @@ func (lm *LifecycleManager) RestoreAfterValidation(ctx context.Context, poolID s
 		_ = lm.store.UpdateMemberStatus(ctx, memberID, StatusActive)
 		_ = lm.store.ClearMemberCooldown(ctx, memberID)
 		_ = lm.store.RecordEvent(ctx, &Event{
-			PoolID:   poolID,
-			MemberID: memberID,
+			PoolID:    poolID,
+			MemberID:  memberID,
 			AccountID: member.AccountID,
-			Type:     EventResumed,
-			Details:  "restored after successful validation",
+			Type:      EventResumed,
+			Details:   "restored after successful validation",
 		})
 	}
 	return nil
@@ -131,11 +131,11 @@ func (lm *LifecycleManager) ClearCooldowns(ctx context.Context, poolID string) e
 		if m.CooldownUntil != nil && now.After(*m.CooldownUntil) && m.Status == StatusCoolingDown {
 			_ = lm.store.ClearMemberCooldown(ctx, m.ID)
 			_ = lm.store.RecordEvent(ctx, &Event{
-				PoolID:   poolID,
-				MemberID: m.ID,
+				PoolID:    poolID,
+				MemberID:  m.ID,
 				AccountID: m.AccountID,
-				Type:     EventCooldownEnded,
-				Details:  "cooldown period ended",
+				Type:      EventCooldownEnded,
+				Details:   "cooldown period ended",
 			})
 		}
 	}

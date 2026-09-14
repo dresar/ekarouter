@@ -9,6 +9,8 @@ import (
 
 	"github.com/dresar/ekarouter/internal/auth"
 	"github.com/dresar/ekarouter/internal/config"
+	"github.com/dresar/ekarouter/internal/credpool"
+	"github.com/dresar/ekarouter/internal/freetier"
 	"github.com/dresar/ekarouter/internal/oauth"
 	"github.com/dresar/ekarouter/internal/routing"
 	"github.com/dresar/ekarouter/internal/tokensaver"
@@ -17,13 +19,17 @@ import (
 )
 
 type AdminHandler struct {
-	db         *sql.DB
-	cfg        *config.Config
-	crypto     *auth.CryptoService
-	usageRec   *usage.Recorder
-	tokenSaver *tokensaver.TokenSaver
-	router     *routing.Router
-	oauthMgr   *oauth.Manager
+	db            *sql.DB
+	cfg           *config.Config
+	crypto        *auth.CryptoService
+	usageRec      *usage.Recorder
+	tokenSaver    *tokensaver.TokenSaver
+	router        *routing.Router
+	oauthMgr      *oauth.Manager
+	poolStore     *credpool.Store
+	poolEngine    *credpool.Engine
+	healthChecker *credpool.HealthChecker
+	catalogStore  *freetier.CatalogStore
 }
 
 func NewAdminHandler(
@@ -34,18 +40,48 @@ func NewAdminHandler(
 	ts *tokensaver.TokenSaver,
 	router *routing.Router,
 	oauthMgr *oauth.Manager,
+	extra ...any,
 ) *AdminHandler {
 	if oauthMgr == nil {
 		oauthMgr = oauth.NewManager()
 	}
+	var poolStore *credpool.Store
+	var poolEngine *credpool.Engine
+	var healthChecker *credpool.HealthChecker
+	var catalogStore *freetier.CatalogStore
+	for _, opt := range extra {
+		switch v := opt.(type) {
+		case *credpool.Store:
+			poolStore = v
+		case *credpool.Engine:
+			poolEngine = v
+		case *credpool.HealthChecker:
+			healthChecker = v
+		case *freetier.CatalogStore:
+			catalogStore = v
+		}
+	}
+	if poolStore == nil && db != nil {
+		poolStore = credpool.NewStore(db)
+	}
+	if poolEngine == nil && poolStore != nil {
+		poolEngine = credpool.NewEngine(poolStore)
+	}
+	if catalogStore == nil && db != nil {
+		catalogStore = freetier.NewCatalogStore(db)
+	}
 	return &AdminHandler{
-		db:         db,
-		cfg:        cfg,
-		crypto:     crypto,
-		usageRec:   usageRec,
-		tokenSaver: ts,
-		router:     router,
-		oauthMgr:   oauthMgr,
+		db:            db,
+		cfg:           cfg,
+		crypto:        crypto,
+		usageRec:      usageRec,
+		tokenSaver:    ts,
+		router:        router,
+		oauthMgr:      oauthMgr,
+		poolStore:     poolStore,
+		poolEngine:    poolEngine,
+		healthChecker: healthChecker,
+		catalogStore:  catalogStore,
 	}
 }
 

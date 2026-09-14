@@ -10,13 +10,13 @@ import (
 )
 
 type HealthChecker struct {
-	store        *Store
-	registry     *providers.Registry
-	credResolver func(ctx context.Context, accountID string) (*providers.Credentials, error)
-	mu           sync.Mutex
-	running      map[string]bool
+	store         *Store
+	registry      *providers.Registry
+	credResolver  func(ctx context.Context, accountID string) (*providers.Credentials, error)
+	mu            sync.Mutex
+	running       map[string]bool
 	maxConcurrent int
-	sem          chan struct{}
+	sem           chan struct{}
 }
 
 func NewHealthChecker(

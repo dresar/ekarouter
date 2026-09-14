@@ -92,7 +92,7 @@ func setupTestServer(t *testing.T) (*Server, *db.DB, string) {
 
 	gw := gateway.NewGateway(router, reg, ts, cd, usageRec, credResolver)
 	oauthMgr := oauth.NewManager()
-	server := NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr)
+	server := NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr, nil, nil, nil, nil)
 
 	rawKey, prefix, hash, _ := auth.GenerateApiKey()
 	_, _ = database.Exec("INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES ('key1', 'Test Key', ?, ?, '*', 1)", prefix, hash)

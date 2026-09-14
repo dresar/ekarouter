@@ -11,7 +11,9 @@ import (
 
 	"github.com/dresar/ekarouter/internal/auth"
 	"github.com/dresar/ekarouter/internal/config"
+	"github.com/dresar/ekarouter/internal/credpool"
 	"github.com/dresar/ekarouter/internal/db"
+	"github.com/dresar/ekarouter/internal/freetier"
 	"github.com/dresar/ekarouter/internal/gateway"
 	"github.com/dresar/ekarouter/internal/health"
 	"github.com/dresar/ekarouter/internal/httpapi"
@@ -184,6 +186,24 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 							Password: pass,
 						}
 						client, _ = proxyMgr.GetClient(prof, 60*time.Second)
+					} else if pEnabled == 0 && pName.Valid && pName.String != "" {
+						var fID, fName, fScheme, fHost, fUser, fPass sql.NullString
+						var fPort int
+						err := database.QueryRowContext(ctx, "SELECT id, name, scheme, host, port, username, encrypted_password FROM proxy_profiles WHERE enabled = 1 AND (name = ? OR name LIKE '%' || ? || '%') LIMIT 1", pName.String, pName.String).Scan(
+							&fID, &fName, &fScheme, &fHost, &fPort, &fUser, &fPass)
+						if err == nil && fHost.Valid && fHost.String != "" {
+							pass, _ := crypto.Decrypt(fPass.String)
+							prof := &proxy.Profile{
+								ID:       fID.String,
+								Name:     fName.String,
+								Scheme:   fScheme.String,
+								Host:     fHost.String,
+								Port:     fPort,
+								Username: fUser.String,
+								Password: pass,
+							}
+							client, _ = proxyMgr.GetClient(prof, 60*time.Second)
+						}
 					}
 				}
 			}
@@ -199,8 +219,16 @@ WHERE c.account_id = ?`, accountID).Scan(&encAccess, &encSecret, &baseURL)
 
 	oauthMgr := oauth.NewManager()
 
+	poolStore := credpool.NewStore(database.DB)
+	poolEngine := credpool.NewEngine(poolStore)
+	healthCheckerPool := credpool.NewHealthChecker(poolStore, registry, credResolver, 3)
+	catalogStore := freetier.NewCatalogStore(database.DB)
+
+	_ = freetier.SeedCatalog(context.Background(), catalogStore)
+
 	gw := gateway.NewGateway(router, registry, ts, cd, usageRec, credResolver)
-	httpServerHandler := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr)
+	httpServerHandler := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr,
+		poolStore, poolEngine, healthCheckerPool, catalogStore)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),

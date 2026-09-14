@@ -492,10 +492,16 @@ func (a *AdminHandler) CreateProxyProfile(w http.ResponseWriter, r *http.Request
 		Port     int    `json:"port"`
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Enabled  *bool  `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
 		return
+	}
+
+	enabled := 1
+	if body.Enabled != nil && !*body.Enabled {
+		enabled = 0
 	}
 
 	var encPass string
@@ -505,8 +511,16 @@ func (a *AdminHandler) CreateProxyProfile(w http.ResponseWriter, r *http.Request
 
 	_, err := a.db.ExecContext(r.Context(), `
 INSERT INTO proxy_profiles (id, name, scheme, host, port, username, encrypted_password, enabled)
-VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-		body.ID, body.Name, body.Scheme, body.Host, body.Port, body.Username, encPass)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+name = excluded.name,
+scheme = excluded.scheme,
+host = excluded.host,
+port = excluded.port,
+username = excluded.username,
+encrypted_password = CASE WHEN excluded.encrypted_password != '' THEN excluded.encrypted_password ELSE proxy_profiles.encrypted_password END,
+enabled = excluded.enabled`,
+		body.ID, body.Name, body.Scheme, body.Host, body.Port, body.Username, encPass, enabled)
 
 	if err != nil {
 		http.Error(w, `{"error":"failed to save proxy profile"}`, http.StatusInternalServerError)

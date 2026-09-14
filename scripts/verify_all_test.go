@@ -230,7 +230,7 @@ func TestVerifyAllEndpointsE2E(t *testing.T) {
 
 	gw := gateway.NewGateway(router, reg, ts, cd, usageRec, credResolver)
 	oauthMgr := oauth.NewManager()
-	server := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr)
+	server := httpapi.NewServer(cfg, database.DB, gw, crypto, usageRec, ts, checker, router, oauthMgr, nil, nil, nil, nil)
 
 	tsHttp := httptest.NewServer(server)
 	defer tsHttp.Close()
