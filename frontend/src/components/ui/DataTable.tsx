@@ -25,6 +25,8 @@ export function DataTable<T>({
   keyExtractor,
   onRowClick,
 }: DataTableProps<T>) {
+  const rows: T[] = Array.isArray(data) ? data : []
+
   return (
     <div className="w-full overflow-x-auto rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-card)]">
       <table className="w-full text-left border-collapse text-[12.5px]">
@@ -54,14 +56,14 @@ export function DataTable<T>({
                 ))}
               </tr>
             ))
-          ) : data.length === 0 ? (
+          ) : rows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="py-12 text-center text-[var(--text-muted)] text-[12.5px]">
                 {emptyMessage}
               </td>
             </tr>
           ) : (
-            data.map((item) => {
+            rows.map((item) => {
               const rowKey = keyExtractor(item)
               return (
                 <tr

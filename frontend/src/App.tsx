@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import { ThemeProvider } from './context/ThemeContext.tsx'
 import { AppShell } from './components/layout/AppShell.tsx'
+import { ErrorBoundary } from './components/ui/ErrorBoundary.tsx'
 
 import { LoginPage } from './pages/auth/LoginPage.tsx'
 import { OverviewPage } from './pages/overview/OverviewPage.tsx'
@@ -60,11 +61,12 @@ function ProtectedLayout() {
 
 export function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
 
             <Route element={<ProtectedLayout />}>
               <Route path="/" element={<Navigate to="/overview" replace />} />
@@ -99,8 +101,9 @@ export function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
