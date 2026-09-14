@@ -106,17 +106,35 @@ func NewServer(
 
 		apiV1.Get("/projects", platformHandler.ListProjects)
 		apiV1.Post("/projects", platformHandler.CreateProject)
+		apiV1.Get("/projects/{id}", platformHandler.GetProject)
+		apiV1.Patch("/projects/{id}", platformHandler.UpdateProject)
+		apiV1.Delete("/projects/{id}", platformHandler.DeleteProject)
+
 		apiV1.Get("/environments", platformHandler.ListEnvironments)
 		apiV1.Post("/environments", platformHandler.CreateEnvironment)
+		apiV1.Patch("/environments/{id}", platformHandler.UpdateEnvironment)
+		apiV1.Delete("/environments/{id}", platformHandler.DeleteEnvironment)
 
 		apiV1.Get("/tools", platformHandler.ListTools)
 		apiV1.Post("/tools", platformHandler.CreateTool)
 		apiV1.Get("/tools/{id}", platformHandler.GetTool)
+		apiV1.Get("/tools/{id}/schema", platformHandler.GetToolSchema)
 		apiV1.Post("/tools/{id}/execute", platformHandler.ExecuteTool)
 		apiV1.Post("/tools/{id}/test", platformHandler.ExecuteTool)
 
+		apiV1.Get("/request-templates", platformHandler.ListRequestTemplates)
+		apiV1.Post("/request-templates", platformHandler.CreateRequestTemplate)
+		apiV1.Get("/request-templates/{id}", platformHandler.GetRequestTemplate)
+		apiV1.Patch("/request-templates/{id}", platformHandler.UpdateRequestTemplate)
+		apiV1.Delete("/request-templates/{id}", platformHandler.DeleteRequestTemplate)
+		apiV1.Post("/request-templates/{id}/execute", platformHandler.ExecuteRequestTemplate)
+
 		apiV1.Get("/usage", platformHandler.GetUsageSummary)
 		apiV1.Get("/usage/summary", platformHandler.GetUsageSummary)
+		apiV1.Get("/usage/providers", platformHandler.GetUsageProviders)
+		apiV1.Get("/usage/credentials", platformHandler.GetUsageCredentials)
+		apiV1.Get("/usage/projects", platformHandler.GetUsageProjects)
+
 		apiV1.Get("/health", platformHandler.HealthSummary)
 		apiV1.Get("/health/providers", platformHandler.HealthProviders)
 		apiV1.Get("/health/credentials", platformHandler.HealthCredentials)

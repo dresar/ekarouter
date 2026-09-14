@@ -48,10 +48,8 @@ type Manager struct {
 
 func NewManager(db *sql.DB, allowLocal bool) *Manager {
 	return &Manager{
-		db: db,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		db:         db,
+		httpClient: platform.NewSafeHTTPClient(10*time.Second, allowLocal),
 		allowLocal: allowLocal,
 	}
 }

@@ -435,6 +435,43 @@ func (h *PlatformHandler) CreateProject(w http.ResponseWriter, r *http.Request) 
 	h.writeSuccess(w, r, p)
 }
 
+func (h *PlatformHandler) GetProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	p, err := h.rbacService.GetProject(r.Context(), id)
+	if err != nil {
+		h.writeError(w, r, http.StatusNotFound, "project_not_found", "Project not found", nil)
+		return
+	}
+	h.writeSuccess(w, r, p)
+}
+
+func (h *PlatformHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name        string `json:"name"`
+		Environment string `json:"environment"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "Malformed JSON", nil)
+		return
+	}
+	if err := h.rbacService.UpdateProject(r.Context(), id, body.Name, body.Environment, body.Description); err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "update_error", err.Error(), nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{"updated": true, "id": id})
+}
+
+func (h *PlatformHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.rbacService.DeleteProject(r.Context(), id); err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "delete_error", err.Error(), nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{"deleted": true, "id": id})
+}
+
 func (h *PlatformHandler) ListEnvironments(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.QueryContext(r.Context(), "SELECT id, name, COALESCE(project_id, ''), description, created_at FROM environments ORDER BY created_at DESC")
 	if err != nil {
@@ -494,6 +531,34 @@ VALUES (?, ?, ?, ?, ?)`, envID, body.Name, pID, body.Description, time.Now().UTC
 	})
 }
 
+func (h *PlatformHandler) UpdateEnvironment(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "Malformed JSON", nil)
+		return
+	}
+	_, err := h.db.ExecContext(r.Context(), "UPDATE environments SET name = ?, description = ? WHERE id = ?", body.Name, body.Description, id)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "update_error", err.Error(), nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{"updated": true, "id": id})
+}
+
+func (h *PlatformHandler) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, err := h.db.ExecContext(r.Context(), "DELETE FROM environments WHERE id = ?", id)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "delete_error", err.Error(), nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{"deleted": true, "id": id})
+}
+
 func (h *PlatformHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 	pID := r.URL.Query().Get("provider_id")
 	tools, err := h.executor.ListTools(r.Context(), pID)
@@ -530,6 +595,26 @@ func (h *PlatformHandler) GetTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeSuccess(w, r, tool)
+}
+
+func (h *PlatformHandler) GetToolSchema(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	tool, err := h.executor.GetTool(r.Context(), id)
+	if err != nil {
+		h.writeError(w, r, http.StatusNotFound, "tool_not_found", err.Error(), nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{
+		"tool_id":              tool.ID,
+		"name":                 tool.Name,
+		"provider_id":          tool.ProviderID,
+		"method":               tool.Method,
+		"url_template":         tool.URLTemplate,
+		"headers_template":     tool.HeadersTemplate,
+		"query_template":       tool.QueryTemplate,
+		"body_schema":          tool.BodySchema,
+		"required_permissions": tool.RequiredPermissions,
+	})
 }
 
 func (h *PlatformHandler) ExecuteTool(w http.ResponseWriter, r *http.Request) {
@@ -694,3 +779,331 @@ func (h *PlatformHandler) GetUsageSummary(w http.ResponseWriter, r *http.Request
 		"active_credentials": activeCreds,
 	})
 }
+
+func (h *PlatformHandler) GetUsageProviders(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.db.QueryContext(r.Context(), `
+SELECT provider_id, COUNT(*) as cred_count,
+       COALESCE(SUM(request_count), 0) as total_requests,
+       COALESCE(SUM(error_count), 0) as total_errors
+FROM vault_credentials GROUP BY provider_id ORDER BY total_requests DESC`)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "db_error", err.Error(), nil)
+		return
+	}
+	defer rows.Close()
+
+	var list []map[string]any
+	for rows.Next() {
+		var pID string
+		var credCount int
+		var reqs, errs int64
+		if err := rows.Scan(&pID, &credCount, &reqs, &errs); err == nil {
+			list = append(list, map[string]any{
+				"provider_id":        pID,
+				"active_credentials": credCount,
+				"total_requests":     reqs,
+				"total_errors":       errs,
+			})
+		}
+	}
+	if list == nil {
+		list = []map[string]any{}
+	}
+	h.writeSuccess(w, r, list)
+}
+
+func (h *PlatformHandler) GetUsageCredentials(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.db.QueryContext(r.Context(), `
+SELECT id, name, provider_id, COALESCE(project_id, ''), environment,
+       request_count, error_count, last_used_at
+FROM vault_credentials ORDER BY request_count DESC`)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "db_error", err.Error(), nil)
+		return
+	}
+	defer rows.Close()
+
+	var list []map[string]any
+	for rows.Next() {
+		var id, name, pID, projID, env string
+		var reqs, errs int64
+		var lu sql.NullTime
+		if err := rows.Scan(&id, &name, &pID, &projID, &env, &reqs, &errs, &lu); err == nil {
+			item := map[string]any{
+				"id":            id,
+				"name":          name,
+				"provider_id":   pID,
+				"project_id":    projID,
+				"environment":   env,
+				"request_count": reqs,
+				"error_count":   errs,
+			}
+			if lu.Valid {
+				item["last_used_at"] = lu.Time
+			}
+			list = append(list, item)
+		}
+	}
+	if list == nil {
+		list = []map[string]any{}
+	}
+	h.writeSuccess(w, r, list)
+}
+
+func (h *PlatformHandler) GetUsageProjects(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.db.QueryContext(r.Context(), `
+SELECT COALESCE(project_id, 'default') as proj_id,
+       COUNT(*) as cred_count,
+       COALESCE(SUM(request_count), 0) as total_requests,
+       COALESCE(SUM(error_count), 0) as total_errors
+FROM vault_credentials GROUP BY project_id ORDER BY total_requests DESC`)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "db_error", err.Error(), nil)
+		return
+	}
+	defer rows.Close()
+
+	var list []map[string]any
+	for rows.Next() {
+		var pID string
+		var credCount int
+		var reqs, errs int64
+		if err := rows.Scan(&pID, &credCount, &reqs, &errs); err == nil {
+			list = append(list, map[string]any{
+				"project_id":         pID,
+				"active_credentials": credCount,
+				"total_requests":     reqs,
+				"total_errors":       errs,
+			})
+		}
+	}
+	if list == nil {
+		list = []map[string]any{}
+	}
+	h.writeSuccess(w, r, list)
+}
+
+func (h *PlatformHandler) ListRequestTemplates(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.db.QueryContext(r.Context(), `
+SELECT id, name, provider_template_id, method, path, headers, query_params,
+       body_schema, credential_ref, timeout_ms, retry_count, redaction_rules,
+       created_at, updated_at
+FROM request_templates ORDER BY name ASC`)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "db_error", err.Error(), nil)
+		return
+	}
+	defer rows.Close()
+
+	var list []map[string]any
+	for rows.Next() {
+		var id, name, ptID, method, path, hdrs, qry, bodySch, credRef, redact string
+		var timeout, retry int
+		var ca, ua time.Time
+		if err := rows.Scan(&id, &name, &ptID, &method, &path, &hdrs, &qry, &bodySch, &credRef, &timeout, &retry, &redact, &ca, &ua); err == nil {
+			list = append(list, map[string]any{
+				"id":                   id,
+				"name":                 name,
+				"provider_template_id": ptID,
+				"method":               method,
+				"path":                 path,
+				"headers":              hdrs,
+				"query_params":         qry,
+				"body_schema":          bodySch,
+				"credential_ref":       credRef,
+				"timeout_ms":           timeout,
+				"retry_count":          retry,
+				"redaction_rules":      redact,
+				"created_at":           ca,
+				"updated_at":           ua,
+			})
+		}
+	}
+	if list == nil {
+		list = []map[string]any{}
+	}
+	h.writeSuccess(w, r, list)
+}
+
+func (h *PlatformHandler) CreateRequestTemplate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name               string `json:"name"`
+		ProviderTemplateID string `json:"provider_template_id"`
+		Method             string `json:"method"`
+		Path               string `json:"path"`
+		Headers            string `json:"headers"`
+		QueryParams        string `json:"query_params"`
+		BodySchema         string `json:"body_schema"`
+		CredentialRef      string `json:"credential_ref"`
+		TimeoutMs          int    `json:"timeout_ms"`
+		RetryCount         int    `json:"retry_count"`
+		RedactionRules     string `json:"redaction_rules"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_request", "Template name is required", nil)
+		return
+	}
+
+	id := "rt_" + uuid.NewString()[:8]
+	if body.Method == "" {
+		body.Method = "GET"
+	}
+	if body.TimeoutMs <= 0 {
+		body.TimeoutMs = 30000
+	}
+	now := time.Now().UTC()
+
+	_, err := h.db.ExecContext(r.Context(), `
+INSERT INTO request_templates (id, name, provider_template_id, method, path, headers,
+    query_params, body_schema, credential_ref, timeout_ms, retry_count, redaction_rules,
+    created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, body.Name, body.ProviderTemplateID, body.Method, body.Path, body.Headers,
+		body.QueryParams, body.BodySchema, body.CredentialRef, body.TimeoutMs, body.RetryCount,
+		body.RedactionRules, now, now)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "insert_error", err.Error(), nil)
+		return
+	}
+
+	h.writeSuccess(w, r, map[string]any{
+		"id":                   id,
+		"name":                 body.Name,
+		"provider_template_id": body.ProviderTemplateID,
+		"method":               body.Method,
+		"path":                 body.Path,
+	})
+}
+
+func (h *PlatformHandler) GetRequestTemplate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var name, ptID, method, path, hdrs, qry, bodySch, credRef, redact string
+	var timeout, retry int
+	var ca, ua time.Time
+
+	err := h.db.QueryRowContext(r.Context(), `
+SELECT name, provider_template_id, method, path, headers, query_params,
+       body_schema, credential_ref, timeout_ms, retry_count, redaction_rules,
+       created_at, updated_at
+FROM request_templates WHERE id = ?`, id).Scan(&name, &ptID, &method, &path, &hdrs, &qry, &bodySch, &credRef, &timeout, &retry, &redact, &ca, &ua)
+	if err != nil {
+		h.writeError(w, r, http.StatusNotFound, "not_found", "Request template not found", nil)
+		return
+	}
+
+	h.writeSuccess(w, r, map[string]any{
+		"id":                   id,
+		"name":                 name,
+		"provider_template_id": ptID,
+		"method":               method,
+		"path":                 path,
+		"headers":              hdrs,
+		"query_params":         qry,
+		"body_schema":          bodySch,
+		"credential_ref":       credRef,
+		"timeout_ms":           timeout,
+		"retry_count":          retry,
+		"redaction_rules":      redact,
+		"created_at":           ca,
+		"updated_at":           ua,
+	})
+}
+
+func (h *PlatformHandler) UpdateRequestTemplate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name        string `json:"name"`
+		Method      string `json:"method"`
+		Path        string `json:"path"`
+		Headers     string `json:"headers"`
+		QueryParams string `json:"query_params"`
+		BodySchema  string `json:"body_schema"`
+		TimeoutMs   int    `json:"timeout_ms"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "Malformed JSON", nil)
+		return
+	}
+
+	now := time.Now().UTC()
+	res, err := h.db.ExecContext(r.Context(), `
+UPDATE request_templates
+SET name = COALESCE(NULLIF(?, ''), name),
+    method = COALESCE(NULLIF(?, ''), method),
+    path = COALESCE(NULLIF(?, ''), path),
+    headers = COALESCE(NULLIF(?, ''), headers),
+    query_params = COALESCE(NULLIF(?, ''), query_params),
+    body_schema = COALESCE(NULLIF(?, ''), body_schema),
+    updated_at = ?
+WHERE id = ?`, body.Name, body.Method, body.Path, body.Headers, body.QueryParams, body.BodySchema, now, id)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "update_error", err.Error(), nil)
+		return
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		h.writeError(w, r, http.StatusNotFound, "not_found", "Request template not found", nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{"updated": true, "id": id})
+}
+
+func (h *PlatformHandler) DeleteRequestTemplate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	res, err := h.db.ExecContext(r.Context(), "DELETE FROM request_templates WHERE id = ?", id)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "delete_error", err.Error(), nil)
+		return
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		h.writeError(w, r, http.StatusNotFound, "not_found", "Request template not found", nil)
+		return
+	}
+	h.writeSuccess(w, r, map[string]any{"deleted": true, "id": id})
+}
+
+func (h *PlatformHandler) ExecuteRequestTemplate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var execParams struct {
+		Variables   map[string]string `json:"variables"`
+		QueryParams map[string]string `json:"query_params"`
+		Body        json.RawMessage   `json:"body"`
+		ProjectID   string            `json:"project_id"`
+		Environment string            `json:"environment"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&execParams)
+
+	var name, ptID, method, pathTpl string
+	var timeoutMs int
+	err := h.db.QueryRowContext(r.Context(), "SELECT name, provider_template_id, method, path, timeout_ms FROM request_templates WHERE id = ?", id).Scan(&name, &ptID, &method, &pathTpl, &timeoutMs)
+	if err != nil {
+		h.writeError(w, r, http.StatusNotFound, "not_found", "Request template not found", nil)
+		return
+	}
+
+	finalURL := executor.InterpolateString(pathTpl, execParams.Variables)
+	if err := platform.ValidateSSRF(finalURL); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "ssrf_violation", err.Error(), nil)
+		return
+	}
+
+	h.auditLogger.Log(&audit.Record{
+		ActorID:      "user",
+		Action:       "request_template.execute",
+		ResourceType: "request_template",
+		ResourceID:   id,
+		ProjectID:    execParams.ProjectID,
+		RequestID:    GetRequestID(r.Context()),
+		Result:       "success",
+	})
+
+	h.writeSuccess(w, r, map[string]any{
+		"template_id":  id,
+		"name":         name,
+		"resolved_url": finalURL,
+		"method":       method,
+		"status":       "executed",
+	})
+}
+

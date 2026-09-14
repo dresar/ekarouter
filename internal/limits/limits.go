@@ -82,16 +82,13 @@ func (e *Engine) SetQuota(ctx context.Context, refType, refID, metric, period st
 	query := `
 INSERT INTO quota_records (id, reference_type, reference_id, metric, used_value, max_value, period, reset_at, updated_at)
 VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET max_value = excluded.max_value, reset_at = excluded.reset_at, updated_at = excluded.updated_at`
+ON CONFLICT(reference_type, reference_id, metric) DO UPDATE SET
+	max_value = excluded.max_value,
+	period = excluded.period,
+	reset_at = excluded.reset_at,
+	updated_at = excluded.updated_at`
 
-	var existingID string
-	err := e.db.QueryRowContext(ctx, "SELECT id FROM quota_records WHERE reference_type = ? AND reference_id = ? AND metric = ?", refType, refID, metric).Scan(&existingID)
-	if err == nil && existingID != "" {
-		_, err = e.db.ExecContext(ctx, "UPDATE quota_records SET max_value = ?, reset_at = ?, updated_at = ? WHERE id = ?", maxVal, resetAt, now, existingID)
-		return err
-	}
-
-	_, err = e.db.ExecContext(ctx, query, id, refType, refID, metric, maxVal, period, resetAt, now)
+	_, err := e.db.ExecContext(ctx, query, id, refType, refID, metric, maxVal, period, resetAt, now)
 	return err
 }
 

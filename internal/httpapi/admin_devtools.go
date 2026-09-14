@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/dresar/ekarouter/internal/devtools"
+	"github.com/dresar/ekarouter/internal/platform"
 )
 
 func (a *AdminHandler) ListTemplates(w http.ResponseWriter, r *http.Request) {
@@ -68,9 +70,15 @@ func (a *AdminHandler) ImportOpenAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, err := http.Get(body.URL)
+		safeClient := platform.NewSafeHTTPClient(15*time.Second, false)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, body.URL, nil)
 		if err != nil {
-			http.Error(w, `{"error":"failed to fetch openapi document"}`, http.StatusBadGateway)
+			http.Error(w, `{"error":"invalid request: `+err.Error()+`"}`, http.StatusBadRequest)
+			return
+		}
+		resp, err := safeClient.Do(req)
+		if err != nil {
+			http.Error(w, `{"error":"failed to fetch openapi document: `+err.Error()+`"}`, http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close()

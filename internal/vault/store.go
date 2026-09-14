@@ -325,3 +325,106 @@ func (s *Store) scanCredential(r scannable) (*Credential, error) {
 
 	return c, nil
 }
+
+func (s *Store) RotateMasterKey(ctx context.Context, newVault *Vault) error {
+	if newVault == nil {
+		return errors.New("new vault cannot be nil")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	type itemEnc struct {
+		id  string
+		enc string
+	}
+
+	// 1. Re-encrypt vault_credentials
+	rows, err := tx.QueryContext(ctx, "SELECT id, encrypted_value FROM vault_credentials")
+	if err != nil {
+		return fmt.Errorf("query vault_credentials: %w", err)
+	}
+	var creds []itemEnc
+	for rows.Next() {
+		var item itemEnc
+		if err := rows.Scan(&item.id, &item.enc); err == nil {
+			creds = append(creds, item)
+		}
+	}
+	rows.Close()
+
+	for _, item := range creds {
+		dec, err := s.vault.Decrypt(item.enc)
+		if err != nil {
+			return fmt.Errorf("decrypt credential %s: %w", item.id, err)
+		}
+		newEnc, err := newVault.Encrypt(dec)
+		if err != nil {
+			return fmt.Errorf("re-encrypt credential %s: %w", item.id, err)
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE vault_credentials SET encrypted_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", newEnc, item.id); err != nil {
+			return fmt.Errorf("update credential %s: %w", item.id, err)
+		}
+	}
+
+	// 2. Re-encrypt credential_versions
+	vRows, err := tx.QueryContext(ctx, "SELECT id, encrypted_value FROM credential_versions")
+	if err == nil {
+		var versions []itemEnc
+		for vRows.Next() {
+			var item itemEnc
+			if err := vRows.Scan(&item.id, &item.enc); err == nil {
+				versions = append(versions, item)
+			}
+		}
+		vRows.Close()
+
+		for _, item := range versions {
+			dec, err := s.vault.Decrypt(item.enc)
+			if err != nil {
+				continue
+			}
+			newEnc, err := newVault.Encrypt(dec)
+			if err != nil {
+				continue
+			}
+			_, _ = tx.ExecContext(ctx, "UPDATE credential_versions SET encrypted_value = ? WHERE id = ?", newEnc, item.id)
+		}
+	}
+
+	// 3. Re-encrypt webhooks
+	wRows, err := tx.QueryContext(ctx, "SELECT id, secret_encrypted FROM webhooks")
+	if err == nil {
+		var whs []itemEnc
+		for wRows.Next() {
+			var item itemEnc
+			if err := wRows.Scan(&item.id, &item.enc); err == nil {
+				whs = append(whs, item)
+			}
+		}
+		wRows.Close()
+
+		for _, item := range whs {
+			dec, err := s.vault.Decrypt(item.enc)
+			if err != nil {
+				continue
+			}
+			newEnc, err := newVault.Encrypt(dec)
+			if err != nil {
+				continue
+			}
+			_, _ = tx.ExecContext(ctx, "UPDATE webhooks SET secret_encrypted = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", newEnc, item.id)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit master key rotation: %w", err)
+	}
+
+	s.vault = newVault
+	return nil
+}
+

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: EkaRouter Security Reporting
+    url: mailto:eka.ckp16799@gmail.com
+    about: Privately report security vulnerabilities to the lead architect.
+  - name: Architecture Documentation
+    url: https://github.com/dresar/ekarouter/tree/main/docs
+    about: Read deep system architecture guides and references.

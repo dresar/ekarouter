@@ -136,11 +136,17 @@ func MaskCredential(raw string) string {
 	}
 	if strings.HasPrefix(strings.ToLower(val), "bearer ") {
 		token := strings.TrimSpace(val[7:])
-		return "Bearer " + maskToken(token)
+		if len(token) >= 4 {
+			return "Bearer ****" + token[len(token)-4:]
+		}
+		return "Bearer ****"
 	}
 	if strings.HasPrefix(val, "basic ") {
 		token := strings.TrimSpace(val[6:])
-		return "Basic " + maskToken(token)
+		if len(token) >= 4 {
+			return "Basic ****" + token[len(token)-4:]
+		}
+		return "Basic ****"
 	}
 	return maskToken(val)
 }
@@ -154,7 +160,7 @@ func maskToken(token string) string {
 		return token[:2] + "****" + token[l-2:]
 	}
 
-	idx := strings.Index(token, "_")
+	idx := strings.IndexAny(token, "_-")
 	if idx > 0 && idx < l-4 && idx <= 6 {
 		prefix := token[:idx+1]
 		suffix := token[l-4:]

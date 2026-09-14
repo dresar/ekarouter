@@ -155,10 +155,29 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("POST /api/v1/projects failed: %d %s", res.Code, res.Body.String())
 	}
+	var projCreated struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(res.Body.Bytes(), &projCreated)
+	projID := projCreated.Data.ID
 
 	res = authGet("/api/v1/projects")
 	if res.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/projects failed: %d", res.Code)
+	}
+
+	res = authGet("/api/v1/projects/" + projID)
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/projects/:id failed: %d", res.Code)
+	}
+
+	res = authPatch("/api/v1/projects/"+projID, map[string]string{
+		"name": "Updated Test Project",
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("PATCH /api/v1/projects/:id failed: %d", res.Code)
 	}
 
 	res = authPost("/api/v1/environments", map[string]string{
@@ -168,10 +187,24 @@ func TestPlatformAPIEndpoints(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("POST /api/v1/environments failed: %d", res.Code)
 	}
+	var envCreated struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(res.Body.Bytes(), &envCreated)
+	envID := envCreated.Data.ID
 
 	res = authGet("/api/v1/environments")
 	if res.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/environments failed: %d", res.Code)
+	}
+
+	res = authPatch("/api/v1/environments/"+envID, map[string]string{
+		"name": "staging-updated",
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("PATCH /api/v1/environments/:id failed: %d", res.Code)
 	}
 
 	// 3. Credentials

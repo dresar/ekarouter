@@ -27,24 +27,9 @@ func NewBaseAdapterWithOptions(meta ProviderMetadata, timeout time.Duration, all
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
-	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   timeout,
-	}
 	return &BaseAdapter{
 		meta:       meta,
-		httpClient: client,
+		httpClient: NewSafeHTTPClient(timeout, allowLocal),
 		allowLocal: allowLocal,
 	}
 }
@@ -214,15 +199,78 @@ func (b *BaseAdapter) injectAuth(req *http.Request, secret string) {
 	}
 }
 
+func NewSafeHTTPClient(timeout time.Duration, allowLocal bool) *http.Client {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if !allowLocal {
+				host, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, err
+				}
+				ip := net.ParseIP(host)
+				if ip != nil {
+					if isPrivateIP(ip) {
+						return nil, fmt.Errorf("SSRF protection: target IP %s is not permitted", ip.String())
+					}
+					return dialer.DialContext(ctx, network, addr)
+				}
+				ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+				if err != nil {
+					return nil, fmt.Errorf("SSRF DNS resolution failed: %w", err)
+				}
+				if len(ips) == 0 {
+					return nil, fmt.Errorf("SSRF DNS resolution returned no IPs for %s", host)
+				}
+				for _, rip := range ips {
+					if isPrivateIP(rip) {
+						return nil, fmt.Errorf("SSRF protection: host %s resolved to private IP %s", host, rip.String())
+					}
+				}
+				return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
+			}
+			return dialer.DialContext(ctx, network, addr)
+		},
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			if !allowLocal {
+				if err := ValidateSSRF(req.URL.String()); err != nil {
+					return fmt.Errorf("redirect blocked by SSRF protection: %w", err)
+				}
+			}
+			return nil
+		},
+	}
+}
+
 func ValidateSSRF(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid url: %w", err)
 	}
 
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("forbidden protocol: %s", scheme)
+		return fmt.Errorf("forbidden protocol: %s (only http and https allowed)", scheme)
 	}
 
 	hostname := strings.ToLower(u.Hostname())
@@ -230,11 +278,14 @@ func ValidateSSRF(rawURL string) error {
 		return errors.New("empty hostname")
 	}
 
-	if hostname == "localhost" || hostname == "0.0.0.0" || hostname == "127.0.0.1" || hostname == "::1" {
-		return fmt.Errorf("target host %s is not permitted (loopback)", hostname)
+	if hostname == "localhost" || hostname == "0.0.0.0" || hostname == "127.0.0.1" || hostname == "::1" ||
+		hostname == "169.254.169.254" || hostname == "100.100.100.200" ||
+		hostname == "metadata.google.internal" || hostname == "metadata.internal" {
+		return fmt.Errorf("target host %s is not permitted (loopback/metadata)", hostname)
 	}
 
-	if strings.HasSuffix(hostname, ".local") || strings.HasSuffix(hostname, ".internal") || strings.HasSuffix(hostname, ".localhost") {
+	if strings.HasSuffix(hostname, ".local") || strings.HasSuffix(hostname, ".internal") ||
+		strings.HasSuffix(hostname, ".localhost") || strings.HasSuffix(hostname, ".arpa") {
 		return fmt.Errorf("target internal domain %s is not permitted", hostname)
 	}
 
@@ -243,30 +294,87 @@ func ValidateSSRF(rawURL string) error {
 		if isPrivateIP(ip) {
 			return fmt.Errorf("target IP %s is within private or metadata range", ip.String())
 		}
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", hostname)
+	if err == nil {
+		for _, resolvedIP := range ips {
+			if isPrivateIP(resolvedIP) {
+				return fmt.Errorf("target host %s resolved to private/metadata IP %s", hostname, resolvedIP.String())
+			}
+		}
 	}
 
 	return nil
 }
 
+func IsPrivateIP(ip net.IP) bool {
+	return isPrivateIP(ip)
+}
+
 func isPrivateIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+	if ip == nil {
 		return true
 	}
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsUnspecified() {
+		return true
+	}
+
 	ipv4 := ip.To4()
-	if ipv4 == nil {
+	if ipv4 != nil {
+		switch {
+		case ipv4[0] == 0:
+			return true
+		case ipv4[0] == 10:
+			return true
+		case ipv4[0] == 100 && ipv4[1] >= 64 && ipv4[1] <= 127:
+			return true
+		case ipv4[0] == 127:
+			return true
+		case ipv4[0] == 169 && ipv4[1] == 254:
+			return true
+		case ipv4[0] == 172 && ipv4[1] >= 16 && ipv4[1] <= 31:
+			return true
+		case ipv4[0] == 192 && ipv4[1] == 0 && ipv4[2] == 0:
+			return true
+		case ipv4[0] == 192 && ipv4[1] == 0 && ipv4[2] == 2:
+			return true
+		case ipv4[0] == 192 && ipv4[1] == 168:
+			return true
+		case ipv4[0] == 198 && ipv4[1] >= 18 && ipv4[1] <= 19:
+			return true
+		case ipv4[0] == 198 && ipv4[1] == 51 && ipv4[2] == 100:
+			return true
+		case ipv4[0] == 203 && ipv4[1] == 0 && ipv4[2] == 113:
+			return true
+		case ipv4[0] >= 224 && ipv4[0] <= 239:
+			return true
+		case ipv4[0] >= 240:
+			return true
+		case ipv4[0] == 100 && ipv4[1] == 100 && ipv4[2] == 100 && ipv4[3] == 200:
+			return true
+		}
 		return false
 	}
-	if ipv4[0] == 10 {
+
+	if len(ip) == 16 && (ip[0]&0xfe) == 0xfc {
 		return true
 	}
-	if ipv4[0] == 172 && ipv4[1] >= 16 && ipv4[1] <= 31 {
+	if len(ip) == 16 && ip[0] == 0xfe && (ip[1]&0xc0) == 0x80 {
 		return true
 	}
-	if ipv4[0] == 192 && ipv4[1] == 168 {
+	if len(ip) == 16 && ip[0] == 0xff {
 		return true
 	}
-	if ipv4[0] == 169 && ipv4[1] == 254 {
+	if len(ip) == 16 && ip[0] == 0x20 && ip[1] == 0x01 && ip[2] == 0x0d && ip[3] == 0xb8 {
 		return true
 	}
+	if len(ip) == 16 && ip[0] == 0x01 && ip[1] == 0x00 && ip[2] == 0 && ip[3] == 0 {
+		return true
+	}
+
 	return false
 }

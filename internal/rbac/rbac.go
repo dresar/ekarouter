@@ -265,6 +265,30 @@ func (s *Service) ListProjects(ctx context.Context) ([]*Project, error) {
 	return list, rows.Err()
 }
 
+func (s *Service) GetProject(ctx context.Context, id string) (*Project, error) {
+	var p Project
+	var enInt int
+	err := s.db.QueryRowContext(ctx, "SELECT id, name, owner_id, environment, description, enabled, created_at, updated_at FROM projects WHERE id = ?", id).Scan(
+		&p.ID, &p.Name, &p.OwnerID, &p.Environment, &p.Description, &enInt, &p.CreatedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	p.Enabled = enInt == 1
+	return &p, nil
+}
+
+func (s *Service) UpdateProject(ctx context.Context, id, name, env, desc string) error {
+	now := time.Now().UTC()
+	_, err := s.db.ExecContext(ctx, "UPDATE projects SET name = ?, environment = ?, description = ?, updated_at = ? WHERE id = ?", name, env, desc, now, id)
+	return err
+}
+
+func (s *Service) DeleteProject(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
+	return err
+}
+
 func (s *Service) CreateClientToken(ctx context.Context, name, userID, projectID, scopes string, expiresDays int) (string, *ClientToken, error) {
 	bytes := make([]byte, 24)
 	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {

@@ -48,6 +48,12 @@ func TestSSRFProtection(t *testing.T) {
 		"http://10.0.0.5/api",
 		"http://192.168.1.1/secret",
 		"http://172.16.0.10:8000",
+		"http://[::1]:8080",
+		"http://[::ffff:127.0.0.1]:8080",
+		"http://[fd12:3456:789a:1::1]:8080",
+		"http://[fe80::1]:8080",
+		"http://100.100.100.200:80",
+		"http://metadata.google.internal/computeMetadata/v1/",
 		"http://internal.service.local/status",
 		"ftp://example.com/file",
 		"file:///etc/passwd",
@@ -122,3 +128,19 @@ func TestBaseAdapterExecution(t *testing.T) {
 		t.Fatalf("Health check failed: %+v, err: %v", hStatus, err)
 	}
 }
+
+func TestSafeHTTPClientRedirectBlock(t *testing.T) {
+	// Server redirects to loopback
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://127.0.0.1:8080/evil", http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := platform.NewSafeHTTPClient(5*time.Second, false)
+	req, _ := http.NewRequest(http.MethodGet, server.URL, nil)
+	_, err := client.Do(req)
+	if err == nil {
+		t.Fatal("expected error following redirect to 127.0.0.1, got nil")
+	}
+}
+
