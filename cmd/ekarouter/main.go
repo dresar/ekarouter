@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/dresar/ekarouter/internal/app"
 	"github.com/dresar/ekarouter/internal/auth"
+	"github.com/dresar/ekarouter/internal/cli"
 	"github.com/dresar/ekarouter/internal/config"
 	"github.com/dresar/ekarouter/internal/db"
 )
@@ -17,6 +19,24 @@ import (
 var Version = "1.0.0"
 
 func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		if os.Args[1] != "serve" && os.Args[1] != "server" {
+			if cli.HandleSubcommands(os.Args[1:], cfg.DatabasePath, "migrations", cfg.Port) {
+				return
+			}
+		}
+	} else if len(os.Args) == 1 {
+		if cli.HandleSubcommands([]string{"cli"}, cfg.DatabasePath, "migrations", cfg.Port) {
+			return
+		}
+	}
+
 	hostFlag := flag.String("host", "", "HTTP bind address")
 	portFlag := flag.Int("port", 0, "HTTP port")
 	dbFlag := flag.String("db", "", "SQLite database path")
@@ -29,12 +49,6 @@ func main() {
 	if *versionFlag {
 		fmt.Printf("EkaRouter v%s\n", Version)
 		return
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
-		os.Exit(1)
 	}
 
 	if *hostFlag != "" {

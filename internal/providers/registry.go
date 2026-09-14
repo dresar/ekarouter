@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -90,10 +91,9 @@ type Registry struct {
 }
 
 func NewRegistry() *Registry {
-	r := &Registry{
+	return &Registry{
 		adapters: make(map[string]Adapter),
 	}
-	return r
 }
 
 func (r *Registry) Register(kind string, adapter Adapter) {
@@ -110,4 +110,22 @@ func (r *Registry) Get(kind string) (Adapter, error) {
 		return nil, fmt.Errorf("unsupported provider kind: %s", kind)
 	}
 	return a, nil
+}
+
+func (r *Registry) Has(kind string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.adapters[kind]
+	return ok
+}
+
+func (r *Registry) List() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	keys := make([]string, 0, len(r.adapters))
+	for k := range r.adapters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

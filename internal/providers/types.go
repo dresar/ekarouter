@@ -5,11 +5,21 @@ import (
 	"net/http"
 )
 
+type Capabilities struct {
+	Vision        bool `json:"vision"`
+	ToolCalling   bool `json:"tool_calling"`
+	Reasoning     bool `json:"reasoning"`
+	Streaming     bool `json:"streaming"`
+	SystemPrompt  bool `json:"system_prompt"`
+	PromptCaching bool `json:"prompt_caching"`
+}
+
 type ModelInfo struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	ContextLimit int    `json:"context_limit"`
-	Streaming    bool   `json:"streaming"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	ContextLimit int          `json:"context_limit"`
+	Streaming    bool         `json:"streaming"`
+	Capabilities Capabilities `json:"capabilities,omitempty"`
 }
 
 type Message struct {
@@ -41,6 +51,12 @@ type Request struct {
 	Stream           bool      `json:"stream"`
 	Stop             []string  `json:"stop,omitempty"`
 	OptOutTokenSaver bool      `json:"opt_out_token_saver,omitempty"`
+	ReasoningEffort  string    `json:"reasoning_effort,omitempty"`
+	ThinkingBudget   *int      `json:"thinking_budget,omitempty"`
+	ProjectID        string    `json:"project_id,omitempty"`
+	Tools            []any     `json:"tools,omitempty"`
+	ToolChoice       any       `json:"tool_choice,omitempty"`
+	ResponseFormat   any       `json:"response_format,omitempty"`
 }
 
 type Usage struct {
@@ -54,6 +70,7 @@ type Response struct {
 	Model        string `json:"model"`
 	Role         string `json:"role"`
 	Content      string `json:"content"`
+	Reasoning    string `json:"reasoning,omitempty"`
 	FinishReason string `json:"finish_reason"`
 	Usage        Usage  `json:"usage"`
 }
@@ -61,17 +78,19 @@ type Response struct {
 type StreamEventType string
 
 const (
-	StreamEventDelta StreamEventType = "delta"
-	StreamEventUsage StreamEventType = "usage"
-	StreamEventDone  StreamEventType = "done"
-	StreamEventError StreamEventType = "error"
+	StreamEventDelta     StreamEventType = "delta"
+	StreamEventReasoning StreamEventType = "reasoning"
+	StreamEventUsage     StreamEventType = "usage"
+	StreamEventDone      StreamEventType = "done"
+	StreamEventError     StreamEventType = "error"
 )
 
 type StreamEvent struct {
-	Type  StreamEventType
-	Delta string
-	Usage *Usage
-	Error error
+	Type      StreamEventType
+	Delta     string
+	Reasoning string
+	Usage     *Usage
+	Error     error
 }
 
 type Credentials struct {
@@ -79,6 +98,7 @@ type Credentials struct {
 	AccessToken string
 	SecretKey   string
 	BaseURL     string
+	ProjectID   string
 	HTTPClient  *http.Client
 }
 
