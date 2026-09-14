@@ -9,6 +9,7 @@ import (
 
 	"github.com/dresar/ekarouter/internal/proxy"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (a *AdminHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
@@ -51,20 +52,38 @@ func (a *AdminHandler) CreateProvider(w http.ResponseWriter, r *http.Request) {
 		Name    string `json:"name"`
 		Kind    string `json:"kind"`
 		BaseURL string `json:"base_url"`
-		Enabled bool   `json:"enabled"`
+		Enabled *bool  `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
 		return
 	}
 
+	if body.ID == "" {
+		body.ID = "prov_" + uuid.NewString()[:8]
+	}
+	if body.Key == "" {
+		body.Key = body.ID
+	}
+	if body.Name == "" {
+		body.Name = body.Key
+	}
+
 	enabledInt := 1
-	if !body.Enabled {
+	if body.Enabled != nil && !*body.Enabled {
 		enabledInt = 0
 	}
 
 	_, err := a.db.ExecContext(r.Context(),
-		"INSERT INTO providers (id, key, name, kind, base_url, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+		`INSERT INTO providers (id, key, name, kind, base_url, enabled)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			key = excluded.key,
+			name = excluded.name,
+			kind = excluded.kind,
+			base_url = excluded.base_url,
+			enabled = excluded.enabled,
+			updated_at = CURRENT_TIMESTAMP`,
 		body.ID, body.Key, body.Name, body.Kind, body.BaseURL, enabledInt)
 	if err != nil {
 		http.Error(w, `{"error":"failed to create provider"}`, http.StatusInternalServerError)
@@ -141,6 +160,16 @@ func (a *AdminHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.ID == "" {
+		body.ID = "acc_" + uuid.NewString()[:8]
+	}
+	if body.Priority <= 0 {
+		body.Priority = 10
+	}
+	if body.Name == "" {
+		body.Name = body.ID
+	}
+
 	tx, err := a.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		http.Error(w, `{"error":"tx error"}`, http.StatusInternalServerError)
@@ -149,7 +178,16 @@ func (a *AdminHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(r.Context(),
-		"INSERT INTO accounts (id, provider_id, name, auth_type, priority, state, enabled) VALUES (?, ?, ?, ?, ?, 'active', 1)",
+		`INSERT INTO accounts (id, provider_id, name, auth_type, priority, state, enabled)
+		VALUES (?, ?, ?, ?, ?, 'active', 1)
+		ON CONFLICT(id) DO UPDATE SET
+			provider_id = excluded.provider_id,
+			name = excluded.name,
+			auth_type = excluded.auth_type,
+			priority = excluded.priority,
+			state = 'active',
+			enabled = 1,
+			updated_at = CURRENT_TIMESTAMP`,
 		body.ID, body.ProviderID, body.Name, body.AuthType, body.Priority)
 	if err != nil {
 		http.Error(w, `{"error":"failed to insert account"}`, http.StatusInternalServerError)
@@ -160,7 +198,12 @@ func (a *AdminHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	encSecret, _ := a.crypto.Encrypt(body.SecretKey)
 
 	_, err = tx.ExecContext(r.Context(),
-		"INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret) VALUES (?, ?, ?, ?)",
+		`INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(account_id) DO UPDATE SET
+			encrypted_access = excluded.encrypted_access,
+			encrypted_secret = excluded.encrypted_secret,
+			updated_at = CURRENT_TIMESTAMP`,
 		"cred_"+body.ID, body.ID, encKey, encSecret)
 	if err != nil {
 		http.Error(w, `{"error":"failed to insert credentials"}`, http.StatusInternalServerError)
@@ -275,6 +318,13 @@ func (a *AdminHandler) CreateRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if body.ID == "" {
+		body.ID = "route_" + uuid.NewString()[:8]
+	}
+	if body.Strategy == "" {
+		body.Strategy = "priority"
+	}
+
 	tx, err := a.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		http.Error(w, `{"error":"tx error"}`, http.StatusInternalServerError)
@@ -283,10 +333,22 @@ func (a *AdminHandler) CreateRoute(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(r.Context(),
-		"INSERT INTO routes (id, name, strategy, enabled) VALUES (?, ?, ?, 1)",
+		`INSERT INTO routes (id, name, strategy, enabled)
+		VALUES (?, ?, ?, 1)
+		ON CONFLICT(id) DO UPDATE SET
+			name = excluded.name,
+			strategy = excluded.strategy,
+			enabled = 1,
+			updated_at = CURRENT_TIMESTAMP`,
 		body.ID, body.Name, body.Strategy)
 	if err != nil {
 		http.Error(w, `{"error":"failed to insert route"}`, http.StatusInternalServerError)
+		return
+	}
+
+	_, err = tx.ExecContext(r.Context(), "DELETE FROM route_items WHERE route_id = ?", body.ID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to clean old route items"}`, http.StatusInternalServerError)
 		return
 	}
 

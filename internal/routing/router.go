@@ -251,7 +251,10 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 	}
 
 	sort.SliceStable(eligible, func(i, j int) bool {
-		return eligible[i].Priority < eligible[j].Priority
+		if eligible[i].Priority != eligible[j].Priority {
+			return eligible[i].Priority < eligible[j].Priority
+		}
+		return eligible[i].ID < eligible[j].ID
 	})
 
 	if route.Strategy == StrategyRoundRobin && cursorPtr != nil && len(eligible) > 1 {
@@ -293,7 +296,10 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 				}
 			}
 			sort.SliceStable(matching, func(i, j int) bool {
-				return matching[i].Priority < matching[j].Priority
+				if matching[i].Priority != matching[j].Priority {
+					return matching[i].Priority < matching[j].Priority
+				}
+				return matching[i].ID < matching[j].ID
 			})
 			if len(matching) > 1 && route.Strategy == StrategyRoundRobin {
 				topPriority := matching[0].Priority
@@ -408,7 +414,10 @@ func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
 	}
 
 	sort.SliceStable(eligible, func(i, j int) bool {
-		return eligible[i].Priority < eligible[j].Priority
+		if eligible[i].Priority != eligible[j].Priority {
+			return eligible[i].Priority < eligible[j].Priority
+		}
+		return eligible[i].ID < eligible[j].ID
 	})
 
 	if len(eligible) > 1 {

@@ -537,3 +537,84 @@ func TestAllEndpointsComprehensive(t *testing.T) {
 		t.Fatalf("GET /api/backup failed: %d", r.Code)
 	}
 }
+
+func TestAdminEntityIdempotencyAndAutoID(t *testing.T) {
+	server, database, _ := setupTestServer(t)
+	defer database.Close()
+
+	loginBody := `{"username":"admin","password":"admin12345"}`
+	reqLogin := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(loginBody))
+	recLogin := httptest.NewRecorder()
+	server.ServeHTTP(recLogin, reqLogin)
+
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	_ = json.NewDecoder(recLogin.Body).Decode(&loginResp)
+	token := loginResp.Token
+
+	adminPost := func(path string, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, req)
+		return rec
+	}
+
+	recP1 := adminPost("/api/providers", `{"name":"Auto Provider","kind":"openai","base_url":"https://api.openai.com"}`)
+	if recP1.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for auto provider, got %d", recP1.Code)
+	}
+	var p1Resp struct {
+		Status string `json:"status"`
+		ID     string `json:"id"`
+	}
+	_ = json.NewDecoder(recP1.Body).Decode(&p1Resp)
+	if p1Resp.ID == "" || !strings.HasPrefix(p1Resp.ID, "prov_") {
+		t.Fatalf("expected auto-generated prov_ ID, got %s", p1Resp.ID)
+	}
+
+	recP2 := adminPost("/api/providers", fmt.Sprintf(`{"id":"%s","name":"Updated Provider","kind":"openai","base_url":"https://api.openai.com/v1"}`, p1Resp.ID))
+	if recP2.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for provider upsert, got %d", recP2.Code)
+	}
+
+	recA1 := adminPost("/api/accounts", fmt.Sprintf(`{"provider_id":"%s","auth_type":"api_key","api_key":"sk-123"}`, p1Resp.ID))
+	if recA1.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for auto account, got %d", recA1.Code)
+	}
+	var a1Resp struct {
+		Status string `json:"status"`
+		ID     string `json:"id"`
+	}
+	_ = json.NewDecoder(recA1.Body).Decode(&a1Resp)
+	if a1Resp.ID == "" || !strings.HasPrefix(a1Resp.ID, "acc_") {
+		t.Fatalf("expected auto-generated acc_ ID, got %s", a1Resp.ID)
+	}
+
+	recA2 := adminPost("/api/accounts", fmt.Sprintf(`{"id":"%s","provider_id":"%s","name":"Updated Acc","auth_type":"api_key","priority":5,"api_key":"sk-updated"}`, a1Resp.ID, p1Resp.ID))
+	if recA2.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for account upsert, got %d", recA2.Code)
+	}
+
+	routeBody := fmt.Sprintf(`{"name":"Auto Route","strategy":"priority","items":[{"provider_id":"%s","account_id":"%s","priority":1}]}`, p1Resp.ID, a1Resp.ID)
+	recR1 := adminPost("/api/routes", routeBody)
+	if recR1.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for auto route, got %d", recR1.Code)
+	}
+	var r1Resp struct {
+		Status string `json:"status"`
+		ID     string `json:"id"`
+	}
+	_ = json.NewDecoder(recR1.Body).Decode(&r1Resp)
+	if r1Resp.ID == "" || !strings.HasPrefix(r1Resp.ID, "route_") {
+		t.Fatalf("expected auto-generated route_ ID, got %s", r1Resp.ID)
+	}
+
+	routeUpdateBody := fmt.Sprintf(`{"id":"%s","name":"Updated Route","strategy":"round_robin","items":[{"provider_id":"%s","account_id":"%s","priority":2}]}`, r1Resp.ID, p1Resp.ID, a1Resp.ID)
+	recR2 := adminPost("/api/routes", routeUpdateBody)
+	if recR2.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for route upsert, got %d", recR2.Code)
+	}
+}
+

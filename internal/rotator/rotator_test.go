@@ -64,3 +64,33 @@ func TestRotatorExhausted(t *testing.T) {
 		t.Fatalf("Expected error for no eligible credentials, got %v", sel)
 	}
 }
+
+func TestRotatorPerPoolIsolation(t *testing.T) {
+	rot := rotator.NewRotator()
+
+	pool1Creds := []*vault.Credential{
+		{ID: "p1_c1", ProviderID: "openai", Status: "active"},
+		{ID: "p1_c2", ProviderID: "openai", Status: "active"},
+	}
+
+	pool2Creds := []*vault.Credential{
+		{ID: "p2_c1", ProviderID: "anthropic", Status: "active"},
+		{ID: "p2_c2", ProviderID: "anthropic", Status: "active"},
+	}
+
+	selP1_1, err := rot.Select(pool1Creds, rotator.StrategyRoundRobin)
+	if err != nil || selP1_1.ID != "p1_c1" {
+		t.Fatalf("Expected p1_c1, got %v, err=%v", selP1_1, err)
+	}
+
+	selP2_1, err := rot.Select(pool2Creds, rotator.StrategyRoundRobin)
+	if err != nil || selP2_1.ID != "p2_c1" {
+		t.Fatalf("Expected p2_c1 on independent cursor, got %v, err=%v", selP2_1, err)
+	}
+
+	selP1_2, err := rot.Select(pool1Creds, rotator.StrategyRoundRobin)
+	if err != nil || selP1_2.ID != "p1_c2" {
+		t.Fatalf("Expected p1_c2, got %v, err=%v", selP1_2, err)
+	}
+}
+

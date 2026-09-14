@@ -24,17 +24,42 @@ const (
 
 type Rotator struct {
 	mu      sync.Mutex
-	rrIndex uint64
+	cursors map[string]*uint64
 }
 
 func NewRotator() *Rotator {
-	return &Rotator{}
+	return &Rotator{
+		cursors: make(map[string]*uint64),
+	}
+}
+
+func (r *Rotator) getCursor(key string) *uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.cursors == nil {
+		r.cursors = make(map[string]*uint64)
+	}
+	c, ok := r.cursors[key]
+	if !ok {
+		var val uint64
+		c = &val
+		r.cursors[key] = c
+	}
+	return c
 }
 
 func (r *Rotator) Select(candidates []*vault.Credential, strat Strategy) (*vault.Credential, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	key := "default"
+	for _, c := range candidates {
+		if c.ProviderID != "" {
+			key = c.ProviderID
+			break
+		}
+	}
+	return r.SelectForPool(key, candidates, strat)
+}
 
+func (r *Rotator) SelectForPool(poolKey string, candidates []*vault.Credential, strat Strategy) (*vault.Credential, error) {
 	now := time.Now().UTC()
 	var eligible []*vault.Credential
 
@@ -67,7 +92,8 @@ func (r *Rotator) Select(candidates []*vault.Credential, strat Strategy) (*vault
 
 	switch strat {
 	case StrategyRoundRobin:
-		idx := atomic.AddUint64(&r.rrIndex, 1) - 1
+		cursor := r.getCursor(poolKey)
+		idx := atomic.AddUint64(cursor, 1) - 1
 		return eligible[idx%uint64(len(eligible))], nil
 
 	case StrategyRandom:
