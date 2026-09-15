@@ -1,12 +1,15 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/dresar/ekarouter/internal/proxy"
@@ -512,21 +515,17 @@ func (a *AdminHandler) ApplyBatchProxy(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
+func (a *AdminHandler) checkSingleAccount(ctx context.Context, id string) (bool, int64, string) {
 	var providerID string
 	var enabledInt int
 	var encAccess, encSecret string
-	err := a.db.QueryRowContext(r.Context(), `
+	err := a.db.QueryRowContext(ctx, `
 		SELECT a.provider_id, a.enabled, COALESCE(c.encrypted_access, ''), COALESCE(c.encrypted_secret, '')
 		FROM accounts a
 		LEFT JOIN credentials c ON c.account_id = a.id
 		WHERE a.id = ?`, id).Scan(&providerID, &enabledInt, &encAccess, &encSecret)
-
 	if err != nil {
-		http.Error(w, `{"error":"account not found"}`, http.StatusNotFound)
-		return
+		return false, 0, "account not found"
 	}
 
 	apiKey := ""
@@ -544,57 +543,116 @@ func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
 		meta = make(map[string]any)
 	}
 
+	if apiKey == "" {
+		meta["lastError"] = "credential empty or missing"
+		_, _ = a.db.ExecContext(ctx, "UPDATE accounts SET state = 'unavailable', updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+		return false, 0, "credential empty or missing"
+	}
+
+	var provKind, provBaseURL string
+	_ = a.db.QueryRowContext(ctx, "SELECT COALESCE(kind, 'openai'), COALESCE(base_url, '') FROM providers WHERE id = ?", providerID).Scan(&provKind, &provBaseURL)
+	if provBaseURL == "" {
+		if provKind == "gemini" {
+			provBaseURL = "https://generativelanguage.googleapis.com"
+		} else {
+			provBaseURL = "https://api.openai.com/v1"
+		}
+	}
+
 	proxyPoolID, _ := meta["proxyPoolId"].(string)
-	var proxyURL string
+	var prof *proxy.Profile
 	if proxyPoolID != "" {
 		var scheme, host string
 		var port int
-		var user sql.NullString
-		if err := a.db.QueryRowContext(r.Context(), "SELECT scheme, host, port, username FROM proxy_profiles WHERE id = ?", proxyPoolID).Scan(&scheme, &host, &port, &user); err == nil {
-			if port > 0 && port != 80 && port != 443 {
-				proxyURL = fmt.Sprintf("%s://%s:%d", scheme, host, port)
-			} else {
-				proxyURL = fmt.Sprintf("%s://%s", scheme, host)
+		var user, encPass sql.NullString
+		if err := a.db.QueryRowContext(ctx, "SELECT scheme, host, port, username, encrypted_password FROM proxy_profiles WHERE id = ?", proxyPoolID).Scan(&scheme, &host, &port, &user, &encPass); err == nil {
+			pass := ""
+			if encPass.Valid && a.crypto != nil {
+				pass, _ = a.crypto.Decrypt(encPass.String)
+			}
+			prof = &proxy.Profile{
+				ID:       proxyPoolID,
+				Scheme:   scheme,
+				Host:     host,
+				Port:     port,
+				Username: user.String,
+				Password: pass,
 			}
 		}
+	}
+
+	proxyMgr := proxy.NewManager(a.cfg != nil && a.cfg.AllowLocalProviders)
+	httpClient, _ := proxyMgr.GetClient(prof, 8*time.Second)
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 8 * time.Second}
 	}
 
 	start := time.Now()
-	httpClient := &http.Client{Timeout: 7 * time.Second}
-	if proxyURL != "" {
-		if parsedURL, err := url.Parse(proxyURL); err == nil {
-			httpClient.Transport = &http.Transport{
-				Proxy: http.ProxyURL(parsedURL),
-			}
+	var testReq *http.Request
+	cleanedBase := strings.TrimRight(provBaseURL, "/")
+
+	switch {
+	case providerID == "gemini" || provKind == "gemini":
+		testURL := fmt.Sprintf("%s/v1beta/models?key=%s", cleanedBase, apiKey)
+		if strings.Contains(cleanedBase, "/models") {
+			testURL = fmt.Sprintf("%s?key=%s", cleanedBase, apiKey)
+		}
+		testReq, _ = http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+	case providerID == "anthropic" || provKind == "anthropic":
+		testURL := cleanedBase + "/messages"
+		body := []byte(`{"model":"claude-3-5-haiku-20241022","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`)
+		testReq, _ = http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewReader(body))
+		if testReq != nil {
+			testReq.Header.Set("Content-Type", "application/json")
+			testReq.Header.Set("x-api-key", apiKey)
+			testReq.Header.Set("anthropic-version", "2023-06-01")
+		}
+	case providerID == "github":
+		testURL := "https://models.inference.ai.azure.com/models"
+		testReq, _ = http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+		if testReq != nil {
+			testReq.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+	case providerID == "cohere":
+		testURL := "https://api.cohere.com/v1/models"
+		testReq, _ = http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+		if testReq != nil {
+			testReq.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+	default:
+		testURL := cleanedBase + "/models"
+		testReq, _ = http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
+		if testReq != nil {
+			testReq.Header.Set("Authorization", "Bearer "+apiKey)
 		}
 	}
 
-	testURL := ""
-	var testReq *http.Request
-
-	switch providerID {
-	case "gemini", "gemini-cli":
-		testURL = fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", apiKey)
-		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
-	case "groq":
-		testURL = "https://api.groq.com/openai/v1/models"
-		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
-		testReq.Header.Set("Authorization", "Bearer "+apiKey)
-	case "openrouter":
-		testURL = "https://openrouter.ai/api/v1/models"
-		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
-		testReq.Header.Set("Authorization", "Bearer "+apiKey)
-	case "openai":
-		testURL = "https://api.openai.com/v1/models"
-		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
-		testReq.Header.Set("Authorization", "Bearer "+apiKey)
-	default:
-		testURL = fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", apiKey)
-		testReq, _ = http.NewRequestWithContext(r.Context(), http.MethodGet, testURL, nil)
+	if testReq == nil {
+		return false, 0, "failed to create test request"
 	}
 
 	resp, err := httpClient.Do(testReq)
 	latency := time.Since(start).Milliseconds()
+
+	if (err != nil || (resp != nil && resp.StatusCode == 404)) && prof != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		directClient := &http.Client{Timeout: 8 * time.Second}
+		startDirect := time.Now()
+		directReq, errDirect := http.NewRequestWithContext(ctx, testReq.Method, testReq.URL.String(), nil)
+		if errDirect == nil {
+			for k, v := range testReq.Header {
+				directReq.Header[k] = v
+			}
+			respDirect, errD := directClient.Do(directReq)
+			if errD == nil {
+				resp = respDirect
+				latency = time.Since(startDirect).Milliseconds()
+				err = nil
+			}
+		}
+	}
 
 	healthy := false
 	statusMsg := ""
@@ -614,16 +672,20 @@ func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
 
 	if healthy {
 		delete(meta, "lastError")
-		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET state = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+		_, _ = a.db.ExecContext(ctx, "UPDATE accounts SET state = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
 	} else {
 		meta["lastError"] = statusMsg
-		_, _ = a.db.ExecContext(r.Context(), "UPDATE accounts SET state = 'cooling_down', updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+		newState := "cooling_down"
+		if strings.Contains(statusMsg, "HTTP 401") || strings.Contains(statusMsg, "HTTP 403") {
+			newState = "unavailable"
+		}
+		_, _ = a.db.ExecContext(ctx, "UPDATE accounts SET state = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", newState, id)
 	}
 
 	if a.crypto != nil {
 		bytes, _ := json.Marshal(meta)
 		newEnc, _ := a.crypto.Encrypt(string(bytes))
-		_, _ = a.db.ExecContext(r.Context(), `
+		_, _ = a.db.ExecContext(ctx, `
 			INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
 			VALUES (?, ?, '', ?)
 			ON CONFLICT(account_id) DO UPDATE SET
@@ -632,11 +694,104 @@ func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
 			"cred_"+id, id, newEnc)
 	}
 
+	return healthy, latency, statusMsg
+}
+
+func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	healthy, latency, statusMsg := a.checkSingleAccount(r.Context(), id)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"healthy": healthy,
 		"latency": latency,
 		"message": statusMsg,
+	})
+}
+
+func (a *AdminHandler) TestAllAccounts(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProviderID string `json:"provider_id"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	query := "SELECT a.id, a.provider_id, a.name FROM accounts a WHERE a.enabled = 1"
+	var args []any
+	if body.ProviderID != "" {
+		query += " AND a.provider_id = ?"
+		args = append(args, body.ProviderID)
+	}
+	query += " ORDER BY a.priority DESC"
+
+	rows, err := a.db.QueryContext(r.Context(), query, args...)
+	if err != nil {
+		http.Error(w, `{"error":"failed to query accounts"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type AccMeta struct {
+		id         string
+		providerID string
+		name       string
+	}
+	var accList []AccMeta
+	for rows.Next() {
+		var am AccMeta
+		if err := rows.Scan(&am.id, &am.providerID, &am.name); err == nil {
+			accList = append(accList, am)
+		}
+	}
+
+	type TestItemResult struct {
+		ID         string `json:"id"`
+		ProviderID string `json:"provider_id"`
+		Name       string `json:"name"`
+		Healthy    bool   `json:"healthy"`
+		LatencyMs  int64  `json:"latency_ms"`
+		Message    string `json:"message"`
+	}
+
+	results := make([]TestItemResult, len(accList))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+
+	for i, am := range accList {
+		wg.Add(1)
+		go func(idx int, item AccMeta) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			h, lat, msg := a.checkSingleAccount(r.Context(), item.id)
+			results[idx] = TestItemResult{
+				ID:         item.id,
+				ProviderID: item.providerID,
+				Name:       item.name,
+				Healthy:    h,
+				LatencyMs:  lat,
+				Message:    msg,
+			}
+		}(i, am)
+	}
+	wg.Wait()
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	healthyTotal := 0
+	for _, res := range results {
+		if res.Healthy {
+			healthyTotal++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"total":   len(accList),
+		"healthy": healthyTotal,
+		"failed":  len(accList) - healthyTotal,
+		"results": results,
 	})
 }
 

@@ -212,6 +212,7 @@ func NewServer(
 			authApi.Get("/accounts", adminHandler.ListAccounts)
 			authApi.Post("/accounts", adminHandler.CreateAccount)
 			authApi.Post("/accounts/batch-proxy", adminHandler.ApplyBatchProxy)
+			authApi.Post("/accounts/test-all", adminHandler.TestAllAccounts)
 			authApi.Post("/accounts/{id}/test", adminHandler.TestAccount)
 			authApi.Put("/accounts/{id}", adminHandler.UpdateAccount)
 			authApi.Patch("/accounts/{id}", adminHandler.UpdateAccount)

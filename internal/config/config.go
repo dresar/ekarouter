@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,8 @@ func Load() (*Config, error) {
 	}
 	if v := os.Getenv("EKAROUTER_SECRET_KEY"); v != "" {
 		cfg.SecretKey = v
+	} else {
+		cfg.SecretKey = getOrPersistSecretKey(cfg.DatabasePath)
 	}
 	if v := os.Getenv("EKAROUTER_ADMIN_USER"); v != "" {
 		cfg.AdminUser = v
@@ -116,4 +119,21 @@ func generateDefaultSecretKey() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+func getOrPersistSecretKey(dbPath string) string {
+	dir := filepath.Dir(dbPath)
+	if dir != "" && dir != "." {
+		_ = os.MkdirAll(dir, 0755)
+	}
+	keyPath := filepath.Join(dir, ".secret_key")
+	if data, err := os.ReadFile(keyPath); err == nil {
+		k := strings.TrimSpace(string(data))
+		if len(k) >= 16 {
+			return k
+		}
+	}
+	key := generateDefaultSecretKey()
+	_ = os.WriteFile(keyPath, []byte(key), 0600)
+	return key
 }

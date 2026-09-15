@@ -18,6 +18,8 @@ node_modules/
 !.env.test.example
 *.pem
 *.key
+.secret_key
+data/.secret_key
 *backup*.json
 
 # Database files & state
