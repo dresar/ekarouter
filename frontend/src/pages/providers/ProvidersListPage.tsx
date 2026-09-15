@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Play,
   CheckCircle2,
+  ExternalLink,
 } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
@@ -13,6 +14,7 @@ import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
 import { Provider, PlatformProvider, Account, VaultCredential } from '../../types/api.ts'
+import { getProviderApiKeyUrl } from '../../utils/providerUrls.ts'
 
 interface UnifiedProvider {
   id: string
@@ -246,6 +248,20 @@ export function ProvidersListPage() {
               )}
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0 pl-2">
+          <a
+            href={getProviderApiKeyUrl(p.id, p.doc_url)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="Get API Key"
+            className="p-1.5 rounded-[5px] text-[#ea580c] hover:text-[#f97316] hover:bg-orange-500/10 transition-colors cursor-pointer inline-flex items-center gap-1 text-[11px] font-medium"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Get Key</span>
+          </a>
         </div>
       </button>
     )

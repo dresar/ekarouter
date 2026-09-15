@@ -39,6 +39,7 @@ import { BottomSheet } from '../../components/ui/BottomSheet.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 import { api } from '../../api/client.ts'
 import { Provider, Account, PlatformProvider, ProxyProfile } from '../../types/api.ts'
+import { getProviderApiKeyUrl } from '../../utils/providerUrls.ts'
 
 interface ProviderModel {
   id: string
@@ -889,10 +890,10 @@ export function ProviderDetailPage() {
         <button
           type="button"
           onClick={() => navigate('/providers')}
-          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#9ca3af] hover:text-white transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#9ca3af] hover:text-white transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Kembali</span>
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Providers</span>
         </button>
 
         {provider && (
@@ -917,27 +918,29 @@ export function ProviderDetailPage() {
             <ProviderLogo providerId={provider.id} name={provider.name} size="xl" />
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-[18px] font-bold text-[var(--text-primary)]">{provider.name}</h2>
-                {platProvider?.doc_url && (
-                  <a
-                    href={platProvider.doc_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[11.5px] text-[var(--brand-text)] hover:underline"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Get API Key
-                  </a>
-                )}
+                <h2 className="text-[20px] font-bold text-[var(--text-primary)]">{provider.name}</h2>
+                <a
+                  href={getProviderApiKeyUrl(provider.id, platProvider?.doc_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#ea580c] hover:text-[#f97316] transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Get API Key
+                </a>
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[11.5px] font-mono text-[var(--text-muted)]">
-                  {accounts.length} connections
+                <span className="text-[12px] font-medium text-[var(--text-muted)]">
+                  {accounts.length} connection{accounts.length !== 1 ? 's' : ''}
                 </span>
-                <span className="text-[11.5px] text-[var(--text-muted)]">•</span>
-                <span className="text-[11.5px] font-mono text-[var(--text-secondary)]">
-                  {activeModels.length} active models
-                </span>
+                {activeModels.length > 0 && (
+                  <>
+                    <span className="text-[12px] text-[var(--text-muted)]">•</span>
+                    <span className="text-[12px] font-mono text-[var(--text-secondary)]">
+                      {activeModels.length} active models
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>

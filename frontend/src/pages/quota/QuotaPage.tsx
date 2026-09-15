@@ -12,6 +12,7 @@ import {
   AlertCircle,
   ChevronDown,
   LayoutGrid,
+  Check,
   X,
 } from 'lucide-react'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
@@ -121,6 +122,20 @@ export function QuotaPage() {
     }, 1000)
     return () => clearInterval(interval)
   }, [autoRefresh])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.provider-dropdown-menu')) {
+        setProviderDropdownOpen(false)
+      }
+      if (!target.closest('.account-dropdown-menu')) {
+        setAccountDropdownOpen(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
 
   const handleRefreshSingle = async (accountId: string) => {
     setRefreshingIds((prev) => ({ ...prev, [accountId]: true }))
@@ -268,7 +283,7 @@ export function QuotaPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
+          <div className="relative provider-dropdown-menu">
             <button
               type="button"
               onClick={() => {
@@ -284,43 +299,52 @@ export function QuotaPage() {
               <ChevronDown className="w-3.5 h-3.5 text-[#9ca3af]" />
             </button>
             {providerDropdownOpen && (
-              <div className="absolute left-0 mt-1 w-48 rounded-[8px] bg-[#1a1c24] border border-[#2e3344] shadow-xl py-1 z-30">
+              <div className="absolute left-0 mt-1.5 w-64 max-h-80 overflow-y-auto rounded-[10px] bg-[#181a20] border border-[#2b2f3d] shadow-2xl py-1.5 z-40">
                 <button
                   type="button"
                   onClick={() => {
                     setProviderFilter('all')
                     setProviderDropdownOpen(false)
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors ${
-                    providerFilter === 'all'
-                      ? 'bg-orange-500/10 text-orange-400 font-semibold'
-                      : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
-                  }`}
+                  className="w-full flex items-center justify-between px-3.5 py-2 text-[12.5px] hover:bg-white/[0.04] cursor-pointer transition-colors"
                 >
-                  All Providers
+                  <div className="flex items-center gap-2.5">
+                    <LayoutGrid className="w-4 h-4 text-orange-500" />
+                    <span className={providerFilter === 'all' ? 'text-orange-500 font-semibold' : 'text-white'}>
+                      All providers
+                    </span>
+                  </div>
+                  {providerFilter === 'all' && <Check className="w-4 h-4 text-orange-500" />}
                 </button>
-                {uniqueProviders.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => {
-                      setProviderFilter(p)
-                      setProviderDropdownOpen(false)
-                    }}
-                    className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors capitalize ${
-                      providerFilter === p
-                        ? 'bg-orange-500/10 text-orange-400 font-semibold'
-                        : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
+                {uniqueProviders.map((p) => {
+                  const isSelected = providerFilter.toLowerCase() === p.toLowerCase()
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => {
+                        setProviderFilter(p)
+                        setProviderDropdownOpen(false)
+                      }}
+                      className="w-full flex items-center justify-between px-3.5 py-2 text-[12.5px] hover:bg-white/[0.04] cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-5 h-5 rounded-[4px] bg-[#222533] shrink-0 flex items-center justify-center overflow-hidden">
+                          <ProviderLogo providerId={p.toLowerCase()} name={p} size="sm" />
+                        </div>
+                        <span className={`truncate capitalize ${isSelected ? 'text-orange-500 font-semibold' : 'text-[#e5e7eb]'}`}>
+                          {p}
+                        </span>
+                      </div>
+                      {isSelected && <Check className="w-4 h-4 text-orange-500 shrink-0" />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
 
-          <div className="relative">
+          <div className="relative account-dropdown-menu">
             <button
               type="button"
               onClick={() => {
@@ -338,38 +362,39 @@ export function QuotaPage() {
               <ChevronDown className="w-3.5 h-3.5 text-[#9ca3af]" />
             </button>
             {accountDropdownOpen && (
-              <div className="absolute left-0 mt-1 w-56 max-h-60 overflow-y-auto rounded-[8px] bg-[#1a1c24] border border-[#2e3344] shadow-xl py-1 z-30">
+              <div className="absolute left-0 mt-1.5 w-64 max-h-80 overflow-y-auto rounded-[10px] bg-[#181a20] border border-[#2b2f3d] shadow-2xl py-1.5 z-40">
                 <button
                   type="button"
                   onClick={() => {
                     setAccountFilter('all')
                     setAccountDropdownOpen(false)
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors ${
-                    accountFilter === 'all'
-                      ? 'bg-orange-500/10 text-orange-400 font-semibold'
-                      : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
-                  }`}
+                  className="w-full flex items-center justify-between px-3.5 py-2 text-[12.5px] hover:bg-white/[0.04] cursor-pointer transition-colors"
                 >
-                  All accounts
+                  <span className={accountFilter === 'all' ? 'text-orange-500 font-semibold' : 'text-white'}>
+                    All accounts
+                  </span>
+                  {accountFilter === 'all' && <Check className="w-4 h-4 text-orange-500" />}
                 </button>
-                {uniqueAccounts.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => {
-                      setAccountFilter(a.id)
-                      setAccountDropdownOpen(false)
-                    }}
-                    className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors truncate ${
-                      accountFilter === a.id
-                        ? 'bg-orange-500/10 text-orange-400 font-semibold'
-                        : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
-                    }`}
-                  >
-                    {a.name}
-                  </button>
-                ))}
+                {uniqueAccounts.map((a) => {
+                  const isSelected = accountFilter === a.id
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => {
+                        setAccountFilter(a.id)
+                        setAccountDropdownOpen(false)
+                      }}
+                      className="w-full flex items-center justify-between px-3.5 py-2 text-[12.5px] hover:bg-white/[0.04] cursor-pointer transition-colors"
+                    >
+                      <span className={`truncate ${isSelected ? 'text-orange-500 font-semibold' : 'text-[#e5e7eb]'}`}>
+                        {a.name || a.email}
+                      </span>
+                      {isSelected && <Check className="w-4 h-4 text-orange-500 shrink-0" />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
