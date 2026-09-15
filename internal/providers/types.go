@@ -51,6 +51,7 @@ type Request struct {
 	Stream           bool      `json:"stream"`
 	Stop             []string  `json:"stop,omitempty"`
 	OptOutTokenSaver bool      `json:"opt_out_token_saver,omitempty"`
+	TokenSaverMode   string    `json:"token_saver_mode,omitempty"`
 	ReasoningEffort  string    `json:"reasoning_effort,omitempty"`
 	ThinkingBudget   *int      `json:"thinking_budget,omitempty"`
 	ProjectID        string    `json:"project_id,omitempty"`

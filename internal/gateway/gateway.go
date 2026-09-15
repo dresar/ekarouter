@@ -49,9 +49,24 @@ func (g *Gateway) PrepareRequest(req *providers.Request) *providers.Request {
 		return req
 	}
 
+	mode := g.tokensaver.Mode()
+	if req.TokenSaverMode != "" {
+		switch req.TokenSaverMode {
+		case string(tokensaver.ModeSafe), string(tokensaver.ModeBalanced), string(tokensaver.ModeAggressive):
+			mode = tokensaver.Mode(req.TokenSaverMode)
+		case string(tokensaver.ModeOff):
+			return req
+		}
+	}
+
 	for i := range req.Messages {
 		if req.Messages[i].Role == "user" || req.Messages[i].Role == "tool" {
-			req.Messages[i].Content = g.tokensaver.Compact(req.Messages[i].Content)
+			if len(req.Messages[i].Content) >= 100 {
+				compacted, _ := g.tokensaver.CompactWithMode(req.Messages[i].Content, mode)
+				if len(compacted) < len(req.Messages[i].Content) {
+					req.Messages[i].Content = compacted
+				}
+			}
 		}
 	}
 	return req

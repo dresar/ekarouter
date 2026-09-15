@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dresar/ekarouter/internal/gateway"
@@ -103,8 +104,11 @@ func (h *GatewayHandler) ChatCompletions(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if r.Header.Get("X-Token-Saver") == "off" {
+	headerTS := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Token-Saver")))
+	if headerTS == "off" || headerTS == "false" {
 		req.OptOutTokenSaver = true
+	} else if headerTS != "" {
+		req.TokenSaverMode = headerTS
 	}
 
 	if req.Model == "" {

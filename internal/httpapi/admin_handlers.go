@@ -525,13 +525,22 @@ func (a *AdminHandler) GetUsageSummary(w http.ResponseWriter, r *http.Request) {
 func (a *AdminHandler) PreviewTokenSaver(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Input string `json:"input"`
+		Mode  string `json:"mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
 		return
 	}
 
-	compacted := a.tokenSaver.Compact(body.Input)
+	targetMode := tokensaver.Mode(strings.ToLower(strings.TrimSpace(body.Mode)))
+	if targetMode == "" {
+		targetMode = a.tokenSaver.Mode()
+	}
+	if targetMode != tokensaver.ModeSafe && targetMode != tokensaver.ModeBalanced && targetMode != tokensaver.ModeAggressive && targetMode != tokensaver.ModeOff {
+		targetMode = tokensaver.ModeSafe
+	}
+
+	compacted, transformations := a.tokenSaver.CompactWithMode(body.Input, targetMode)
 	origLen := len(body.Input)
 	newLen := len(compacted)
 	reduction := 0.0
@@ -539,12 +548,24 @@ func (a *AdminHandler) PreviewTokenSaver(w http.ResponseWriter, r *http.Request)
 		reduction = float64(origLen-newLen) / float64(origLen) * 100.0
 	}
 
+	origTokens := (origLen + 3) / 4
+	newTokens := (newLen + 3) / 4
+	tokensSaved := origTokens - newTokens
+	if tokensSaved < 0 {
+		tokensSaved = 0
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"original_bytes": origLen,
-		"compact_bytes":  newLen,
-		"reduction_pct":  reduction,
-		"output":         compacted,
+		"original_bytes":         origLen,
+		"compact_bytes":          newLen,
+		"reduction_pct":          reduction,
+		"original_tokens":        origTokens,
+		"compact_tokens":         newTokens,
+		"estimated_tokens_saved": tokensSaved,
+		"mode":                   string(targetMode),
+		"transformations":        transformations,
+		"output":                 compacted,
 	})
 }
 

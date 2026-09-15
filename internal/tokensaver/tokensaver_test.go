@@ -21,6 +21,11 @@ func TestTokenSaverModes(t *testing.T) {
 		t.Errorf("expected balanced mode, got %s", tsBalanced.Mode())
 	}
 
+	tsAggressive := New("aggressive")
+	if tsAggressive.Mode() != ModeAggressive {
+		t.Errorf("expected aggressive mode, got %s", tsAggressive.Mode())
+	}
+
 	tsDefault := New("unknown")
 	if tsDefault.Mode() != ModeSafe {
 		t.Errorf("expected safe mode as default, got %s", tsDefault.Mode())
@@ -78,5 +83,68 @@ func TestErrorTracePreservation(t *testing.T) {
 	out := ts.Compact(errTrace)
 	if out != errTrace {
 		t.Errorf("expected error trace to be preserved 100%% untouched")
+	}
+}
+
+func TestCompactJSONStructures(t *testing.T) {
+	jsonInput := "{\n  \"name\": \"ekarouter\",\n  \"version\": \"2.0\",\n  \"enabled\": true\n}"
+	compacted, count := CompactJSONStructures(jsonInput)
+	if count != 1 {
+		t.Errorf("expected 1 json structure minified, got %d", count)
+	}
+	if strings.Contains(compacted, "\n  \"name\"") {
+		t.Errorf("expected formatted indentation to be stripped, got %s", compacted)
+	}
+
+	markdownJson := "Here is the response:\n```json\n{\n  \"status\": \"ok\",\n  \"code\": 200\n}\n```\nDone."
+	compactedMd, mdCount := CompactJSONStructures(markdownJson)
+	if mdCount != 1 {
+		t.Errorf("expected 1 json markdown block minified, got %d", mdCount)
+	}
+	if strings.Contains(compactedMd, "  \"status\"") {
+		t.Errorf("expected indented json inside markdown to be compacted, got %s", compactedMd)
+	}
+}
+
+func TestCompactBlankLines(t *testing.T) {
+	input := "line 1\n\n\n\n\n\nline 2"
+	compacted, count := CompactBlankLines(input, false)
+	if count == 0 {
+		t.Errorf("expected blank lines to be collapsed")
+	}
+	if strings.Contains(compacted, "\n\n\n\n") {
+		t.Errorf("expected no more than 2 consecutive blank lines in balanced mode")
+	}
+
+	compactedAggro, countAggro := CompactBlankLines(input, true)
+	if countAggro == 0 {
+		t.Errorf("expected aggressive blank lines to be collapsed")
+	}
+	if strings.Contains(compactedAggro, "\n\n\n") {
+		t.Errorf("expected at most 1 blank line in aggressive mode")
+	}
+}
+
+func TestTrimTrailingWhitespace(t *testing.T) {
+	input := "line with space   \nline with tabs\t\t\nclean line"
+	compacted, lines := TrimTrailingWhitespace(input)
+	if lines != 2 {
+		t.Errorf("expected 2 lines trimmed, got %d", lines)
+	}
+	if strings.Contains(compacted, "   \n") || strings.Contains(compacted, "\t\t\n") {
+		t.Errorf("expected trailing whitespace removed, got %q", compacted)
+	}
+}
+
+func TestCompactWithMode(t *testing.T) {
+	ts := New("safe")
+	logMsg := "2026-09-15 15:00:00 [ERROR] worker process failed with timeout connecting to remote cluster node\n"
+	input := "header\n" + strings.Repeat(logMsg, 6) + "footer"
+	out, transformations := ts.CompactWithMode(input, ModeSafe)
+	if len(transformations) == 0 {
+		t.Errorf("expected at least one transformation recorded")
+	}
+	if !strings.Contains(out, "repeated") {
+		t.Errorf("expected repeated lines collapsed in output, got:\n%s", out)
 	}
 }
