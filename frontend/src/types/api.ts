@@ -206,12 +206,39 @@ export interface UsageSummary {
   active_credentials?: number
 }
 
+export interface RecentRequestItem {
+  id: number
+  request_id: string
+  provider_id: string
+  model_id: string
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  latency_ms: number
+  status: number
+  created_at: string
+  time_ago: string
+}
+
+export interface TimeSeriesPoint {
+  timestamp: string
+  label: string
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  cost: number
+}
+
 export interface UsageAdminSummary {
   total_requests: number
   total_tokens: number
   prompt_tokens: number
   output_tokens: number
+  cached_tokens?: number
+  estimated_cost?: number
   avg_latency_ms: number
+  recent_requests?: RecentRequestItem[]
+  time_series?: TimeSeriesPoint[]
 }
 
 export interface ProviderUsageItem {
