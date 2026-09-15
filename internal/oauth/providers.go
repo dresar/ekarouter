@@ -136,7 +136,7 @@ var providerConfigs = map[string]ProviderConfig{
 	"github": {
 		ID:            "github",
 		Name:          "GitHub Copilot",
-		ClientID:      "Iv1.b507a08c87ecfe81",
+		ClientID:      "Iv1.b507a08c87ecfe98",
 		DeviceCodeURL: "https://github.com/login/device/code",
 		TokenURL:      "https://github.com/login/oauth/access_token",
 		Scopes:        []string{"read:user"},
@@ -364,8 +364,12 @@ func (m *Manager) RequestDeviceCode(ctx context.Context, providerID string) (*De
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	if providerID == "grok-cli" {
+	if providerID == "github" {
+		req.Header.Set("User-Agent", "GitHubCopilot/1.0")
+	} else if providerID == "grok-cli" {
 		req.Header.Set("User-Agent", "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)")
+	} else {
+		req.Header.Set("User-Agent", "EkaRouter/1.0")
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -408,8 +412,12 @@ func (m *Manager) PollDeviceToken(ctx context.Context, providerID, deviceCode st
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	if providerID == "grok-cli" {
+	if providerID == "github" {
+		req.Header.Set("User-Agent", "GitHubCopilot/1.0")
+	} else if providerID == "grok-cli" {
 		req.Header.Set("User-Agent", "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)")
+	} else {
+		req.Header.Set("User-Agent", "EkaRouter/1.0")
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
