@@ -28,6 +28,7 @@ import {
   RotateCw,
   KeyRound,
   Loader2,
+  Shuffle,
   X,
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button.tsx'
@@ -477,13 +478,17 @@ export function ProviderDetailPage() {
     setIsSubmitting(true)
     setFormError(null)
     try {
+      const chosenProxyId = addForm.proxy_pool_id === 'auto_random' && proxies.length > 0
+        ? proxies[Math.floor(Math.random() * proxies.length)].id
+        : (addForm.proxy_pool_id || undefined)
+
       await api.post('/api/accounts', {
         provider_id: provider.id,
         name: addForm.name.trim(),
         auth_type: addForm.auth_type,
         priority: Number(addForm.priority),
         api_key: addForm.api_key.trim(),
-        proxy_pool_id: addForm.proxy_pool_id || undefined,
+        proxy_pool_id: chosenProxyId,
       })
       setAddForm({ name: '', auth_type: 'apikey', priority: 1, api_key: '', proxy_pool_id: '' })
       setShowAddSheet(false)
@@ -510,11 +515,8 @@ export function ProviderDetailPage() {
         latency: res.latency_ms,
         message: res.message,
       })
-    } catch (err: unknown) {
-      setKeyCheckResult({
-        status: 'invalid',
-        message: err instanceof Error ? err.message : 'Invalid API key',
-      })
+    } catch {
+      setKeyCheckResult({ status: 'invalid', message: 'API key is invalid or request timed out' })
     } finally {
       setCheckingKey(false)
     }
@@ -526,11 +528,15 @@ export function ProviderDetailPage() {
     setIsSubmitting(true)
     setFormError(null)
     try {
+      const chosenEditProxyId = editForm.proxy_pool_id === 'auto_random' && proxies.length > 0
+        ? proxies[Math.floor(Math.random() * proxies.length)].id
+        : (editForm.proxy_pool_id || undefined)
+
       await api.put(`/api/accounts/${editingAccount.id}`, {
         name: editForm.name,
         priority: Number(editForm.priority),
         enabled: editForm.enabled,
-        proxy_pool_id: editForm.proxy_pool_id || undefined,
+        proxy_pool_id: chosenEditProxyId,
         api_key: editForm.api_key || undefined,
       })
       setShowEditSheet(false)
@@ -615,13 +621,20 @@ export function ProviderDetailPage() {
           name = `${bulkPrefix.trim() || 'Key'} ${accounts.length + idx + 1}`
         }
 
+        const randomProxyId = proxies.length > 0
+          ? proxies[Math.floor(Math.random() * proxies.length)].id
+          : undefined
+        const effectiveProxyId = (bulkAutoRandom || bulkProxyId === 'auto_random')
+          ? randomProxyId
+          : (bulkProxyId || undefined)
+
         return {
           provider_id: provider.id,
           name,
           auth_type: 'apikey',
           priority: Number(bulkPriority) || (accounts.length + idx + 1),
           api_key: key,
-          proxy_pool_id: bulkProxyId || undefined,
+          proxy_pool_id: effectiveProxyId,
         }
       })
 
@@ -1718,15 +1731,48 @@ export function ProviderDetailPage() {
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
-                  Proxy Pool
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[12px] font-semibold text-[#e0e2eb]">
+                    Proxy Pool
+                  </label>
+                  {proxies.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomProxy = proxies[Math.floor(Math.random() * proxies.length)]
+                        setAddForm((prev) => ({ ...prev, proxy_pool_id: randomProxy.id }))
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-[5px] bg-[#1f2128] hover:bg-[#2b2e38] text-[#f97316] border border-[#3b3f4e] hover:border-[#ea580c] transition-colors cursor-pointer"
+                      title="Pilih proxy secara acak dari daftar proxy yang tersedia"
+                    >
+                      <Shuffle className="w-3 h-3" />
+                      <span>Pilih Otomatis (Random)</span>
+                    </button>
+                  )}
+                </div>
                 <SearchableSelect
                   value={addForm.proxy_pool_id}
-                  onChange={(val) => setAddForm({ ...addForm, proxy_pool_id: val })}
+                  onChange={(val) => {
+                    if (val === 'auto_random' && proxies.length > 0) {
+                      const randomProxy = proxies[Math.floor(Math.random() * proxies.length)]
+                      setAddForm({ ...addForm, proxy_pool_id: randomProxy.id })
+                    } else {
+                      setAddForm({ ...addForm, proxy_pool_id: val })
+                    }
+                  }}
                   placeholder="None (Direct)"
                   options={[
                     { value: '', label: 'None (Direct)', icon: <Network className="w-3.5 h-3.5 text-slate-400" /> },
+                    ...(proxies.length > 0
+                      ? [
+                          {
+                            value: 'auto_random',
+                            label: '🎲 Pilih Otomatis (Random)',
+                            sublabel: 'Sistem memilih proxy secara acak dari daftar',
+                            icon: <Shuffle className="w-3.5 h-3.5 text-[#f97316]" />,
+                          },
+                        ]
+                      : []),
                     ...proxies.map((p) => ({
                       value: p.id,
                       label: p.name,
@@ -1823,15 +1869,53 @@ export function ProviderDetailPage() {
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
-                  Proxy Pool
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[12px] font-semibold text-[#e0e2eb]">
+                    Proxy Pool
+                  </label>
+                  {proxies.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextState = !bulkAutoRandom
+                        setBulkAutoRandom(nextState)
+                        if (nextState) {
+                          setBulkProxyId('auto_random')
+                        } else {
+                          setBulkProxyId('')
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-[5px] transition-colors cursor-pointer border ${
+                        bulkAutoRandom || bulkProxyId === 'auto_random'
+                          ? 'bg-orange-950/40 text-[#f97316] border-[#ea580c]'
+                          : 'bg-[#1f2128] hover:bg-[#2b2e38] text-[#9da1b2] border-[#3b3f4e] hover:border-[#ea580c]'
+                      }`}
+                      title="Jika diaktifkan, proxy akan dipilih secara acak untuk setiap key yang ditambahkan"
+                    >
+                      <Shuffle className="w-3 h-3" />
+                      <span>{bulkAutoRandom || bulkProxyId === 'auto_random' ? 'Otomatis Aktif (Acak per Key)' : 'Pilih Otomatis (Random)'}</span>
+                    </button>
+                  )}
+                </div>
                 <SearchableSelect
-                  value={bulkProxyId}
-                  onChange={(val) => setBulkProxyId(val)}
+                  value={bulkAutoRandom ? 'auto_random' : bulkProxyId}
+                  onChange={(val) => {
+                    setBulkProxyId(val)
+                    setBulkAutoRandom(val === 'auto_random')
+                  }}
                   placeholder="None (Direct)"
                   options={[
                     { value: '', label: 'None (Direct)', icon: <Network className="w-3.5 h-3.5 text-slate-400" /> },
+                    ...(proxies.length > 0
+                      ? [
+                          {
+                            value: 'auto_random',
+                            label: '🎲 Pilih Otomatis (Acak per Key)',
+                            sublabel: 'Setiap key akan mendapatkan proxy acak dari pool',
+                            icon: <Shuffle className="w-3.5 h-3.5 text-[#f97316]" />,
+                          },
+                        ]
+                      : []),
                     ...proxies.map((p) => ({
                       value: p.id,
                       label: p.name,
@@ -1902,6 +1986,30 @@ export function ProviderDetailPage() {
               <Check className="w-4 h-4 text-[#ea580c] shrink-0" />
             )}
           </button>
+
+          {proxies.length > 0 && (
+            <button
+              type="button"
+              disabled={isSavingRowProxy}
+              onClick={() => {
+                const randomProxy = proxies[Math.floor(Math.random() * proxies.length)]
+                handleSetAccountProxy(randomProxy.id)
+              }}
+              className="w-full px-3.5 py-2.5 rounded-[7px] border border-amber-500/30 bg-amber-950/20 hover:bg-amber-950/40 text-amber-300 flex items-center justify-between transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-[6px] bg-amber-900/40 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <Shuffle className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <div>
+                  <span className="text-[13px] font-medium block">Pilih Otomatis (Random)</span>
+                  <span className="text-[11px] text-amber-400/80 block">
+                    Pilih proxy secara acak dari {proxies.length} proxy yang tersedia
+                  </span>
+                </div>
+              </div>
+            </button>
+          )}
 
           <div className="pt-2 pb-1 text-[11px] font-semibold uppercase text-[var(--text-muted)] tracking-wider">
             Daftar Proxy Tersedia ({proxies.length})
@@ -1988,15 +2096,48 @@ export function ProviderDetailPage() {
           </div>
 
           <div>
-            <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-              Proxy
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11.5px] font-semibold text-[var(--text-secondary)]">
+                Proxy
+              </label>
+              {proxies.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const randomProxy = proxies[Math.floor(Math.random() * proxies.length)]
+                    setEditForm((prev) => ({ ...prev, proxy_pool_id: randomProxy.id }))
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-[5px] bg-[#1f2128] hover:bg-[#2b2e38] text-[#f97316] border border-[#3b3f4e] hover:border-[#ea580c] transition-colors cursor-pointer"
+                  title="Pilih proxy secara acak dari daftar proxy yang tersedia"
+                >
+                  <Shuffle className="w-3 h-3" />
+                  <span>Pilih Otomatis (Random)</span>
+                </button>
+              )}
+            </div>
             <SearchableSelect
               value={editForm.proxy_pool_id}
-              onChange={(val) => setEditForm({ ...editForm, proxy_pool_id: val })}
+              onChange={(val) => {
+                if (val === 'auto_random' && proxies.length > 0) {
+                  const randomProxy = proxies[Math.floor(Math.random() * proxies.length)]
+                  setEditForm({ ...editForm, proxy_pool_id: randomProxy.id })
+                } else {
+                  setEditForm({ ...editForm, proxy_pool_id: val })
+                }
+              }}
               placeholder="Direct (no proxy)"
               options={[
                 { value: '', label: 'Direct (no proxy)', icon: <Network className="w-3.5 h-3.5 text-slate-400" /> },
+                ...(proxies.length > 0
+                  ? [
+                      {
+                        value: 'auto_random',
+                        label: '🎲 Pilih Otomatis (Random)',
+                        sublabel: 'Sistem memilih proxy acak dari daftar',
+                        icon: <Shuffle className="w-3.5 h-3.5 text-[#f97316]" />,
+                      },
+                    ]
+                  : []),
                 ...proxies.map((p) => ({
                   value: p.id,
                   label: p.name,
