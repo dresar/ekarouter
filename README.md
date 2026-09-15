@@ -1,5 +1,10 @@
 # EkaRouter
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.21%2B-00ADD8.svg)](https://golang.org/)
+[![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-green.svg)](https://github.com/dresar/ekarouter)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 EkaRouter is an enterprise-grade, high-performance, lightweight, single-process **Universal AI Gateway & Developer API Management Platform** written in pure Go. It delivers OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/models`, `/v1/responses`) alongside a comprehensive Developer Platform (`/api/v1/*`) for managing third-party developer APIs, encrypted credential vaults, multi-strategy key rotation, rate limits, quotas, generic tool execution, webhooks, and SSRF-protected proxying.
 
 Built with pure-Go SQLite (`modernc.org/sqlite`), EkaRouter is 100% CGO-free and compiles into a single, standalone executable on Windows, Linux, and macOS.
@@ -131,3 +136,20 @@ Full architectural and developer guides are located in the `docs/` directory:
 - [Build & Compilation](docs/build.md)
 - [Production Deployment](docs/deployment.md)
 - [Troubleshooting](docs/troubleshooting.md)
+
+---
+
+## Contributing
+
+We welcome contributions from developers and AI agents alike! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for a complete guide covering:
+
+- Development environment setup
+- Architecture overview and request lifecycle
+- How to add a new AI provider adapter
+- How to add a new platform provider
+- Coding standards (zero comments / nokomen)
+- Testing requirements and PR checklist
+- **Dedicated section for AI agents** with critical rules, common patterns, and DB quick reference
+
+[? Read CONTRIBUTING.md](CONTRIBUTING.md)
+
