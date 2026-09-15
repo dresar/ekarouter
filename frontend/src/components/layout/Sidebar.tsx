@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
   X,
 } from 'lucide-react'
 
@@ -33,6 +34,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/overview', label: 'Command Center', icon: Activity },
       { to: '/providers', label: 'AI Providers', icon: Server },
       { to: '/routing', label: 'Routing Combos', icon: GitFork },
+      { to: '/playground', label: 'Playground', icon: Sparkles },
       { to: '/api-keys', label: 'API Keys', icon: Key },
     ],
   },

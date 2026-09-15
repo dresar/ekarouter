@@ -34,6 +34,7 @@ import { QuotaPage } from './pages/quota/QuotaPage.tsx'
 import { SettingsPage } from './pages/settings/SettingsPage.tsx'
 import { BackupPage } from './pages/backup/BackupPage.tsx'
 import { ApiDocsPage } from './pages/apidocs/ApiDocsPage.tsx'
+import { PlaygroundPage } from './pages/playground/PlaygroundPage.tsx'
 import { NotFoundPage } from './pages/error/NotFoundPage.tsx'
 
 function ProtectedLayout() {
@@ -90,6 +91,7 @@ export function App() {
                 <Route path="/routing" element={<RoutingListPage />} />
                 <Route path="/routing/new" element={<RouteCreatePage />} />
                 <Route path="/routing/:id" element={<RouteDetailPage />} />
+                <Route path="/playground" element={<PlaygroundPage />} />
                 <Route path="/models" element={<Navigate to="/providers" replace />} />
                 <Route path="/boost" element={<BoostPage />} />
                 <Route path="/token-saver" element={<TokenSaverPage />} />
