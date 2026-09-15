@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,13 +17,57 @@ import (
 )
 
 type Profile struct {
-	ID       string
-	Name     string
-	Scheme   string
-	Host     string
-	Port     int
-	Username string
-	Password string
+	ID          string
+	Name        string
+	Scheme      string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	NoProxy     string
+	StrictProxy bool
+	RelayType   string
+	RelayConfig string
+}
+
+func ParseProxyURL(rawURL string) (*Profile, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "http://" + rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	host := u.Hostname()
+	portStr := u.Port()
+	port := 80
+	if u.Scheme == "https" || u.Scheme == "relay" {
+		port = 443
+	} else if u.Scheme == "socks5" {
+		port = 1080
+	}
+	if portStr != "" {
+		if p, err := strconv.Atoi(portStr); err == nil {
+			port = p
+		}
+	}
+	var user, pass string
+	if u.User != nil {
+		user = u.User.Username()
+		pass, _ = u.User.Password()
+	}
+	scheme := u.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+	return &Profile{
+		Scheme:   scheme,
+		Host:     host,
+		Port:     port,
+		Username: user,
+		Password: pass,
+	}, nil
 }
 
 func (p *Profile) URL() (*url.URL, error) {
@@ -203,7 +248,7 @@ func (m *Manager) GetTransport(profile *Profile) (*http.Transport, error) {
 	var err error
 
 	if profile != nil && profile.Host != "" && profile.Scheme != "direct" {
-		key = fmt.Sprintf("%s://%s:%s@%s:%d", profile.Scheme, profile.Username, profile.Password, profile.Host, profile.Port)
+		key = fmt.Sprintf("%s://%s:%s@%s:%d?no_proxy=%s", profile.Scheme, profile.Username, profile.Password, profile.Host, profile.Port, profile.NoProxy)
 		proxyURL, err = profile.URL()
 		if err != nil {
 			return nil, err
@@ -267,7 +312,27 @@ func (m *Manager) GetTransport(profile *Profile) (*http.Transport, error) {
 	}
 
 	if proxyURL != nil {
-		newTr.Proxy = http.ProxyURL(proxyURL)
+		if profile != nil && profile.NoProxy != "" {
+			rawParts := strings.Split(profile.NoProxy, ",")
+			var noProxyList []string
+			for _, p := range rawParts {
+				trimmed := strings.TrimSpace(p)
+				if trimmed != "" {
+					noProxyList = append(noProxyList, strings.ToLower(trimmed))
+				}
+			}
+			newTr.Proxy = func(req *http.Request) (*url.URL, error) {
+				reqHost := strings.ToLower(req.URL.Hostname())
+				for _, np := range noProxyList {
+					if reqHost == np || strings.HasSuffix(reqHost, np) || strings.HasSuffix(reqHost, "."+np) {
+						return nil, nil
+					}
+				}
+				return proxyURL, nil
+			}
+		} else {
+			newTr.Proxy = http.ProxyURL(proxyURL)
+		}
 	} else if key == "direct" {
 		newTr.Proxy = nil
 	} else {

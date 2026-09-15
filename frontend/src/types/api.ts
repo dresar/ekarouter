@@ -143,11 +143,17 @@ export interface VaultCredential {
 export interface ProxyProfile {
   id: string
   name: string
-  scheme: 'http' | 'https' | 'socks5' | 'relay'
+  scheme: 'http' | 'https' | 'socks5' | 'relay' | string
   host: string
   port: number
   username?: string
   password?: string
+  masked_password?: string
+  no_proxy?: string
+  strict_proxy?: boolean
+  relay_type?: string
+  relay_config?: string
+  proxy_url?: string
   enabled: boolean
   is_active?: boolean
   last_latency_ms?: number

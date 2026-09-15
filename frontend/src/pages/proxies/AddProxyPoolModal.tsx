@@ -1,12 +1,22 @@
-import { useState, FormEvent } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react'
-import { PageHeader } from '../../components/layout/PageHeader.tsx'
+import { useState, useEffect, FormEvent } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { Button } from '../../components/ui/Button.tsx'
 import { api } from '../../api/client.ts'
+import { ProxyProfile } from '../../types/api.ts'
 
-export function ProxyCreatePage() {
-  const navigate = useNavigate()
+interface AddProxyPoolModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+  initialData?: ProxyProfile | null
+}
+
+export function AddProxyPoolModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialData,
+}: AddProxyPoolModalProps) {
   const [name, setName] = useState('')
   const [proxyUrl, setProxyUrl] = useState('')
   const [noProxy, setNoProxy] = useState('')
@@ -14,6 +24,28 @@ export function ProxyCreatePage() {
   const [strictProxy, setStrictProxy] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (initialData) {
+      setName(initialData.name || '')
+      setProxyUrl(
+        initialData.proxy_url ||
+          (initialData.host ? `${initialData.scheme || 'http'}://${initialData.host}:${initialData.port}` : '')
+      )
+      setNoProxy(initialData.no_proxy || '')
+      setActive(initialData.enabled ?? true)
+      setStrictProxy(initialData.strict_proxy ?? false)
+    } else {
+      setName('')
+      setProxyUrl('')
+      setNoProxy('')
+      setActive(true)
+      setStrictProxy(false)
+    }
+    setError(null)
+  }, [initialData, isOpen])
+
+  if (!isOpen) return null
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -26,16 +58,27 @@ export function ProxyCreatePage() {
     setError(null)
 
     try {
-      await api.post('/api/proxies', {
-        name: name.trim(),
-        proxy_url: proxyUrl.trim(),
-        no_proxy: noProxy.trim(),
-        enabled: active,
-        strict_proxy: strictProxy,
-      })
-      navigate('/proxies')
+      if (initialData?.id) {
+        await api.put(`/api/proxies/${initialData.id}`, {
+          name: name.trim(),
+          proxy_url: proxyUrl.trim(),
+          no_proxy: noProxy.trim(),
+          enabled: active,
+          strict_proxy: strictProxy,
+        })
+      } else {
+        await api.post('/api/proxies', {
+          name: name.trim(),
+          proxy_url: proxyUrl.trim(),
+          no_proxy: noProxy.trim(),
+          enabled: active,
+          strict_proxy: strictProxy,
+        })
+      }
+      onSuccess()
+      onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to register proxy profile'
+      const msg = err instanceof Error ? err.message : 'Failed to save proxy pool'
       setError(msg)
     } finally {
       setIsSubmitting(false)
@@ -43,43 +86,35 @@ export function ProxyCreatePage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <PageHeader
-        title="Tambah Proxy"
-        description="Konfigurasi egress proxy untuk isolasi IP atau jaringan."
-        breadcrumbs={[
-          { label: 'Proxies', to: '/proxies' },
-          { label: 'New Proxy' },
-        ]}
-        actions={
-          <Link to="/proxies">
-            <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Kembali
-            </Button>
-          </Link>
-        }
-      />
-
-      {error && (
-        <div className="p-3 rounded-[6px] bg-[var(--status-danger)]/10 border border-[var(--status-danger)]/30 flex items-center gap-2 text-[12.5px] text-[var(--status-danger)]">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="bg-[#1a1c23] border border-[#2e323e] rounded-[12px] shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div
+        className="w-full max-w-[440px] bg-[#1a1c23] border border-[#2e323e] rounded-[12px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center gap-2 px-4 py-3 bg-[#15171d] border-b border-[#262934] select-none">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]/40" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-3 h-3 rounded-full bg-[#ff5f56] hover:brightness-110 transition-all border border-[#e0443e]/40"
+              title="Close"
+            />
             <span className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]/40" />
             <span className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]/40" />
           </div>
           <span className="text-[13.5px] font-semibold text-[#f3f4f6] ml-2">
-            Add Proxy Pool
+            {initialData ? 'Edit Proxy Pool' : 'Add Proxy Pool'}
           </span>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {error && (
+            <div className="p-2.5 rounded-[6px] bg-[var(--status-danger)]/15 border border-[var(--status-danger)]/30 flex items-center gap-2 text-[12px] text-[var(--status-danger)]">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="space-y-1">
             <label className="block text-[12px] font-semibold text-[#e5e7eb]">
               Name
@@ -171,17 +206,20 @@ export function ProxyCreatePage() {
           </div>
 
           <div className="pt-3 flex items-center justify-end gap-2 border-t border-[#262934]">
-            <Link to="/proxies">
-              <Button type="button" variant="ghost" size="compact" className="text-[#9ca3af] hover:text-[#f3f4f6]">
-                Cancel
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={onClose}
+              className="text-[#9ca3af] hover:text-[#f3f4f6]"
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
               variant="primary"
               size="compact"
               isLoading={isSubmitting}
-              leftIcon={<Save className="w-3.5 h-3.5" />}
               className="bg-[#2d313d] hover:bg-[#383d4c] text-[#f3f4f6] px-5 font-semibold"
             >
               Save

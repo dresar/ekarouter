@@ -291,6 +291,9 @@ func NewServer(
 
 			authApi.Get("/proxies", adminHandler.ListProxyProfiles)
 			authApi.Post("/proxies", adminHandler.CreateProxyProfile)
+			authApi.Post("/proxies/batch", adminHandler.BatchImportProxies)
+			authApi.Post("/proxies/deploy-relay", adminHandler.DeployRelay)
+			authApi.Post("/proxies/smart-rotate", adminHandler.SmartRotateProxies)
 			authApi.Get("/proxies/{id}", adminHandler.GetProxyProfile)
 			authApi.Put("/proxies/{id}", adminHandler.UpdateProxyProfile)
 			authApi.Patch("/proxies/{id}", adminHandler.UpdateProxyProfile)

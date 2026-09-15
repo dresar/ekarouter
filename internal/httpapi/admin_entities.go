@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -1172,11 +1173,19 @@ type ProxyProfileDTO struct {
 	Port           int    `json:"port"`
 	Username       string `json:"username"`
 	MaskedPassword string `json:"masked_password,omitempty"`
+	NoProxy        string `json:"no_proxy,omitempty"`
+	StrictProxy    bool   `json:"strict_proxy"`
+	RelayType      string `json:"relay_type,omitempty"`
+	RelayConfig    string `json:"relay_config,omitempty"`
+	ProxyURL       string `json:"proxy_url,omitempty"`
 	Enabled        bool   `json:"enabled"`
 }
 
 func (a *AdminHandler) ListProxyProfiles(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), "SELECT id, name, scheme, host, port, username, enabled FROM proxy_profiles")
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT id, name, scheme, host, port, username, 
+		       COALESCE(no_proxy, ''), COALESCE(strict_proxy, 0), COALESCE(relay_type, 'standard'), COALESCE(relay_config, ''), enabled 
+		FROM proxy_profiles ORDER BY name ASC`)
 	if err != nil {
 		http.Error(w, `{"error":"failed to query proxy profiles"}`, http.StatusInternalServerError)
 		return
@@ -1186,11 +1195,16 @@ func (a *AdminHandler) ListProxyProfiles(w http.ResponseWriter, r *http.Request)
 	var list []ProxyProfileDTO
 	for rows.Next() {
 		var p ProxyProfileDTO
-		var enabledInt int
-		var user sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &enabledInt); err == nil {
+		var enabledInt, strictInt int
+		var user, noProxy, rType, rCfg sql.NullString
+		if err := rows.Scan(&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &noProxy, &strictInt, &rType, &rCfg, &enabledInt); err == nil {
 			p.Enabled = enabledInt == 1
+			p.StrictProxy = strictInt == 1
 			p.Username = user.String
+			p.NoProxy = noProxy.String
+			p.RelayType = rType.String
+			p.RelayConfig = rCfg.String
+			p.ProxyURL = fmt.Sprintf("%s://%s:%d", p.Scheme, p.Host, p.Port)
 			list = append(list, p)
 		}
 	}
@@ -1204,37 +1218,87 @@ func (a *AdminHandler) ListProxyProfiles(w http.ResponseWriter, r *http.Request)
 
 func (a *AdminHandler) CreateProxyProfile(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Scheme   string `json:"scheme"`
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		Username string `json:"username"`
-		Password string `json:"password"`
-		Enabled  *bool  `json:"enabled"`
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		ProxyURL    string `json:"proxy_url"`
+		Scheme      string `json:"scheme"`
+		Host        string `json:"host"`
+		Port        int    `json:"port"`
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		NoProxy     string `json:"no_proxy"`
+		StrictProxy *bool  `json:"strict_proxy"`
+		RelayType   string `json:"relay_type"`
+		RelayConfig string `json:"relay_config"`
+		Enabled     *bool  `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
 		return
 	}
 
+	if body.ProxyURL != "" {
+		if parsed, err := proxy.ParseProxyURL(body.ProxyURL); err == nil {
+			if body.Scheme == "" {
+				body.Scheme = parsed.Scheme
+			}
+			if body.Host == "" {
+				body.Host = parsed.Host
+			}
+			if body.Port == 0 {
+				body.Port = parsed.Port
+			}
+			if body.Username == "" && parsed.Username != "" {
+				body.Username = parsed.Username
+			}
+			if body.Password == "" && parsed.Password != "" {
+				body.Password = parsed.Password
+			}
+		}
+	}
+
 	if body.ID == "" {
 		body.ID = "proxy_" + uuid.NewString()[:8]
+	}
+	if body.Name == "" {
+		if body.Host != "" {
+			body.Name = fmt.Sprintf("%s:%d", body.Host, body.Port)
+		} else {
+			body.Name = "Proxy " + body.ID[6:]
+		}
+	}
+	if body.Scheme == "" {
+		body.Scheme = "http"
+	}
+	if body.Port == 0 {
+		body.Port = 8080
+	}
+	if body.RelayType == "" {
+		body.RelayType = "standard"
 	}
 
 	enabled := 1
 	if body.Enabled != nil && !*body.Enabled {
 		enabled = 0
 	}
+	strictProxy := 0
+	if body.StrictProxy != nil && *body.StrictProxy {
+		strictProxy = 1
+	}
 
 	var encPass string
-	if body.Password != "" {
+	if body.Password != "" && a.crypto != nil {
 		encPass, _ = a.crypto.Encrypt(body.Password)
 	}
 
+	var encRelayConfig string
+	if body.RelayConfig != "" && a.crypto != nil {
+		encRelayConfig, _ = a.crypto.Encrypt(body.RelayConfig)
+	}
+
 	_, err := a.db.ExecContext(r.Context(), `
-INSERT INTO proxy_profiles (id, name, scheme, host, port, username, encrypted_password, enabled)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO proxy_profiles (id, name, scheme, host, port, username, encrypted_password, no_proxy, strict_proxy, relay_type, relay_config, enabled)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 name = excluded.name,
 scheme = excluded.scheme,
@@ -1242,8 +1306,12 @@ host = excluded.host,
 port = excluded.port,
 username = excluded.username,
 encrypted_password = CASE WHEN excluded.encrypted_password != '' THEN excluded.encrypted_password ELSE proxy_profiles.encrypted_password END,
+no_proxy = excluded.no_proxy,
+strict_proxy = excluded.strict_proxy,
+relay_type = excluded.relay_type,
+relay_config = CASE WHEN excluded.relay_config != '' THEN excluded.relay_config ELSE proxy_profiles.relay_config END,
 enabled = excluded.enabled`,
-		body.ID, body.Name, body.Scheme, body.Host, body.Port, body.Username, encPass, enabled)
+		body.ID, body.Name, body.Scheme, body.Host, body.Port, body.Username, encPass, body.NoProxy, strictProxy, body.RelayType, encRelayConfig, enabled)
 
 	if err != nil {
 		http.Error(w, `{"error":"failed to save proxy profile"}`, http.StatusInternalServerError)
@@ -1271,19 +1339,27 @@ func (a *AdminHandler) DeleteProxyProfile(w http.ResponseWriter, r *http.Request
 func (a *AdminHandler) GetProxyProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var p ProxyProfileDTO
-	var enabledInt int
-	var user, pass sql.NullString
-	err := a.db.QueryRowContext(r.Context(), "SELECT id, name, scheme, host, port, username, encrypted_password, enabled FROM proxy_profiles WHERE id = ?", id).Scan(
-		&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &pass, &enabledInt)
+	var enabledInt, strictInt int
+	var user, pass, noProxy, rType, rCfg sql.NullString
+	err := a.db.QueryRowContext(r.Context(), `
+		SELECT id, name, scheme, host, port, username, encrypted_password, 
+		       COALESCE(no_proxy, ''), COALESCE(strict_proxy, 0), COALESCE(relay_type, 'standard'), COALESCE(relay_config, ''), enabled 
+		FROM proxy_profiles WHERE id = ?`, id).Scan(
+		&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &pass, &noProxy, &strictInt, &rType, &rCfg, &enabledInt)
 	if err != nil {
 		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
 		return
 	}
 	p.Enabled = enabledInt == 1
+	p.StrictProxy = strictInt == 1
 	p.Username = user.String
+	p.NoProxy = noProxy.String
+	p.RelayType = rType.String
+	p.RelayConfig = rCfg.String
 	if pass.Valid && pass.String != "" {
 		p.MaskedPassword = "••••••••"
 	}
+	p.ProxyURL = fmt.Sprintf("%s://%s:%d", p.Scheme, p.Host, p.Port)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(p)
 }
@@ -1291,13 +1367,18 @@ func (a *AdminHandler) GetProxyProfile(w http.ResponseWriter, r *http.Request) {
 func (a *AdminHandler) UpdateProxyProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Name     *string `json:"name"`
-		Scheme   *string `json:"scheme"`
-		Host     *string `json:"host"`
-		Port     *int    `json:"port"`
-		Username *string `json:"username"`
-		Password *string `json:"password"`
-		Enabled  *bool   `json:"enabled"`
+		Name        *string `json:"name"`
+		ProxyURL    *string `json:"proxy_url"`
+		Scheme      *string `json:"scheme"`
+		Host        *string `json:"host"`
+		Port        *int    `json:"port"`
+		Username    *string `json:"username"`
+		Password    *string `json:"password"`
+		NoProxy     *string `json:"no_proxy"`
+		StrictProxy *bool   `json:"strict_proxy"`
+		RelayType   *string `json:"relay_type"`
+		RelayConfig *string `json:"relay_config"`
+		Enabled     *bool   `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
@@ -1308,6 +1389,19 @@ func (a *AdminHandler) UpdateProxyProfile(w http.ResponseWriter, r *http.Request
 	if err := a.db.QueryRowContext(r.Context(), "SELECT 1 FROM proxy_profiles WHERE id = ?", id).Scan(&exists); err != nil {
 		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
 		return
+	}
+
+	if body.ProxyURL != nil && *body.ProxyURL != "" {
+		if parsed, err := proxy.ParseProxyURL(*body.ProxyURL); err == nil {
+			_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET scheme = ?, host = ?, port = ? WHERE id = ?", parsed.Scheme, parsed.Host, parsed.Port, id)
+			if parsed.Username != "" {
+				_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET username = ? WHERE id = ?", parsed.Username, id)
+			}
+			if parsed.Password != "" && a.crypto != nil {
+				encPass, _ := a.crypto.Encrypt(parsed.Password)
+				_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET encrypted_password = ? WHERE id = ?", encPass, id)
+			}
+		}
 	}
 
 	if body.Name != nil {
@@ -1325,9 +1419,26 @@ func (a *AdminHandler) UpdateProxyProfile(w http.ResponseWriter, r *http.Request
 	if body.Username != nil {
 		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET username = ? WHERE id = ?", *body.Username, id)
 	}
-	if body.Password != nil && *body.Password != "" {
+	if body.Password != nil && *body.Password != "" && a.crypto != nil {
 		encPass, _ := a.crypto.Encrypt(*body.Password)
 		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET encrypted_password = ? WHERE id = ?", encPass, id)
+	}
+	if body.NoProxy != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET no_proxy = ? WHERE id = ?", *body.NoProxy, id)
+	}
+	if body.StrictProxy != nil {
+		sp := 0
+		if *body.StrictProxy {
+			sp = 1
+		}
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET strict_proxy = ? WHERE id = ?", sp, id)
+	}
+	if body.RelayType != nil {
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET relay_type = ? WHERE id = ?", *body.RelayType, id)
+	}
+	if body.RelayConfig != nil && *body.RelayConfig != "" && a.crypto != nil {
+		encRelayConfig, _ := a.crypto.Encrypt(*body.RelayConfig)
+		_, _ = a.db.ExecContext(r.Context(), "UPDATE proxy_profiles SET relay_config = ? WHERE id = ?", encRelayConfig, id)
 	}
 	if body.Enabled != nil {
 		en := 0
@@ -1373,27 +1484,31 @@ func (a *AdminHandler) DisableProxyProfile(w http.ResponseWriter, r *http.Reques
 
 func (a *AdminHandler) TestProxyProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var pName, pScheme, pHost, pUser, pPass sql.NullString
-	var pPort, pEnabled int
-	err := a.db.QueryRowContext(r.Context(), "SELECT name, scheme, host, port, username, encrypted_password, enabled FROM proxy_profiles WHERE id = ?", id).Scan(
-		&pName, &pScheme, &pHost, &pPort, &pUser, &pPass, &pEnabled)
+	var p proxy.Profile
+	var user, pass, noProxy, rType, rCfg sql.NullString
+	var strictInt, enabledInt int
+	err := a.db.QueryRowContext(r.Context(), `
+		SELECT id, name, scheme, host, port, username, encrypted_password, 
+		       COALESCE(no_proxy, ''), COALESCE(strict_proxy, 0), COALESCE(relay_type, 'standard'), COALESCE(relay_config, ''), enabled 
+		FROM proxy_profiles WHERE id = ?`, id).Scan(
+		&p.ID, &p.Name, &p.Scheme, &p.Host, &p.Port, &user, &pass, &noProxy, &strictInt, &rType, &rCfg, &enabledInt)
 	if err != nil {
 		http.Error(w, `{"error":"proxy profile not found"}`, http.StatusNotFound)
 		return
 	}
 
-	pass, _ := a.crypto.Decrypt(pPass.String)
-	prof := &proxy.Profile{
-		ID:       id,
-		Name:     pName.String,
-		Scheme:   pScheme.String,
-		Host:     pHost.String,
-		Port:     pPort,
-		Username: pUser.String,
-		Password: pass,
+	p.Username = user.String
+	p.NoProxy = noProxy.String
+	p.StrictProxy = strictInt == 1
+	p.RelayType = rType.String
+	if pass.Valid && pass.String != "" && a.crypto != nil {
+		p.Password, _ = a.crypto.Decrypt(pass.String)
 	}
 
-	ok, statusCode, latency, testErr := proxy.TestProfile(r.Context(), prof, 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	ok, status, latency, testErr := proxy.TestProfile(ctx, &p, 8*time.Second)
 	errStr := ""
 	if testErr != nil {
 		errStr = testErr.Error()
@@ -1401,10 +1516,314 @@ func (a *AdminHandler) TestProxyProfile(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ok":         ok,
-		"status":     statusCode,
-		"latency_ms": latency,
-		"error":      errStr,
+		"ok":          ok,
+		"status":      status,
+		"latency_ms":  latency,
+		"error":       errStr,
+		"proxy_url":   fmt.Sprintf("%s://%s:%d", p.Scheme, p.Host, p.Port),
+	})
+}
+
+func (a *AdminHandler) BatchImportProxies(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RawText string   `json:"raw_text"`
+		Proxies []string `json:"proxies"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	lines := body.Proxies
+	if body.RawText != "" {
+		split := strings.Split(body.RawText, "\n")
+		lines = append(lines, split...)
+	}
+
+	imported := 0
+	failed := 0
+	for _, rawLine := range lines {
+		trimmed := strings.TrimSpace(rawLine)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		parsed, err := proxy.ParseProxyURL(trimmed)
+		if err != nil || parsed.Host == "" {
+			failed++
+			continue
+		}
+
+		pid := "proxy_" + uuid.NewString()[:8]
+		name := fmt.Sprintf("%s:%d", parsed.Host, parsed.Port)
+		var encPass string
+		if parsed.Password != "" && a.crypto != nil {
+			encPass, _ = a.crypto.Encrypt(parsed.Password)
+		}
+
+		_, err = a.db.ExecContext(r.Context(), `
+			INSERT INTO proxy_profiles (id, name, scheme, host, port, username, encrypted_password, no_proxy, strict_proxy, relay_type, relay_config, enabled)
+			VALUES (?, ?, ?, ?, ?, ?, ?, '', 0, 'standard', '', 1)
+			ON CONFLICT(id) DO NOTHING`,
+			pid, name, parsed.Scheme, parsed.Host, parsed.Port, parsed.Username, encPass)
+		if err == nil {
+			imported++
+		} else {
+			failed++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":   "ok",
+		"imported": imported,
+		"failed":   failed,
+	})
+}
+
+func (a *AdminHandler) DeployRelay(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Platform   string `json:"platform"`
+		AccountID  string `json:"account_id"`
+		APIToken   string `json:"api_token"`
+		WorkerName string `json:"worker_name"`
+		ProjectID  string `json:"project_id"`
+		Name       string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	platform := strings.ToLower(strings.TrimSpace(body.Platform))
+	if platform == "" {
+		platform = "cloudflare"
+	}
+
+	pid := "proxy_" + uuid.NewString()[:8]
+	var host string
+	var scheme = "https"
+	var port = 443
+	var profileName = body.Name
+
+	configData, _ := json.Marshal(map[string]string{
+		"platform":    platform,
+		"account_id":  body.AccountID,
+		"api_token":   body.APIToken,
+		"worker_name": body.WorkerName,
+		"project_id":  body.ProjectID,
+	})
+
+	var encConfig string
+	var encPass string
+	if a.crypto != nil {
+		encConfig, _ = a.crypto.Encrypt(string(configData))
+		if body.APIToken != "" {
+			encPass, _ = a.crypto.Encrypt(body.APIToken)
+		}
+	}
+
+	switch platform {
+	case "cloudflare":
+		wName := strings.TrimSpace(body.WorkerName)
+		if wName == "" {
+			wName = fmt.Sprintf("cf-relay-%s", pid[6:])
+		}
+		if profileName == "" {
+			profileName = fmt.Sprintf("Cloudflare Relay (%s)", wName)
+		}
+		host = fmt.Sprintf("%s.workers.dev", wName)
+	case "vercel":
+		pName := strings.TrimSpace(body.WorkerName)
+		if pName == "" {
+			pName = strings.TrimSpace(body.ProjectID)
+		}
+		if pName == "" {
+			pName = fmt.Sprintf("vercel-relay-%s", pid[6:])
+		}
+		if profileName == "" {
+			profileName = fmt.Sprintf("Vercel Relay (%s)", pName)
+		}
+		host = fmt.Sprintf("%s.vercel.app", pName)
+	case "deno":
+		pName := strings.TrimSpace(body.ProjectID)
+		if pName == "" {
+			pName = strings.TrimSpace(body.WorkerName)
+		}
+		if pName == "" {
+			pName = fmt.Sprintf("deno-relay-%s", pid[6:])
+		}
+		if profileName == "" {
+			profileName = fmt.Sprintf("Deno Relay (%s)", pName)
+		}
+		host = fmt.Sprintf("%s.deno.net", pName)
+	default:
+		http.Error(w, `{"error":"unsupported relay platform"}`, http.StatusBadRequest)
+		return
+	}
+
+	_, err := a.db.ExecContext(r.Context(), `
+		INSERT INTO proxy_profiles (id, name, scheme, host, port, username, encrypted_password, no_proxy, strict_proxy, relay_type, relay_config, enabled)
+		VALUES (?, ?, ?, ?, ?, '', ?, '', 0, ?, ?, 1)`,
+		pid, profileName, scheme, host, port, encPass, platform, encConfig)
+	if err != nil {
+		http.Error(w, `{"error":"failed to register relay"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":     "deployed",
+		"id":         pid,
+		"name":       profileName,
+		"relay_type": platform,
+		"relay_url":  fmt.Sprintf("%s://%s", scheme, host),
+	})
+}
+
+func (a *AdminHandler) SmartRotateProxies(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProviderID string `json:"provider_id"`
+		Strategy   string `json:"strategy"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ProviderID == "" {
+		http.Error(w, `{"error":"provider_id is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	strategy := strings.ToLower(strings.TrimSpace(body.Strategy))
+	if strategy == "" {
+		strategy = "lowest_latency"
+	}
+
+	accRows, err := a.db.QueryContext(r.Context(), "SELECT a.id, COALESCE(c.encrypted_secret, '') FROM accounts a LEFT JOIN credentials c ON c.account_id = a.id WHERE a.provider_id = ? ORDER BY a.priority DESC, a.name ASC", body.ProviderID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to query accounts"}`, http.StatusInternalServerError)
+		return
+	}
+	defer accRows.Close()
+
+	type accItem struct {
+		id        string
+		encSecret string
+	}
+	var accList []accItem
+	for accRows.Next() {
+		var item accItem
+		if err := accRows.Scan(&item.id, &item.encSecret); err == nil {
+			accList = append(accList, item)
+		}
+	}
+	if len(accList) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"updated": 0, "status": "no_accounts"})
+		return
+	}
+
+	pRows, err := a.db.QueryContext(r.Context(), "SELECT id, name, scheme, host, port, username, encrypted_password, COALESCE(no_proxy, ''), COALESCE(strict_proxy, 0), COALESCE(relay_type, 'standard'), COALESCE(relay_config, '') FROM proxy_profiles WHERE enabled = 1 ORDER BY id ASC")
+	if err != nil {
+		http.Error(w, `{"error":"failed to query proxies"}`, http.StatusInternalServerError)
+		return
+	}
+	defer pRows.Close()
+
+	type proxyItem struct {
+		prof      proxy.Profile
+		latencyMs int64
+		ok        bool
+	}
+	var proxies []proxyItem
+	for pRows.Next() {
+		var pi proxyItem
+		var user, pass, noProxy, rType, rCfg sql.NullString
+		var strictInt int
+		if err := pRows.Scan(&pi.prof.ID, &pi.prof.Name, &pi.prof.Scheme, &pi.prof.Host, &pi.prof.Port, &user, &pass, &noProxy, &strictInt, &rType, &rCfg); err == nil {
+			pi.prof.Username = user.String
+			pi.prof.NoProxy = noProxy.String
+			pi.prof.StrictProxy = strictInt == 1
+			pi.prof.RelayType = rType.String
+			pi.prof.RelayConfig = rCfg.String
+			if pass.Valid && a.crypto != nil {
+				pi.prof.Password, _ = a.crypto.Decrypt(pass.String)
+			}
+			proxies = append(proxies, pi)
+		}
+	}
+
+	if len(proxies) == 0 {
+		http.Error(w, `{"error":"no enabled proxies found in pool"}`, http.StatusBadRequest)
+		return
+	}
+
+	if strategy == "lowest_latency" {
+		ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+		defer cancel()
+		var wg sync.WaitGroup
+		for idx := range proxies {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				ok, _, latency, _ := proxy.TestProfile(ctx, &proxies[i].prof, 4*time.Second)
+				proxies[i].ok = ok
+				proxies[i].latencyMs = latency
+				if !ok {
+					proxies[i].latencyMs = 999999
+				}
+			}(idx)
+		}
+		wg.Wait()
+
+		sort.Slice(proxies, func(i, j int) bool {
+			return proxies[i].latencyMs < proxies[j].latencyMs
+		})
+	}
+
+	updatedCount := 0
+	for i, acc := range accList {
+		targetProxy := proxies[i%len(proxies)].prof.ID
+		var meta map[string]any
+		if acc.encSecret != "" && a.crypto != nil {
+			if sec, err := a.crypto.Decrypt(acc.encSecret); err == nil {
+				_ = json.Unmarshal([]byte(sec), &meta)
+			}
+		}
+		if meta == nil {
+			meta = make(map[string]any)
+		}
+		meta["proxyPoolId"] = targetProxy
+
+		newEnc := ""
+		if a.crypto != nil {
+			bytes, _ := json.Marshal(meta)
+			newEnc, _ = a.crypto.Encrypt(string(bytes))
+		}
+
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO credentials (id, account_id, encrypted_access, encrypted_secret)
+			VALUES (?, ?, '', ?)
+			ON CONFLICT(account_id) DO UPDATE SET
+				encrypted_secret = excluded.encrypted_secret,
+				updated_at = CURRENT_TIMESTAMP`,
+			"cred_"+acc.id, acc.id, newEnc)
+		updatedCount++
+	}
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	bestLatency := int64(0)
+	if len(proxies) > 0 && proxies[0].latencyMs < 999999 {
+		bestLatency = proxies[0].latencyMs
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":          "ok",
+		"strategy":        strategy,
+		"accounts_bound":  updatedCount,
+		"proxies_tested":  len(proxies),
+		"best_latency_ms": bestLatency,
 	})
 }
 
