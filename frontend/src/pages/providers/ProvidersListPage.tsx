@@ -204,10 +204,10 @@ export function ProvidersListPage() {
               key={cat.id}
               type="button"
               onClick={() => setSelectedCategory(cat.id)}
-              className={`h-7 px-3 text-[11.5px] font-medium rounded-[5px] transition-colors ${
+              className={`h-7 px-3 text-[11.5px] font-medium rounded-[5px] transition-colors cursor-pointer ${
                 selectedCategory === cat.id
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border border-[var(--border-strong)] hover:border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
+                  ? 'bg-[#282a34] text-[#f3f4f6] border border-[#3e4354]'
+                  : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]'
               }`}
             >
               {cat.label}

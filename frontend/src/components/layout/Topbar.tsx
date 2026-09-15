@@ -64,7 +64,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
             title="Operator Profile"
             className="flex items-center gap-2 p-1 pr-2 rounded-[6px] hover:bg-[var(--bg-panel)] transition-colors cursor-pointer text-left select-none border border-transparent hover:border-[var(--border-subtle)]"
           >
-            <div className="w-6 h-6 rounded-full bg-blue-900/60 border border-blue-500/40 text-blue-300 flex items-center justify-center font-bold text-[11px] shrink-0">
+            <div className="w-6 h-6 rounded-full bg-[#242732] border border-[#393e4f] text-[#e0e3ed] flex items-center justify-center font-bold text-[11px] shrink-0">
               {user?.username?.[0]?.toUpperCase() || 'A'}
             </div>
             <div className="hidden sm:flex flex-col">

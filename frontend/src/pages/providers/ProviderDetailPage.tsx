@@ -35,7 +35,7 @@ import { Button } from '../../components/ui/Button.tsx'
 import { StatusBadge } from '../../components/ui/StatusBadge.tsx'
 import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
-import { RightDrawer } from '../../components/ui/RightDrawer.tsx'
+import { BottomSheet } from '../../components/ui/BottomSheet.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 import { api } from '../../api/client.ts'
 import { Provider, Account, PlatformProvider, ProxyProfile } from '../../types/api.ts'
@@ -254,6 +254,9 @@ export function ProviderDetailPage() {
   }
 
   useEffect(() => {
+    window.scrollTo(0, 0)
+    document.documentElement.scrollTo(0, 0)
+    document.body.scrollTo(0, 0)
     loadData()
   }, [id])
 
@@ -1134,12 +1137,12 @@ export function ProviderDetailPage() {
         </div>
       )}
 
-      <RightDrawer
+      <BottomSheet
         isOpen={showApplyProxySheet}
         onClose={() => setShowApplyProxySheet(false)}
         title={`Apply Proxy (${accounts.length} connections)`}
         description="Distribute proxies across connections or assign a single relay"
-        width="max-w-[560px] lg:max-w-[640px]"
+        maxWidth="max-w-md"
       >
         <div className="space-y-3">
           <div className="space-y-2">
@@ -1210,13 +1213,14 @@ export function ProviderDetailPage() {
             ))}
           </div>
         </div>
-      </RightDrawer>
+      </BottomSheet>
 
-      <RightDrawer
+      <BottomSheet
         isOpen={showAddSheet}
         onClose={() => setShowAddSheet(false)}
         title={`Add Connection — ${provider?.name || ''}`}
-        description="API key or credential will be encrypted with AES-256-GCM."
+        description="API key or credential will be encrypted with AES-256-GCM"
+        maxWidth="max-w-2xl"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
           {formError && (
@@ -1309,13 +1313,14 @@ export function ProviderDetailPage() {
             </Button>
           </div>
         </form>
-      </RightDrawer>
+      </BottomSheet>
 
-      <RightDrawer
+      <BottomSheet
         isOpen={showEditSheet}
         onClose={() => setShowEditSheet(false)}
         title={`Edit — ${editingAccount?.name || ''}`}
-        description="Update connection name, priority, proxy, or rotate API key."
+        description="Update connection name, priority, proxy, or rotate API key"
+        maxWidth="max-w-2xl"
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
           {formError && (
@@ -1392,7 +1397,7 @@ export function ProviderDetailPage() {
             <button
               type="button"
               onClick={() => setEditForm({ ...editForm, enabled: !editForm.enabled })}
-              className="transition-colors"
+              className="transition-colors cursor-pointer"
             >
               {editForm.enabled ? (
                 <ToggleRight className="w-6 h-6 text-[var(--status-success)]" />
@@ -1421,7 +1426,7 @@ export function ProviderDetailPage() {
             </Button>
           </div>
         </form>
-      </RightDrawer>
+      </BottomSheet>
     </div>
   )
 }

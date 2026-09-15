@@ -105,7 +105,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
         <div className="p-5 space-y-4">
           <div className="flex items-center gap-3.5 p-3 rounded-[8px] bg-[var(--bg-panel)]/60 border border-[var(--border-subtle)]">
-            <div className="w-11 h-11 rounded-full bg-blue-900/40 border border-blue-500/30 text-blue-300 flex items-center justify-center font-bold text-[15px] shrink-0">
+            <div className="w-11 h-11 rounded-full bg-[#242732] border border-[#393e4f] text-[#e0e3ed] flex items-center justify-center font-bold text-[15px] shrink-0">
               {user?.username?.[0]?.toUpperCase() || 'A'}
             </div>
             <div className="min-w-0 flex-1">
@@ -134,7 +134,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
             <div className="flex items-center justify-between px-3 py-2 rounded-[6px] bg-[var(--bg-panel)]/30 border border-[var(--border-subtle)] text-[11.5px]">
               <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                <KeyRound className="w-3.5 h-3.5 text-blue-400" />
+                <KeyRound className="w-3.5 h-3.5 text-[var(--brand-text)]" />
                 <span>Session Status</span>
               </div>
               <span className="font-mono text-[10.5px] text-[var(--text-primary)]">Authenticated</span>

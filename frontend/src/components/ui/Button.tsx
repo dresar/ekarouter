@@ -33,13 +33,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        'bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-hover)] focus-visible:outline-[var(--brand-primary)] active:bg-[var(--brand-hover)]',
+        'bg-[#23252d] text-[#f3f4f6] border border-[#393d4a] hover:bg-[#2d303a] hover:border-[#4b5062] focus-visible:outline-[#4b5062] active:bg-[#1c1e24] shadow-xs cursor-pointer',
       secondary:
-        'bg-[var(--bg-panel)] text-[var(--text-primary)] border border-[var(--border-strong)] hover:bg-[var(--border-strong)] focus-visible:outline-[var(--border-strong)]',
+        'bg-[var(--bg-panel)] text-[var(--text-primary)] border border-[var(--border-strong)] hover:bg-[var(--border-strong)] focus-visible:outline-[var(--border-strong)] cursor-pointer',
       danger:
-        'bg-transparent text-[var(--status-danger)] border border-[var(--status-danger)]/40 hover:bg-[var(--status-danger)]/10 focus-visible:outline-[var(--status-danger)]',
+        'bg-transparent text-[var(--status-danger)] border border-[var(--status-danger)]/40 hover:bg-[var(--status-danger)]/10 focus-visible:outline-[var(--status-danger)] cursor-pointer',
       ghost:
-        'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-strong)]/30 focus-visible:outline-[var(--brand-primary)]',
+        'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-strong)]/30 focus-visible:outline-[var(--border-strong)] cursor-pointer',
     }[variant]
 
     return (
