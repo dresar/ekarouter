@@ -37,6 +37,7 @@ import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { BottomSheet } from '../../components/ui/BottomSheet.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
 import { api } from '../../api/client.ts'
 import { Provider, Account, PlatformProvider, ProxyProfile } from '../../types/api.ts'
 import { getProviderApiKeyUrl } from '../../utils/providerUrls.ts'
@@ -58,12 +59,7 @@ const DEFAULT_GEMINI_MODELS: Omit<ProviderModel, 'id' | 'enabled'>[] = [
   { external_name: 'gemini-3.1-pro-preview', display_name: 'Gemini 3.1 Pro Preview', vision: true, web: true },
   { external_name: 'gemini-3.1-flash-lite-preview', display_name: 'Gemini 3.1 Flash Lite Preview', vision: true, web: false },
   { external_name: 'gemini-3-flash-preview', display_name: 'Gemini 3 Flash Preview', vision: true, web: true },
-  { external_name: 'gemini-2.5-pro', display_name: 'Gemini 2.5 Pro', vision: true, web: true },
-  { external_name: 'gemini-2.5-flash', display_name: 'Gemini 2.5 Flash', vision: true, web: true },
-  { external_name: 'gemini-2.5-flash-lite', display_name: 'Gemini 2.5 Flash Lite', vision: true, web: false },
-  { external_name: 'gemma-4-31b-it', display_name: 'Gemma 4 31B IT', vision: false, web: false },
 ]
-
 export function ProviderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -325,8 +321,8 @@ export function ProviderDetailPage() {
         mode === 'rotate'
           ? `Rotated proxies across ${res.updated} connections.`
           : mode === 'none'
-          ? `Removed proxies from ${res.updated} connections.`
-          : `Assigned proxy to ${res.updated} connections.`
+            ? `Removed proxies from ${res.updated} connections.`
+            : `Assigned proxy to ${res.updated} connections.`
       )
       setTimeout(() => setActionSuccess(null), 4000)
       await loadData()
@@ -405,7 +401,7 @@ export function ProviderDetailPage() {
         streaming: true,
       })
       await api.patch(`/api/models/${encodeURIComponent(model.id)}`, { enabled: nextState })
-    } catch {}
+    } catch { }
   }
 
   const handleBatchToggleModels = async (enabled: boolean) => {
@@ -427,7 +423,7 @@ export function ProviderDetailPage() {
           })
         }
       }
-    } catch {}
+    } catch { }
   }
 
   const handleAddCustomModel = async (e: FormEvent) => {
@@ -456,7 +452,7 @@ export function ProviderDetailPage() {
         display_name: customModelName.trim(),
         streaming: true,
       })
-    } catch {}
+    } catch { }
   }
 
   const copyToClipboard = (text: string) => {
@@ -471,7 +467,7 @@ export function ProviderDetailPage() {
     if (provider) {
       try {
         await api.put('/api/settings', { key: `round_robin_${provider.id}`, value: String(nextVal) })
-      } catch {}
+      } catch { }
     }
   }
 
@@ -480,7 +476,7 @@ export function ProviderDetailPage() {
     if (provider) {
       try {
         await api.put('/api/settings', { key: `sticky_${provider.id}`, value: String(val) })
-      } catch {}
+      } catch { }
     }
   }
 
@@ -489,7 +485,7 @@ export function ProviderDetailPage() {
     if (provider) {
       try {
         await api.put('/api/settings', { key: `thinking_${provider.id}`, value: mode })
-      } catch {}
+      } catch { }
     }
   }
 
@@ -580,7 +576,7 @@ export function ProviderDetailPage() {
       setAccounts((prev) =>
         prev.map((a) => (a.id === acc.id ? { ...a, enabled: !a.enabled } : a))
       )
-    } catch {}
+    } catch { }
   }
 
   const openAccountProxy = (acc: Account) => {
@@ -961,13 +957,12 @@ export function ProviderDetailPage() {
 
       {testResult.status !== 'idle' && (
         <div
-          className={`px-4 py-2.5 rounded-[7px] flex items-center gap-2.5 text-[12px] border ${
-            testResult.status === 'success'
+          className={`px-4 py-2.5 rounded-[7px] flex items-center gap-2.5 text-[12px] border ${testResult.status === 'success'
               ? 'bg-emerald-950/20 border-emerald-600/30 text-emerald-300'
               : testResult.status === 'error'
-              ? 'bg-rose-950/20 border-rose-600/30 text-rose-300'
-              : 'bg-[var(--bg-panel)] border-[var(--border-subtle)] text-[var(--text-muted)]'
-          }`}
+                ? 'bg-rose-950/20 border-rose-600/30 text-rose-300'
+                : 'bg-[var(--bg-panel)] border-[var(--border-subtle)] text-[var(--text-muted)]'
+            }`}
         >
           {testResult.status === 'success' ? (
             <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -1072,11 +1067,10 @@ export function ProviderDetailPage() {
             <button
               type="button"
               onClick={handleTestOneByOne}
-              className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer ${
-                isTestingOneByOne
+              className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer ${isTestingOneByOne
                   ? 'bg-amber-950/30 border-amber-600/50 text-amber-300'
                   : 'bg-[#202227] hover:bg-[#2a2d35] border-[#363a45]'
-              }`}
+                }`}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-[#9fa3b4] ${isTestingOneByOne ? 'animate-spin' : ''}`} />
               <span>{isTestingOneByOne ? 'Stop Testing' : 'Test One-by-One'}</span>
@@ -1087,14 +1081,12 @@ export function ProviderDetailPage() {
               <button
                 type="button"
                 onClick={handleRoundRobinToggle}
-                className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
-                  roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
-                }`}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
+                  }`}
               >
                 <div
-                  className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                    roundRobin ? 'translate-x-4' : 'translate-x-0'
-                  }`}
+                  className={`w-4 h-4 rounded-full bg-white transition-transform ${roundRobin ? 'translate-x-4' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -1193,9 +1185,8 @@ export function ProviderDetailPage() {
               return (
                 <div
                   key={acc.id}
-                  className={`group transition-colors ${
-                    isCurrentlyTesting ? 'bg-amber-950/10 border-l-2 border-l-amber-400' : 'hover:bg-[#15161c]'
-                  }`}
+                  className={`group transition-colors ${isCurrentlyTesting ? 'bg-amber-950/10 border-l-2 border-l-amber-400' : 'hover:bg-[#15161c]'
+                    }`}
                 >
                   <div className="flex items-center gap-3 px-4 py-2.5">
                     <input
@@ -1239,22 +1230,20 @@ export function ProviderDetailPage() {
                         </button>
 
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium ${
-                            !acc.enabled
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium ${!acc.enabled
                               ? 'bg-[#202228] text-[#8e93a6] border border-[#333744]'
                               : acc.state === 'active'
-                              ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-600/30'
-                              : 'bg-rose-950/40 text-rose-400 border border-rose-600/30'
-                          }`}
+                                ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-600/30'
+                                : 'bg-rose-950/40 text-rose-400 border border-rose-600/30'
+                            }`}
                         >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              !acc.enabled
+                            className={`w-1.5 h-1.5 rounded-full ${!acc.enabled
                                 ? 'bg-[#8e93a6]'
                                 : acc.state === 'active'
-                                ? 'bg-emerald-400'
-                                : 'bg-rose-400'
-                            }`}
+                                  ? 'bg-emerald-400'
+                                  : 'bg-rose-400'
+                              }`}
                           />
                           {getStateLabel(acc)}
                         </span>
@@ -1285,11 +1274,10 @@ export function ProviderDetailPage() {
                         type="button"
                         title={hasProxy ? `Proxy aktif: ${acc.proxy_name || acc.proxy_url}` : 'Pasang proxy untuk koneksi ini'}
                         onClick={() => openAccountProxy(acc)}
-                        className={`min-w-[42px] py-1 px-1.5 rounded-[6px] flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${
-                          hasProxy
+                        className={`min-w-[42px] py-1 px-1.5 rounded-[6px] flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${hasProxy
                             ? 'text-[#f97316] hover:bg-[#2a1d17]'
                             : 'text-[#8e93a6] hover:text-[#e0e2eb] hover:bg-[#20222a]'
-                        }`}
+                          }`}
                       >
                         <Network className="w-4 h-4" />
                         <span className="text-[10px] font-medium">Proxy</span>
@@ -1324,14 +1312,12 @@ export function ProviderDetailPage() {
                         type="button"
                         title={acc.enabled ? 'Click to disable' : 'Click to enable'}
                         onClick={() => handleToggle(acc)}
-                        className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer shrink-0 ml-1 ${
-                          acc.enabled ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
-                        }`}
+                        className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer shrink-0 ml-1 ${acc.enabled ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
+                          }`}
                       >
                         <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                            acc.enabled ? 'translate-x-4' : 'translate-x-0'
-                          }`}
+                          className={`w-4 h-4 rounded-full bg-white transition-transform ${acc.enabled ? 'translate-x-4' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -1401,22 +1387,20 @@ export function ProviderDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h3 className="text-[15px] font-bold text-[var(--text-primary)]">Available Models</h3>
 
-            <div className="relative inline-block">
-              <select
+            <div className="inline-block w-40">
+              <SearchableSelect
                 value={thinkingMode}
-                onChange={(e) => handleThinkingChange(e.target.value)}
-                className="h-7 px-2.5 pr-6 text-[11.5px] font-medium rounded-[6px] bg-[#1c1e24] border border-[#333742] text-[#d4d6df] hover:border-[var(--brand-primary)] focus:outline-none cursor-pointer appearance-none"
-              >
-                <option value="Auto">Thinking: Auto</option>
-                <option value="Enabled">Thinking: Enabled</option>
-                <option value="High">Thinking: High</option>
-                <option value="Medium">Thinking: Medium</option>
-                <option value="Low">Thinking: Low</option>
-                <option value="Disabled">Thinking: Disabled</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-[#8a8d9a]">
-                <ChevronDown className="w-3 h-3" />
-              </div>
+                onChange={(val) => handleThinkingChange(val)}
+                className="w-40"
+                options={[
+                  { value: 'Auto', label: 'Thinking: Auto', icon: <Bot className="w-3.5 h-3.5 text-blue-400" /> },
+                  { value: 'Enabled', label: 'Thinking: Enabled', icon: <Bot className="w-3.5 h-3.5 text-emerald-400" /> },
+                  { value: 'High', label: 'Thinking: High', icon: <Bot className="w-3.5 h-3.5 text-purple-400" /> },
+                  { value: 'Medium', label: 'Thinking: Medium', icon: <Bot className="w-3.5 h-3.5 text-amber-400" /> },
+                  { value: 'Low', label: 'Thinking: Low', icon: <Bot className="w-3.5 h-3.5 text-slate-400" /> },
+                  { value: 'Disabled', label: 'Thinking: Disabled', icon: <Ban className="w-3.5 h-3.5 text-red-400" /> },
+                ]}
+              />
             </div>
           </div>
 
@@ -1677,11 +1661,10 @@ export function ProviderDetailPage() {
                 setAddModalTab('single')
                 setFormError(null)
               }}
-              className={`px-3 py-1 text-[12px] font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                addModalTab === 'single'
+              className={`px-3 py-1 text-[12px] font-semibold rounded-[6px] transition-colors cursor-pointer ${addModalTab === 'single'
                   ? 'bg-[#ea580c] text-white shadow-xs'
                   : 'text-[#9fa3b4] hover:text-white hover:bg-[#202227]'
-              }`}
+                }`}
             >
               Single
             </button>
@@ -1691,11 +1674,10 @@ export function ProviderDetailPage() {
                 setAddModalTab('bulk')
                 setBulkError(null)
               }}
-              className={`px-3 py-1 text-[12px] font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                addModalTab === 'bulk'
+              className={`px-3 py-1 text-[12px] font-semibold rounded-[6px] transition-colors cursor-pointer ${addModalTab === 'bulk'
                   ? 'bg-[#ea580c] text-white shadow-xs'
                   : 'text-[#9fa3b4] hover:text-white hover:bg-[#202227]'
-              }`}
+                }`}
             >
               Bulk Add
             </button>
@@ -1753,11 +1735,10 @@ export function ProviderDetailPage() {
                 </div>
                 {keyCheckResult && (
                   <div
-                    className={`mt-1.5 text-[11.5px] flex items-center gap-1.5 ${
-                      keyCheckResult.status === 'valid'
+                    className={`mt-1.5 text-[11.5px] flex items-center gap-1.5 ${keyCheckResult.status === 'valid'
                         ? 'text-emerald-400'
                         : 'text-rose-400'
-                    }`}
+                      }`}
                   >
                     {keyCheckResult.status === 'valid' ? (
                       <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
@@ -1790,18 +1771,20 @@ export function ProviderDetailPage() {
                 <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
                   Proxy Pool
                 </label>
-                <select
+                <SearchableSelect
                   value={addForm.proxy_pool_id}
-                  onChange={(e) => setAddForm({ ...addForm, proxy_pool_id: e.target.value })}
-                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
-                >
-                  <option value="">None</option>
-                  {proxies.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {p.scheme}://{p.host}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setAddForm({ ...addForm, proxy_pool_id: val })}
+                  placeholder="None (Direct)"
+                  options={[
+                    { value: '', label: 'None (Direct)', icon: <Network className="w-3.5 h-3.5 text-slate-400" /> },
+                    ...proxies.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      sublabel: `${p.scheme}://${p.host}`,
+                      icon: <Globe className="w-3.5 h-3.5 text-blue-400" />,
+                    })),
+                  ]}
+                />
                 <p className="text-[11px] text-[#787c8d] mt-2">
                   Legacy manual proxy fields are still accepted by API for backward compatibility.
                 </p>
@@ -1893,18 +1876,20 @@ export function ProviderDetailPage() {
                 <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
                   Proxy Pool
                 </label>
-                <select
+                <SearchableSelect
                   value={bulkProxyId}
-                  onChange={(e) => setBulkProxyId(e.target.value)}
-                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
-                >
-                  <option value="">None</option>
-                  {proxies.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {p.scheme}://{p.host}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setBulkProxyId(val)}
+                  placeholder="None (Direct)"
+                  options={[
+                    { value: '', label: 'None (Direct)', icon: <Network className="w-3.5 h-3.5 text-slate-400" /> },
+                    ...proxies.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      sublabel: `${p.scheme}://${p.host}`,
+                      icon: <Globe className="w-3.5 h-3.5 text-blue-400" />,
+                    })),
+                  ]}
+                />
                 <p className="text-[11px] text-[#787c8d] mt-2">
                   Legacy manual proxy fields are still accepted by API for backward compatibility.
                 </p>
@@ -1947,11 +1932,10 @@ export function ProviderDetailPage() {
             type="button"
             disabled={isSavingRowProxy}
             onClick={() => handleSetAccountProxy('')}
-            className={`w-full px-3.5 py-2.5 rounded-[7px] border flex items-center justify-between transition-colors cursor-pointer text-left ${
-              !proxyTargetAccount?.proxy_pool_id && !proxyTargetAccount?.proxy_url
+            className={`w-full px-3.5 py-2.5 rounded-[7px] border flex items-center justify-between transition-colors cursor-pointer text-left ${!proxyTargetAccount?.proxy_pool_id && !proxyTargetAccount?.proxy_url
                 ? 'bg-[#2a1d17] border-[#ea580c]/40 text-[#f97316]'
                 : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[var(--text-primary)]'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-[6px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
@@ -1987,11 +1971,10 @@ export function ProviderDetailPage() {
                     type="button"
                     disabled={isSavingRowProxy}
                     onClick={() => handleSetAccountProxy(p.id)}
-                    className={`w-full px-3 py-2 rounded-[6px] border flex items-center justify-between transition-colors cursor-pointer text-left ${
-                      isSelected
+                    className={`w-full px-3 py-2 rounded-[6px] border flex items-center justify-between transition-colors cursor-pointer text-left ${isSelected
                         ? 'bg-[#2a1d17] border-[#ea580c]/40 text-[#f97316]'
                         : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[var(--text-primary)]'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Globe className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-[#ea580c]' : 'text-[var(--text-muted)]'}`} />
@@ -2058,18 +2041,20 @@ export function ProviderDetailPage() {
             <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
               Proxy
             </label>
-            <select
+            <SearchableSelect
               value={editForm.proxy_pool_id}
-              onChange={(e) => setEditForm({ ...editForm, proxy_pool_id: e.target.value })}
-              className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-            >
-              <option value="">Direct (no proxy)</option>
-              {proxies.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.scheme}://{p.host}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setEditForm({ ...editForm, proxy_pool_id: val })}
+              placeholder="Direct (no proxy)"
+              options={[
+                { value: '', label: 'Direct (no proxy)', icon: <Network className="w-3.5 h-3.5 text-slate-400" /> },
+                ...proxies.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  sublabel: `${p.scheme}://${p.host}`,
+                  icon: <Globe className="w-3.5 h-3.5 text-blue-400" />,
+                })),
+              ]}
+            />
           </div>
 
           <div>

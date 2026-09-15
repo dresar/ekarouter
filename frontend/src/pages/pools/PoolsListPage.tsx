@@ -1,19 +1,22 @@
 import { useEffect, useState, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ExternalLink, RefreshCw, AlertCircle, Save } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, RefreshCw, AlertCircle, Save, Flame, Cpu, Code, RotateCw, BarChart2, ArrowDownRight } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { DataTable, Column } from '../../components/ui/DataTable.tsx'
 import { StatusBadge } from '../../components/ui/StatusBadge.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
+import { ProviderSelect } from '../../components/ui/ProviderSelect.tsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
-import { CredentialPool } from '../../types/api.ts'
+import { CredentialPool, Provider } from '../../types/api.ts'
 
 export function PoolsListPage() {
   const navigate = useNavigate()
   const [pools, setPools] = useState<CredentialPool[]>([])
+  const [providers, setProviders] = useState<Provider[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,8 +34,12 @@ export function PoolsListPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await api.get<CredentialPool[]>('/api/credential-pools')
-      setPools(data || [])
+      const [poolsRes, provRes] = await Promise.allSettled([
+        api.get<CredentialPool[]>('/api/credential-pools'),
+        api.get<Provider[]>('/api/providers'),
+      ])
+      if (poolsRes.status === 'fulfilled') setPools(poolsRes.value || [])
+      if (provRes.status === 'fulfilled') setProviders(provRes.value || [])
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load credential pools'
       setError(msg)
@@ -235,15 +242,16 @@ export function PoolsListPage() {
 
             <div>
               <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
-                Provider ID *
+                Provider *
               </label>
-              <input
-                type="text"
-                required
+              <ProviderSelect
                 value={newPool.provider_id}
-                onChange={(e) => setNewPool({ ...newPool, provider_id: e.target.value })}
-                placeholder="Provider"
-                className="w-full px-2.5 py-1.5 text-[12px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
+                onChange={(val) => setNewPool({ ...newPool, provider_id: val })}
+                providers={providers.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  kind: p.kind,
+                }))}
               />
             </div>
 
@@ -251,30 +259,30 @@ export function PoolsListPage() {
               <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
                 Environment *
               </label>
-              <select
+              <SearchableSelect
                 value={newPool.environment}
-                onChange={(e) => setNewPool({ ...newPool, environment: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
-              >
-                <option value="production">Production</option>
-                <option value="staging">Staging</option>
-                <option value="development">Development</option>
-              </select>
+                onChange={(val) => setNewPool({ ...newPool, environment: val })}
+                options={[
+                  { value: 'production', label: 'Production', icon: <Flame className="w-3.5 h-3.5 text-red-400" /> },
+                  { value: 'staging', label: 'Staging', icon: <Cpu className="w-3.5 h-3.5 text-amber-400" /> },
+                  { value: 'development', label: 'Development', icon: <Code className="w-3.5 h-3.5 text-blue-400" /> },
+                ]}
+              />
             </div>
 
             <div>
               <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
                 Rotation Strategy *
               </label>
-              <select
+              <SearchableSelect
                 value={newPool.strategy}
-                onChange={(e) => setNewPool({ ...newPool, strategy: e.target.value })}
-                className="w-full px-2.5 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
-              >
-                <option value="round_robin">Round Robin</option>
-                <option value="least_used">Least Used</option>
-                <option value="priority">Priority Order</option>
-              </select>
+                onChange={(val) => setNewPool({ ...newPool, strategy: val })}
+                options={[
+                  { value: 'round_robin', label: 'Round Robin', icon: <RotateCw className="w-3.5 h-3.5 text-blue-400" />, sublabel: 'Distribute evenly' },
+                  { value: 'least_used', label: 'Least Used', icon: <BarChart2 className="w-3.5 h-3.5 text-purple-400" />, sublabel: 'Balance by load' },
+                  { value: 'priority', label: 'Priority Order', icon: <ArrowDownRight className="w-3.5 h-3.5 text-emerald-400" />, sublabel: 'Tier priority' },
+                ]}
+              />
             </div>
           </div>
 

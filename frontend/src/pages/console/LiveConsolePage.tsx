@@ -9,10 +9,13 @@ import {
   Send,
   Maximize2,
   Minimize2,
+  Layers,
+  Server,
 } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { RightDrawer } from '../../components/ui/RightDrawer.tsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
 import { api } from '../../api/client.ts'
 import { AuditRecord } from '../../types/api.ts'
 
@@ -297,18 +300,21 @@ export function LiveConsolePage() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <select
-            value={filterSubsystem}
-            onChange={(e) => setFilterSubsystem(e.target.value)}
-            className="px-2 py-1 text-[11.5px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-secondary)]"
-          >
-            <option value="ALL">All Subsystems</option>
-            {Array.from(new Set(logs.map((l) => l.subsystem).filter(Boolean))).map((sub) => (
-              <option key={sub} value={sub}>
-                {sub}
-              </option>
-            ))}
-          </select>
+          <div className="w-48">
+            <SearchableSelect
+              value={filterSubsystem}
+              onChange={(val) => setFilterSubsystem(val || 'ALL')}
+              placeholder="All Subsystems"
+              options={[
+                { value: 'ALL', label: 'All Subsystems', icon: <Layers className="w-3.5 h-3.5 text-blue-400" /> },
+                ...Array.from(new Set(logs.map((l) => l.subsystem).filter(Boolean))).map((sub) => ({
+                  value: sub,
+                  label: sub,
+                  icon: <Server className="w-3.5 h-3.5 text-emerald-400" />,
+                })),
+              ]}
+            />
+          </div>
 
           <div className="relative flex-1 sm:w-48">
             <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />

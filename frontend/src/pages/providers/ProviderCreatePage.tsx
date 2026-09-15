@@ -4,6 +4,8 @@ import { ArrowLeft, Save, AlertCircle } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { api } from '../../api/client.ts'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
+import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 
 export function ProviderCreatePage() {
   const navigate = useNavigate()
@@ -127,17 +129,16 @@ export function ProviderCreatePage() {
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
               Backend Adapter Kind *
             </label>
-            <select
+            <SearchableSelect
               value={formData.kind}
-              onChange={(e) => handleKindChange(e.target.value)}
-              className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
-            >
-              {kinds.map((k) => (
-                <option key={k.value} value={k.value}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => handleKindChange(val)}
+              options={kinds.map((k) => ({
+                value: k.value,
+                label: k.label,
+                sublabel: k.defaultUrl,
+                icon: <ProviderLogo providerId={k.value} name={k.label} size="sm" />,
+              }))}
+            />
           </div>
 
           <div>

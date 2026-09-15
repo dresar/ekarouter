@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ExternalLink, RefreshCw, Search } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, RefreshCw, Search, Globe, Flame, Cpu, Code } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { DataTable, Column } from '../../components/ui/DataTable.tsx'
 import { StatusBadge } from '../../components/ui/StatusBadge.tsx'
 import { SecretViewer } from '../../components/ui/SecretViewer.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
 import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
@@ -207,16 +208,18 @@ export function VaultListPage() {
           />
         </div>
 
-        <select
-          value={envFilter}
-          onChange={(e) => setEnvFilter(e.target.value)}
-          className="w-full sm:w-[160px] px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
-        >
-          <option value="all">All Environments</option>
-          <option value="production">Production</option>
-          <option value="staging">Staging</option>
-          <option value="development">Development</option>
-        </select>
+        <div className="w-full sm:w-[170px]">
+          <SearchableSelect
+            value={envFilter}
+            onChange={(val) => setEnvFilter(val || 'all')}
+            options={[
+              { value: 'all', label: 'All Environments', icon: <Globe className="w-3.5 h-3.5 text-blue-400" /> },
+              { value: 'production', label: 'Production', icon: <Flame className="w-3.5 h-3.5 text-red-400" /> },
+              { value: 'staging', label: 'Staging', icon: <Cpu className="w-3.5 h-3.5 text-amber-400" /> },
+              { value: 'development', label: 'Development', icon: <Code className="w-3.5 h-3.5 text-blue-400" /> },
+            ]}
+          />
+        </div>
       </div>
 
       <DataTable

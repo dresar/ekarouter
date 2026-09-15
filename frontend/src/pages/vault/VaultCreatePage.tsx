@@ -1,12 +1,16 @@
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Save, AlertCircle, KeyRound, ShieldCheck, Lock, Globe, Flame, Cpu, Code } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
+import { ProviderSelect } from '../../components/ui/ProviderSelect.tsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
 import { api } from '../../api/client.ts'
+import { Provider } from '../../types/api.ts'
 
 export function VaultCreatePage() {
   const navigate = useNavigate()
+  const [providers, setProviders] = useState<Provider[]>([])
   const [formData, setFormData] = useState({
     name: '',
     provider_id: 'openai',
@@ -18,6 +22,12 @@ export function VaultCreatePage() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.get<Provider[]>('/api/providers')
+      .then((res) => setProviders(res || []))
+      .catch(() => {})
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -89,15 +99,16 @@ export function VaultCreatePage() {
 
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
-              Provider ID / Slug *
+              Provider *
             </label>
-            <input
-              type="text"
-              required
+            <ProviderSelect
               value={formData.provider_id}
-              onChange={(e) => setFormData({ ...formData, provider_id: e.target.value })}
-              placeholder="Provider"
-              className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
+              onChange={(val) => setFormData({ ...formData, provider_id: val })}
+              providers={providers.map((p) => ({
+                id: p.id,
+                name: p.name,
+                kind: p.kind,
+              }))}
             />
           </div>
         </div>
@@ -125,31 +136,31 @@ export function VaultCreatePage() {
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
               Credential Type *
             </label>
-            <select
+            <SearchableSelect
               value={formData.credential_type}
-              onChange={(e) => setFormData({ ...formData, credential_type: e.target.value })}
-              className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
-            >
-              <option value="api_key">API Key</option>
-              <option value="bearer_token">Bearer Token</option>
-              <option value="basic_auth">Basic Auth</option>
-              <option value="oauth2">OAuth 2.0</option>
-            </select>
+              onChange={(val) => setFormData({ ...formData, credential_type: val })}
+              options={[
+                { value: 'api_key', label: 'API Key', icon: <KeyRound className="w-3.5 h-3.5 text-amber-400" /> },
+                { value: 'bearer_token', label: 'Bearer Token', icon: <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> },
+                { value: 'basic_auth', label: 'Basic Auth', icon: <Lock className="w-3.5 h-3.5 text-purple-400" /> },
+                { value: 'oauth2', label: 'OAuth 2.0', icon: <Globe className="w-3.5 h-3.5 text-emerald-400" /> },
+              ]}
+            />
           </div>
 
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
               Environment *
             </label>
-            <select
+            <SearchableSelect
               value={formData.environment}
-              onChange={(e) => setFormData({ ...formData, environment: e.target.value })}
-              className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
-            >
-              <option value="production">Production</option>
-              <option value="staging">Staging</option>
-              <option value="development">Development</option>
-            </select>
+              onChange={(val) => setFormData({ ...formData, environment: val })}
+              options={[
+                { value: 'production', label: 'Production', icon: <Flame className="w-3.5 h-3.5 text-red-400" /> },
+                { value: 'staging', label: 'Staging', icon: <Cpu className="w-3.5 h-3.5 text-amber-400" /> },
+                { value: 'development', label: 'Development', icon: <Code className="w-3.5 h-3.5 text-blue-400" /> },
+              ]}
+            />
           </div>
 
           <div>

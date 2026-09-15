@@ -6,6 +6,9 @@ import { Button } from '../../components/ui/Button.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
 import { Provider, Account, Route, RouteItem } from '../../types/api.ts'
+import { ProviderSelect } from '../../components/ui/ProviderSelect.tsx'
+import { AccountSelect } from '../../components/ui/AccountSelect.tsx'
+import { StrategySelect } from '../../components/ui/StrategySelect.tsx'
 
 interface TargetRow {
   id: string
@@ -192,17 +195,10 @@ export function RouteDetailPage() {
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                 Dispatch Strategy *
               </label>
-              <select
+              <StrategySelect
                 value={strategy}
-                onChange={(e) =>
-                  setStrategy(e.target.value as 'priority' | 'round_robin' | 'least_used')
-                }
-                className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
-              >
-                <option value="priority">Priority Fallback</option>
-                <option value="round_robin">Round Robin</option>
-                <option value="least_used">Least Used</option>
-              </select>
+                onChange={(val) => setStrategy(val)}
+              />
             </div>
           </div>
 
@@ -265,39 +261,32 @@ export function RouteDetailPage() {
                       <label className="block text-[10px] uppercase font-semibold text-[var(--text-muted)] mb-1">
                         Provider
                       </label>
-                      <select
+                      <ProviderSelect
                         value={target.provider_id}
-                        onChange={(e) =>
-                          handleTargetChange(target.id, 'provider_id', e.target.value)
+                        onChange={(val) =>
+                          handleTargetChange(target.id, 'provider_id', val)
                         }
-                        className="w-full px-2 py-1 text-[12px] rounded focus:outline-none"
-                      >
-                        {providers.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.kind})
-                          </option>
-                        ))}
-                      </select>
+                        providers={providers.map((p) => ({
+                          id: p.id,
+                          name: p.name,
+                          kind: p.kind,
+                        }))}
+                      />
                     </div>
 
                     <div className="sm:col-span-4">
                       <label className="block text-[10px] uppercase font-semibold text-[var(--text-muted)] mb-1">
                         Account Key
                       </label>
-                      <select
+                      <AccountSelect
                         value={target.account_id}
-                        onChange={(e) =>
-                          handleTargetChange(target.id, 'account_id', e.target.value)
+                        onChange={(val) =>
+                          handleTargetChange(target.id, 'account_id', val)
                         }
-                        className="w-full px-2 py-1 text-[12px] rounded focus:outline-none"
-                      >
-                        <option value="">Default Provider Credential</option>
-                        {targetAccounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} (Tier {a.priority})
-                          </option>
-                        ))}
-                      </select>
+                        providerId={target.provider_id}
+                        providerName={providers.find((p) => p.id === target.provider_id)?.name}
+                        accounts={targetAccounts}
+                      />
                     </div>
 
                     <div className="sm:col-span-1">

@@ -19,6 +19,8 @@ import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
 import { CredentialPool, PoolMember, Account } from '../../types/api.ts'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.tsx'
+import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 
 export function PoolDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -295,17 +297,17 @@ export function PoolDetailPage() {
                 <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
                   Select Account *
                 </label>
-                <select
+                <SearchableSelect
                   value={memberForm.account_id}
-                  onChange={(e) => setMemberForm({ ...memberForm, account_id: e.target.value })}
-                  className="w-full px-2.5 py-1.5 text-[12.5px] rounded focus:outline-none"
-                >
-                  {availableAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.provider_id})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setMemberForm({ ...memberForm, account_id: val })}
+                  placeholder="Select Account..."
+                  options={availableAccounts.map((a) => ({
+                    value: a.id,
+                    label: a.name,
+                    sublabel: `(${a.provider_id})`,
+                    icon: <ProviderLogo providerId={a.provider_id} name={a.name} size="sm" />,
+                  }))}
+                />
               </div>
 
               <div>
