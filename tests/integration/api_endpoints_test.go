@@ -600,7 +600,6 @@ func TestUnimplementedEndpointGroups(t *testing.T) {
 		{http.MethodPost, "/api/v1/model-aliases/alias-1/resolve", "Models"},
 		// AI Proxy
 		{http.MethodPost, "/v1/completions", "AI Proxy"},
-		{http.MethodPost, "/v1/embeddings", "AI Proxy"},
 		{http.MethodPost, "/v1/images/generations", "AI Proxy"},
 		{http.MethodPost, "/v1/audio/transcriptions", "AI Proxy"},
 		{http.MethodPost, "/api/v1/proxy/test", "AI Proxy"},
@@ -654,5 +653,17 @@ func TestUnimplementedEndpointGroups(t *testing.T) {
 				t.Fatalf("Expected 404 for unimplemented %s %s, got %d", tc.method, tc.path, res.Code)
 			}
 		})
+	}
+}
+
+func TestEmbeddingsEndpoint_Implemented(t *testing.T) {
+	env := SetupTestEnv(t)
+	payload := map[string]any{
+		"model": "text-embedding-3-small",
+		"input": "Hello embeddings",
+	}
+	res := env.GatewayReq(http.MethodPost, "/v1/embeddings", payload)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /v1/embeddings, got %d: %s", res.Code, res.Body.String())
 	}
 }

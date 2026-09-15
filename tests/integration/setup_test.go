@@ -50,6 +50,9 @@ func SetupTestEnv(t *testing.T) *TestEnv {
 	if err != nil {
 		t.Fatalf("Failed to setup test application: %v", err)
 	}
+	t.Cleanup(func() {
+		_ = application.DB.Close()
+	})
 
 	loginPayload := `{"username":"admin","password":"admin12345"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(loginPayload))
@@ -109,6 +112,8 @@ func (e *TestEnv) Request(method, path string, body any, authHeader string) *htt
 			bodyReader = bytes.NewReader([]byte(v))
 		case []byte:
 			bodyReader = bytes.NewReader(v)
+		case *bytes.Buffer:
+			bodyReader = bytes.NewReader(v.Bytes())
 		default:
 			b, _ := json.Marshal(body)
 			bodyReader = bytes.NewReader(b)

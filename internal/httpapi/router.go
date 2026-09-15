@@ -111,6 +111,7 @@ func NewServer(
 		v1.Get("/models", gwHandler.ListModels)
 		v1.Post("/chat/completions", gwHandler.ChatCompletions)
 		v1.Post("/responses", gwHandler.Responses)
+		v1.Post("/embeddings", gwHandler.Embeddings)
 	})
 
 	r.Route("/api/v1", func(apiV1 chi.Router) {

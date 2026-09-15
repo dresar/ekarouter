@@ -25,16 +25,7 @@ func NewGatewayHandler(gw *gateway.Gateway, db *sql.DB) *GatewayHandler {
 }
 
 func (h *GatewayHandler) ListModels(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.db.QueryContext(r.Context(), `
-SELECT external_name FROM models WHERE enabled = 1
-UNION
-SELECT name FROM routes WHERE enabled = 1`)
-	if err != nil {
-		http.Error(w, `{"error":"failed to query models"}`, http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
+	seen := make(map[string]bool)
 	type ModelItem struct {
 		ID      string `json:"id"`
 		Object  string `json:"object"`
@@ -44,11 +35,36 @@ SELECT name FROM routes WHERE enabled = 1`)
 
 	var models []ModelItem
 	now := time.Now().Unix()
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err == nil {
+
+	if h.db != nil {
+		rows, err := h.db.QueryContext(r.Context(), `
+SELECT external_name FROM models WHERE enabled = 1
+UNION
+SELECT name FROM routes WHERE enabled = 1`)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var name string
+				if err := rows.Scan(&name); err == nil && name != "" {
+					if !seen[name] {
+						seen[name] = true
+						models = append(models, ModelItem{
+							ID:      name,
+							Object:  "model",
+							Created: now,
+							OwnedBy: "ekarouter",
+						})
+					}
+				}
+			}
+		}
+	}
+
+	for _, cm := range providers.GetAllCanonicalModels() {
+		if !seen[cm.ID] {
+			seen[cm.ID] = true
 			models = append(models, ModelItem{
-				ID:      name,
+				ID:      cm.ID,
 				Object:  "model",
 				Created: now,
 				OwnedBy: "ekarouter",

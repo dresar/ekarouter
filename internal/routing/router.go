@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -337,26 +336,26 @@ func (r *Router) selectFromRoute(route *Route) ([]Target, error) {
 }
 
 func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
+	info := ParseModel(targetName)
+
 	providerKind := ""
-	actualModel := targetName
+	actualModel := info.Model
+	if info.ThinkingSuffix != "" {
+		actualModel = info.Model + info.ThinkingSuffix
+	}
 	specificProviderID := ""
 
-	if strings.Contains(targetName, "/") {
-		parts := strings.SplitN(targetName, "/", 2)
-		prefix := strings.ToLower(parts[0])
+	if info.Provider != "" {
+		if info.ProviderAlias != "" {
+			specificProviderID = info.Provider
+		}
 		r.mu.RLock()
-		if kind, ok := r.providers[prefix]; ok {
+		if kind, ok := r.providers[info.Provider]; ok {
 			providerKind = kind
-			specificProviderID = prefix
-			actualModel = parts[1]
 		}
 		r.mu.RUnlock()
 		if providerKind == "" {
-			switch prefix {
-			case "openai", "anthropic", "gemini", "custom":
-				providerKind = prefix
-				actualModel = parts[1]
-			}
+			providerKind = info.Provider
 		}
 	}
 
@@ -364,20 +363,10 @@ func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
 		r.mu.RLock()
 		if kind, ok := r.modelProvider[targetName]; ok {
 			providerKind = kind
+		} else if kind, ok := r.modelProvider[info.NormalizedModel]; ok {
+			providerKind = kind
 		}
 		r.mu.RUnlock()
-	}
-
-	if providerKind == "" {
-		lower := strings.ToLower(targetName)
-		switch {
-		case strings.HasPrefix(lower, "gpt-") || strings.HasPrefix(lower, "o1") || strings.HasPrefix(lower, "o3") || strings.HasPrefix(lower, "chatgpt") || strings.HasPrefix(lower, "text-embedding"):
-			providerKind = "openai"
-		case strings.HasPrefix(lower, "claude"):
-			providerKind = "anthropic"
-		case strings.HasPrefix(lower, "gemini"):
-			providerKind = "gemini"
-		}
 	}
 
 	if providerKind == "" {
@@ -393,15 +382,15 @@ func (r *Router) selectDynamicTargets(targetName string) ([]Target, error) {
 		if r.cooldowns.IsCoolingDown(acc.ID) {
 			continue
 		}
-		if specificProviderID != "" {
-			if acc.ProviderID == specificProviderID {
-				eligible = append(eligible, acc)
-			}
-			continue
-		}
 		kind := r.providers[acc.ProviderID]
 		if kind == "" {
 			kind = acc.ProviderID
+		}
+		if specificProviderID != "" {
+			if acc.ProviderID == specificProviderID || kind == specificProviderID {
+				eligible = append(eligible, acc)
+			}
+			continue
 		}
 		if kind == providerKind {
 			eligible = append(eligible, acc)
