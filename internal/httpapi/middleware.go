@@ -95,15 +95,20 @@ func GatewayAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 			var keyID string
 			err := db.QueryRowContext(r.Context(), "SELECT id FROM api_keys WHERE hash = ? AND enabled = 1", tokenHash).Scan(&keyID)
 			if err != nil {
-				http.Error(w, `{"error":"unauthorized: invalid api key"}`, http.StatusUnauthorized)
-				return
+				var sessionUserID string
+				sErr := db.QueryRowContext(r.Context(), "SELECT user_id FROM sessions WHERE token_hash = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP) AND revoked_at IS NULL", tokenHash).Scan(&sessionUserID)
+				if sErr != nil {
+					http.Error(w, `{"error":"unauthorized: invalid api key"}`, http.StatusUnauthorized)
+					return
+				}
+				keyID = "session:" + sessionUserID
+			} else {
+				go func(k string) {
+					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+					defer cancel()
+					_, _ = db.ExecContext(ctx, "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", k)
+				}(keyID)
 			}
-
-			go func(k string) {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-				_, _ = db.ExecContext(ctx, "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", k)
-			}(keyID)
 
 			ctx := context.WithValue(r.Context(), apiKeyIDKey, keyID)
 			next.ServeHTTP(w, r.WithContext(ctx))
