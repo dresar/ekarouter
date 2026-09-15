@@ -29,6 +29,7 @@ import {
   Ban,
   RotateCw,
   KeyRound,
+  Loader2,
   X,
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button.tsx'
@@ -105,7 +106,14 @@ export function ProviderDetailPage() {
   const [isSavingRowProxy, setIsSavingRowProxy] = useState(false)
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
-  const [showBulkAddSheet, setShowBulkAddSheet] = useState(false)
+  const [addModalTab, setAddModalTab] = useState<'single' | 'bulk'>('single')
+  const [bulkPriority, setBulkPriority] = useState(1)
+  const [checkingKey, setCheckingKey] = useState(false)
+  const [keyCheckResult, setKeyCheckResult] = useState<{
+    status: 'valid' | 'invalid'
+    latency?: number
+    message?: string
+  } | null>(null)
   const [bulkText, setBulkText] = useState('')
   const [bulkPrefix, setBulkPrefix] = useState('Key')
   const [bulkProxyId, setBulkProxyId] = useState('')
@@ -508,6 +516,31 @@ export function ProviderDetailPage() {
     }
   }
 
+  const handleCheckApiKey = async () => {
+    if (!addForm.api_key.trim() || !id) return
+    setCheckingKey(true)
+    setKeyCheckResult(null)
+    try {
+      const res = await api.post<{ status: string; latency_ms?: number; message?: string }>('/api/keys/health', {
+        api_key: addForm.api_key.trim(),
+        provider: id,
+        proxy_url: addForm.proxy_pool_id ? proxies.find((p) => p.id === addForm.proxy_pool_id)?.host : undefined,
+      })
+      setKeyCheckResult({
+        status: res.status === 'valid' || res.status === 'healthy' ? 'valid' : 'invalid',
+        latency: res.latency_ms,
+        message: res.message,
+      })
+    } catch (err: unknown) {
+      setKeyCheckResult({
+        status: 'invalid',
+        message: err instanceof Error ? err.message : 'Invalid API key',
+      })
+    } finally {
+      setCheckingKey(false)
+    }
+  }
+
   const handleEditSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!editingAccount) return
@@ -558,20 +591,14 @@ export function ProviderDetailPage() {
     if (!proxyTargetAccount) return
     setIsSavingRowProxy(true)
     try {
-      await api.put(`/api/accounts/${proxyTargetAccount.id}`, {
-        proxy_pool_id: proxyPoolId,
+      await api.patch(`/api/accounts/${proxyTargetAccount.id}`, {
+        proxy_pool_id: proxyPoolId || null,
       })
       setShowRowProxySheet(false)
-      const selectedProxy = proxies.find((p) => p.id === proxyPoolId)
-      setActionSuccess(
-        proxyPoolId
-          ? `Proxy ${selectedProxy?.name || ''} berhasil dipasang ke ${proxyTargetAccount.name}`
-          : `Proxy dilepas. ${proxyTargetAccount.name} kini terhubung Direct (tanpa proxy).`
-      )
-      setTimeout(() => setActionSuccess(null), 3500)
+      setProxyTargetAccount(null)
       await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Gagal mengatur proxy')
+      setError(err instanceof Error ? err.message : 'Failed to update proxy')
     } finally {
       setIsSavingRowProxy(false)
     }
@@ -613,7 +640,7 @@ export function ProviderDetailPage() {
           provider_id: provider.id,
           name,
           auth_type: 'apikey',
-          priority: accounts.length + idx + 1,
+          priority: Number(bulkPriority) || (accounts.length + idx + 1),
           api_key: key,
           proxy_pool_id: bulkProxyId || undefined,
         }
@@ -624,7 +651,7 @@ export function ProviderDetailPage() {
       )
 
       const successCount = results.filter((r) => r.status === 'fulfilled').length
-      setShowBulkAddSheet(false)
+      setShowAddSheet(false)
       setBulkText('')
       setActionSuccess(`Berhasil menambahkan ${successCount} key secara massal!`)
       setTimeout(() => setActionSuccess(null), 4000)
@@ -992,7 +1019,7 @@ export function ProviderDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {isOAuth && (
+            {isOAuth ? (
               <button
                 type="button"
                 onClick={handleStartOAuth}
@@ -1002,34 +1029,33 @@ export function ProviderDetailPage() {
                 <KeyRound className="w-3.5 h-3.5" />
                 <span>{isStartingOAuth ? 'Starting...' : 'Connect OAuth'}</span>
               </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddModalTab('single')
+                  setAddForm({
+                    name: '',
+                    auth_type: 'apikey',
+                    priority: accounts.length + 1,
+                    api_key: '',
+                    proxy_pool_id: '',
+                  })
+                  setBulkText('')
+                  setBulkPrefix('Key')
+                  setBulkPriority(accounts.length + 1)
+                  setBulkProxyId('')
+                  setFormError(null)
+                  setBulkError(null)
+                  setKeyCheckResult(null)
+                  setShowAddSheet(true)
+                }}
+                className="h-8 px-3 text-[12px] font-semibold rounded-[6px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Key</span>
+              </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setAddForm({ name: '', auth_type: 'apikey', priority: accounts.length + 1, api_key: '', proxy_pool_id: '' })
-                setFormError(null)
-                setShowAddSheet(true)
-              }}
-              className="h-8 px-3 text-[12px] font-semibold rounded-[6px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Key</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setBulkText('')
-                setBulkProxyId('')
-                setBulkError(null)
-                setShowBulkAddSheet(true)
-              }}
-              className="h-8 px-3 text-[12px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#2a2d35] border border-[#363a45] text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-[#9fa3b4]" />
-              <span>Bulk Add</span>
-            </button>
 
             <button
               type="button"
@@ -1630,201 +1656,280 @@ export function ProviderDetailPage() {
       </BottomSheet>
 
       <BottomSheet
-        isOpen={showBulkAddSheet}
-        onClose={() => setShowBulkAddSheet(false)}
-        title={`Bulk Add Connections — ${provider?.name || ''}`}
-        description="Tambahkan banyak API key sekaligus secara massal (satu key per baris)"
-        maxWidth="max-w-2xl"
-      >
-        <form onSubmit={handleBulkAddSubmit} className="space-y-4">
-          {bulkError && (
-            <div className="flex items-center gap-2 p-3 rounded-[6px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[12px]">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {bulkError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                Prefix Nama Otomatis
-              </label>
-              <input
-                type="text"
-                value={bulkPrefix}
-                onChange={(e) => setBulkPrefix(e.target.value)}
-                placeholder="Nama"
-                className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                Pasangkan Proxy Relay (Opsional)
-              </label>
-              <select
-                value={bulkProxyId}
-                onChange={(e) => setBulkProxyId(e.target.value)}
-                className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-              >
-                <option value="">Direct (Tanpa Proxy)</option>
-                {proxies.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {p.scheme}://{p.host}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)]">
-                Daftar API Keys (1 per baris) *
-              </label>
-              <span className="text-[11px] font-mono text-[#ea580c]">
-                {
-                  bulkText
-                    .split('\n')
-                    .map((l) => l.trim())
-                    .filter((l) => l.length > 0).length
-                }{' '}
-                key terdeteksi
-              </span>
-            </div>
-            <textarea
-              required
-              rows={8}
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-              placeholder="Kunci"
-              className="w-full p-3 text-[12.5px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors leading-relaxed"
-            />
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">
-              Sistem akan otomatis memberi nama berurutan dan mendaftarkan seluruh key ke database dengan enkripsi AES-256.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => setShowBulkAddSheet(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="compact"
-              isLoading={isBulkAdding}
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-            >
-              Tambah
-            </Button>
-          </div>
-        </form>
-      </BottomSheet>
-
-      <BottomSheet
         isOpen={showAddSheet}
-        onClose={() => setShowAddSheet(false)}
-        title={`Add Connection — ${provider?.name || ''}`}
-        description="API key or credential will be encrypted with AES-256-GCM"
-        maxWidth="max-w-2xl"
+        onClose={() => {
+          setShowAddSheet(false)
+          setKeyCheckResult(null)
+          setFormError(null)
+          setBulkError(null)
+        }}
+        title={`Add ${provider?.name || ''} API Key`}
+        maxWidth="max-w-lg"
       >
-        <form onSubmit={handleAddSubmit} className="space-y-4">
-          {formError && (
-            <div className="flex items-center gap-2 p-3 rounded-[6px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[12px]">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {formError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                Connection Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={addForm.name}
-                onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                placeholder="Nama"
-                className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                Priority (higher = more preferred)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={addForm.priority}
-                onChange={(e) => setAddForm({ ...addForm, priority: parseInt(e.target.value) || 1 })}
-                className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-              API Key / Access Token *
-            </label>
-            <input
-              type="password"
-              required
-              autoComplete="new-password"
-              value={addForm.api_key}
-              onChange={(e) => setAddForm({ ...addForm, api_key: e.target.value })}
-              placeholder="Kunci"
-              className="w-full h-9 px-3 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-              Proxy (optional)
-            </label>
-            <select
-              value={addForm.proxy_pool_id}
-              onChange={(e) => setAddForm({ ...addForm, proxy_pool_id: e.target.value })}
-              className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-            >
-              <option value="">Direct (no proxy)</option>
-              {proxies.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.scheme}://{p.host}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
-            <Button
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <button
               type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => setShowAddSheet(false)}
+              onClick={() => {
+                setAddModalTab('single')
+                setFormError(null)
+              }}
+              className={`px-3 py-1 text-[12px] font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                addModalTab === 'single'
+                  ? 'bg-[#ea580c] text-white shadow-xs'
+                  : 'text-[#9fa3b4] hover:text-white hover:bg-[#202227]'
+              }`}
             >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="compact"
-              isLoading={isSubmitting}
-              leftIcon={<Shield className="w-3.5 h-3.5" />}
+              Single
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddModalTab('bulk')
+                setBulkError(null)
+              }}
+              className={`px-3 py-1 text-[12px] font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                addModalTab === 'bulk'
+                  ? 'bg-[#ea580c] text-white shadow-xs'
+                  : 'text-[#9fa3b4] hover:text-white hover:bg-[#202227]'
+              }`}
             >
-              Save Connection
-            </Button>
+              Bulk Add
+            </button>
           </div>
-        </form>
+
+          {addModalTab === 'single' ? (
+            <form onSubmit={handleAddSubmit} className="space-y-4">
+              {formError && (
+                <div className="flex items-center gap-2 p-2.5 rounded-[6px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[12px]">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {formError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  placeholder="Production Key"
+                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[#63687b] focus:outline-none focus:border-[#ea580c] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  API Key
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    value={addForm.api_key}
+                    onChange={(e) => {
+                      setAddForm({ ...addForm, api_key: e.target.value })
+                      setKeyCheckResult(null)
+                    }}
+                    placeholder="Enter API Key"
+                    className="w-full h-9 pl-3 pr-20 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[#63687b] focus:outline-none focus:border-[#ea580c] transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCheckApiKey}
+                    disabled={checkingKey || !addForm.api_key.trim()}
+                    className="absolute right-1.5 h-6 px-2.5 text-[11.5px] font-medium rounded-[5px] bg-[#2a2d37] hover:bg-[#363a45] text-[#d0d3de] border border-[#3e4250] flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-40"
+                  >
+                    {checkingKey && <Loader2 className="w-3 h-3 animate-spin" />}
+                    <span>Check</span>
+                  </button>
+                </div>
+                {keyCheckResult && (
+                  <div
+                    className={`mt-1.5 text-[11.5px] flex items-center gap-1.5 ${
+                      keyCheckResult.status === 'valid'
+                        ? 'text-emerald-400'
+                        : 'text-rose-400'
+                    }`}
+                  >
+                    {keyCheckResult.status === 'valid' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span>
+                      {keyCheckResult.message || (keyCheckResult.status === 'valid' ? 'Key valid' : 'Key invalid')}
+                      {keyCheckResult.latency ? ` (${keyCheckResult.latency}ms)` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  Priority
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={addForm.priority}
+                  onChange={(e) => setAddForm({ ...addForm, priority: parseInt(e.target.value) || 1 })}
+                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  Proxy Pool
+                </label>
+                <select
+                  value={addForm.proxy_pool_id}
+                  onChange={(e) => setAddForm({ ...addForm, proxy_pool_id: e.target.value })}
+                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                >
+                  <option value="">None</option>
+                  {proxies.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.scheme}://{p.host}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#787c8d] mt-2">
+                  Legacy manual proxy fields are still accepted by API for backward compatibility.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)]">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="compact"
+                  isLoading={isSubmitting}
+                  className="h-9 px-6 text-[12.5px] font-medium rounded-[6px] bg-[#2a2d37] hover:bg-[#363a45] text-[#e0e2eb] border border-[#3e4250]"
+                >
+                  Save
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setShowAddSheet(false)}
+                  className="h-9 px-4 text-[12.5px] font-medium text-[#8e92a4] hover:text-white"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleBulkAddSubmit} className="space-y-4">
+              {bulkError && (
+                <div className="flex items-center gap-2 p-2.5 rounded-[6px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[12px]">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {bulkError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={bulkPrefix}
+                  onChange={(e) => setBulkPrefix(e.target.value)}
+                  placeholder="Key"
+                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[12px] font-semibold text-[#e0e2eb]">
+                    API Key
+                  </label>
+                  <span className="text-[11px] font-mono text-[#ea580c]">
+                    {
+                      bulkText
+                        .split('\n')
+                        .map((l) => l.trim())
+                        .filter((l) => l.length > 0).length
+                    }{' '}
+                    keys detected
+                  </span>
+                </div>
+                <textarea
+                  required
+                  rows={6}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder="Paste multiple API keys here (one per line)..."
+                  className="w-full p-3 text-[12.5px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[#63687b] focus:outline-none focus:border-[#ea580c] transition-colors leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  Priority
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={bulkPriority}
+                  onChange={(e) => setBulkPriority(parseInt(e.target.value) || 1)}
+                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#e0e2eb] mb-1.5">
+                  Proxy Pool
+                </label>
+                <select
+                  value={bulkProxyId}
+                  onChange={(e) => setBulkProxyId(e.target.value)}
+                  className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                >
+                  <option value="">None</option>
+                  {proxies.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.scheme}://{p.host}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#787c8d] mt-2">
+                  Legacy manual proxy fields are still accepted by API for backward compatibility.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)]">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="compact"
+                  isLoading={isBulkAdding}
+                  className="h-9 px-6 text-[12.5px] font-medium rounded-[6px] bg-[#2a2d37] hover:bg-[#363a45] text-[#e0e2eb] border border-[#3e4250]"
+                >
+                  Save
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setShowAddSheet(false)}
+                  className="h-9 px-4 text-[12.5px] font-medium text-[#8e92a4] hover:text-white"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
       </BottomSheet>
 
       <BottomSheet
