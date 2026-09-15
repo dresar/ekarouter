@@ -53,6 +53,22 @@ func NewServer(
 
 	gwHandler := NewGatewayHandler(gw, db)
 	adminHandler := NewAdminHandler(db, cfg, crypto, usageRec, ts, router, oauthMgr, extra...)
+	aiDocsHandler := NewAIDocsHandler(db, cfg, router)
+	mcpHandler := NewMCPHandler(db, gw, ts, router, cfg)
+
+	r.Get("/docs", aiDocsHandler.ServeHTMLDocs)
+	r.Get("/docs/raw", aiDocsHandler.GetDocs)
+	r.Get("/api/ai/docs", aiDocsHandler.GetDocs)
+	r.Get("/api/ai/prompt", aiDocsHandler.GetPrompt)
+	r.Get("/api/ai/skills", aiDocsHandler.GetSkills)
+	r.Get("/api/ai/status", aiDocsHandler.GetStatus)
+	r.Get("/api/ai/keys", aiDocsHandler.GetKeys)
+
+	r.Post("/mcp", mcpHandler.HandleJSONRPC)
+	r.Get("/mcp/sse", mcpHandler.HandleSSE)
+	r.Post("/mcp/messages", mcpHandler.HandleMessages)
+	r.Post("/api/mcp", mcpHandler.HandleJSONRPC)
+	r.Get("/api/mcp/sse", mcpHandler.HandleSSE)
 
 	r.Route("/auth", func(authRouter chi.Router) {
 		authRouter.Post("/login", adminHandler.Login)

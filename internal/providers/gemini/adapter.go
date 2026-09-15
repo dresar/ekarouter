@@ -92,6 +92,12 @@ func (a *Adapter) buildEndpointURL(req *providers.Request, creds *providers.Cred
 		cleaned := strings.TrimRight(baseURL, "/")
 		if cleaned == "" {
 			cleaned = "https://generativelanguage.googleapis.com/v1beta/models"
+		} else if !strings.Contains(cleaned, "/models") {
+			if !strings.Contains(cleaned, "/v1") {
+				cleaned += "/v1beta/models"
+			} else {
+				cleaned += "/models"
+			}
 		}
 		if stream && !isImage {
 			return fmt.Sprintf("%s/%s:streamGenerateContent?alt=sse&key=%s", cleaned, req.Model, apiKey)
@@ -278,6 +284,9 @@ func (a *Adapter) prepareHTTPRequest(ctx context.Context, req *providers.Request
 		httpReq.Header.Set("Content-Type", "application/json")
 		if creds != nil && creds.AccessToken != "" {
 			httpReq.Header.Set("Authorization", "Bearer "+creds.AccessToken)
+		}
+		if creds != nil && creds.BaseURL != "" && !strings.Contains(creds.BaseURL, "googleapis.com") {
+			httpReq.Header.Set("x-relay-target", "https://generativelanguage.googleapis.com")
 		}
 	}
 

@@ -65,6 +65,8 @@ func ClassifyHTTPError(statusCode int, body string) *ProviderError {
 		return &ProviderError{StatusCode: statusCode, Class: ErrorClassQuota, Message: "upstream quota exceeded"}
 	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
 		return &ProviderError{StatusCode: statusCode, Class: ErrorClassAuth, Message: "upstream authentication failed"}
+	case statusCode == http.StatusNotFound:
+		return &ProviderError{StatusCode: statusCode, Class: ErrorClassUpstream5xx, Message: fmt.Sprintf("upstream endpoint not found: %d", statusCode)}
 	case statusCode >= 500:
 		return &ProviderError{StatusCode: statusCode, Class: ErrorClassUpstream5xx, Message: fmt.Sprintf("upstream server error: %d", statusCode)}
 	case statusCode >= 400:

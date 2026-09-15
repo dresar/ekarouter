@@ -130,6 +130,7 @@ func (g *Gateway) Execute(ctx context.Context, req *providers.Request) (*provide
 			}
 
 			if !providers.IsTransient(execErr) {
+				g.cooldowns.MarkFailure(target.AccountID, 1*time.Minute)
 				g.recordUsage(req.ID, target, providers.Usage{}, time.Since(start), 400, execErr.Error())
 				return nil, execErr
 			}
@@ -239,6 +240,7 @@ func (g *Gateway) ExecuteStream(ctx context.Context, req *providers.Request) (<-
 		}
 
 		if !providers.IsTransient(streamErr) {
+			g.cooldowns.MarkFailure(target.AccountID, 1*time.Minute)
 			g.recordUsage(req.ID, target, providers.Usage{}, time.Since(start), 400, streamErr.Error())
 			return nil, streamErr
 		}
