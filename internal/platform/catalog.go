@@ -499,4 +499,381 @@ func RegisterDefaultProviders(r *Registry) {
 		FreeTierNotes:       "Self-configured.",
 		Enabled:             true,
 	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "antigravity",
+		Name:           "Antigravity",
+		Category:       CategoryOAuth,
+		Description:    "Google Cloud Code & Antigravity IDE models with OAuth",
+		BaseURL:        "https://daily-cloudcode-pa.googleapis.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapQuotaAPI, CapHealthCheck, CapRequestProxy},
+		WebsiteURL:     "https://antigravity.google",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "claude",
+		Name:           "Claude Code",
+		Category:       CategoryOAuth,
+		Description:    "Anthropic Claude Code CLI with PKCE OAuth",
+		BaseURL:        "https://api.anthropic.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck, CapRequestProxy},
+		WebsiteURL:     "https://claude.ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "qoder",
+		Name:           "Qoder",
+		Category:       CategoryOAuth,
+		Description:    "Qoder AI coding assistant OAuth connection",
+		BaseURL:        "https://api.qoder.co",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://qoder.co",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "codex",
+		Name:           "OpenAI Codex",
+		Category:       CategoryOAuth,
+		Description:    "OpenAI Codex CLI with PKCE OAuth flow",
+		BaseURL:        "https://api.openai.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck, CapRequestProxy},
+		WebsiteURL:     "https://openai.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "github-copilot",
+		Name:           "GitHub Copilot",
+		Category:       CategoryOAuth,
+		Description:    "GitHub Copilot IDE & CLI OAuth integration",
+		BaseURL:        "https://api.githubcopilot.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck, CapRequestProxy},
+		WebsiteURL:     "https://github.com/features/copilot",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "cursor",
+		Name:           "Cursor IDE",
+		Category:       CategoryOAuth,
+		Description:    "Cursor AI IDE connection and token mapping",
+		BaseURL:        "https://api.cursor.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://cursor.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "kilocode",
+		Name:           "Kilo Code",
+		Category:       CategoryOAuth,
+		Description:    "Kilo Code device authentication flow",
+		BaseURL:        "https://api.kilocode.ai",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://kilocode.ai",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "cline",
+		Name:           "Cline",
+		Category:       CategoryOAuth,
+		Description:    "Cline autonomous coding agent callback session",
+		BaseURL:        "https://api.cline.bot",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://cline.bot",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "clinepass",
+		Name:           "ClinePass",
+		Category:       CategoryOAuth,
+		Description:    "ClinePass shared authorization tunnel",
+		BaseURL:        "https://api.clinepass.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://clinepass.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "codebuddy-intl",
+		Name:           "CodeBuddy",
+		Category:       CategoryOAuth,
+		Description:    "CodeBuddy AI coding assistant",
+		BaseURL:        "https://api.codebuddy.ai",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://codebuddy.ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "codebuddy-cn",
+		Name:           "CodeBuddy CN",
+		Category:       CategoryOAuth,
+		Description:    "Tencent CodeBuddy Chinese region connection",
+		BaseURL:        "https://api.codebuddy.cn",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://codebuddy.cn",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "kimi",
+		Name:           "Kimi",
+		Category:       CategoryOAuth,
+		Description:    "Moonshot Kimi Code device authentication",
+		BaseURL:        "https://api.kimi.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://kimi.moonshot.cn",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "grok-cli",
+		Name:           "Grok CLI (Grok Build)",
+		Category:       CategoryOAuth,
+		Description:    "xAI Grok developer CLI authentication",
+		BaseURL:        "https://api.x.ai",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://x.ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "xai",
+		Name:           "xAI (Grok)",
+		Category:       CategoryOAuth,
+		Description:    "xAI Grok official API connection",
+		BaseURL:        "https://api.x.ai/v1",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://x.ai",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "xiaomi-mimo",
+		Name:           "Xiaomi MiMo",
+		Category:       CategoryOAuth,
+		Description:    "Xiaomi MiMo AI OAuth service",
+		BaseURL:        "https://api.mimo.mi.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://mimo.mi.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "opencode",
+		Name:           "OpenCode Free",
+		Category:       CategoryFreeTier,
+		Description:    "OpenCode free AI coding inference tier",
+		BaseURL:        "https://opencode.ai",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://opencode.ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "gemini-cli",
+		Name:           "Gemini CLI",
+		Category:       CategoryFreeTier,
+		Description:    "Google Gemini Cloud Companion CLI",
+		BaseURL:        "https://cloudaicompanion.googleapis.com/v1",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapQuotaAPI, CapHealthCheck},
+		WebsiteURL:     "https://ai.google.dev",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "kiro",
+		Name:           "Kiro AI",
+		Category:       CategoryFreeTier,
+		Description:    "Kiro AI assistant free tier inference",
+		BaseURL:        "https://kiro.ai",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://kiro.ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "openrouter",
+		Name:           "OpenRouter",
+		Category:       CategoryFreeTier,
+		Description:    "Aggregated free tier and pay-as-you-go AI models",
+		BaseURL:        "https://openrouter.ai/api/v1",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://openrouter.ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "nvidia",
+		Name:           "NVIDIA NIM",
+		Category:       CategoryFreeTier,
+		Description:    "NVIDIA NIM Cloud inference microservices free tier",
+		BaseURL:        "https://integrate.api.nvidia.com/v1",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://build.nvidia.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "ollama",
+		Name:           "Ollama Cloud",
+		Category:       CategoryFreeTier,
+		Description:    "Local and cloud Ollama instances",
+		BaseURL:        "http://localhost:11434",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://ollama.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "vertex",
+		Name:           "Vertex AI",
+		Category:       CategoryFreeTier,
+		Description:    "Google Cloud Vertex AI studio",
+		BaseURL:        "https://us-central1-aiplatform.googleapis.com",
+		AuthType:       AuthTypeOAuth2,
+		Capabilities:   []Capability{CapOAuth2, CapHealthCheck},
+		WebsiteURL:     "https://cloud.google.com/vertex-ai",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "gemini",
+		Name:           "Gemini",
+		Category:       CategoryFreeTier,
+		Description:    "Google AI Studio Gemini API free rate limits",
+		BaseURL:        "https://generativelanguage.googleapis.com",
+		AuthType:       AuthTypeAPIKeyHeader,
+		Capabilities:   []Capability{CapAPIKeyAuth, CapHealthCheck},
+		WebsiteURL:     "https://aistudio.google.com",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "poolside",
+		Name:           "Poolside",
+		Category:       CategoryFreeTier,
+		Description:    "Poolside AI code foundation models",
+		BaseURL:        "https://api.poolside.ai",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://poolside.ai",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "byteplus",
+		Name:           "BytePlus ModelArk",
+		Category:       CategoryFreeTier,
+		Description:    "ByteDance BytePlus ModelArk models",
+		BaseURL:        "https://ark.cn-beijing.volces.com",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://byteplus.com",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "kimchi",
+		Name:           "Kimchi",
+		Category:       CategoryFreeTier,
+		Description:    "Kimchi free AI proxy and sandbox",
+		BaseURL:        "https://api.kimchi.im",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://kimchi.im",
+		FreeTierStatus: "available",
+		Enabled:        true,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "api-airforce",
+		Name:           "API.airforce",
+		Category:       CategoryFreeTier,
+		Description:    "API Airforce community free tier models",
+		BaseURL:        "https://api.airforce",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://api.airforce",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "bazaarlink",
+		Name:           "Bazaarlink",
+		Category:       CategoryFreeTier,
+		Description:    "Bazaarlink decentralized inference provider",
+		BaseURL:        "https://api.bazaarlink.com",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://bazaarlink.com",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:             "kilo-gateway",
+		Name:           "Kilo Gateway",
+		Category:       CategoryFreeTier,
+		Description:    "Kilo Gateway AI model cluster",
+		BaseURL:        "https://gateway.kilo.ai",
+		AuthType:       AuthTypeBearerToken,
+		Capabilities:   []Capability{CapBearerAuth, CapHealthCheck},
+		WebsiteURL:     "https://kilo.ai",
+		FreeTierStatus: "available",
+		Enabled:        false,
+	}, defaultTimeout))
 }

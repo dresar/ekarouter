@@ -13,8 +13,10 @@ import (
 	"github.com/dresar/ekarouter/internal/auth"
 	"github.com/dresar/ekarouter/internal/config"
 	"github.com/dresar/ekarouter/internal/credpool"
+	"github.com/dresar/ekarouter/internal/db"
 	"github.com/dresar/ekarouter/internal/freetier"
 	"github.com/dresar/ekarouter/internal/oauth"
+	"github.com/dresar/ekarouter/internal/quota"
 	"github.com/dresar/ekarouter/internal/routing"
 	"github.com/dresar/ekarouter/internal/tokensaver"
 	"github.com/dresar/ekarouter/internal/usage"
@@ -33,10 +35,11 @@ type AdminHandler struct {
 	poolEngine    *credpool.Engine
 	healthChecker *credpool.HealthChecker
 	catalogStore  *freetier.CatalogStore
+	quotaTracker  *quota.Tracker
 }
 
 func NewAdminHandler(
-	db *sql.DB,
+	dbConn *sql.DB,
 	cfg *config.Config,
 	crypto *auth.CryptoService,
 	usageRec *usage.Recorder,
@@ -52,6 +55,7 @@ func NewAdminHandler(
 	var poolEngine *credpool.Engine
 	var healthChecker *credpool.HealthChecker
 	var catalogStore *freetier.CatalogStore
+	var quotaTracker *quota.Tracker
 	for _, opt := range extra {
 		switch v := opt.(type) {
 		case *credpool.Store:
@@ -62,19 +66,24 @@ func NewAdminHandler(
 			healthChecker = v
 		case *freetier.CatalogStore:
 			catalogStore = v
+		case *quota.Tracker:
+			quotaTracker = v
 		}
 	}
-	if poolStore == nil && db != nil {
-		poolStore = credpool.NewStore(db)
+	if poolStore == nil && dbConn != nil {
+		poolStore = credpool.NewStore(dbConn)
 	}
 	if poolEngine == nil && poolStore != nil {
 		poolEngine = credpool.NewEngine(poolStore)
 	}
-	if catalogStore == nil && db != nil {
-		catalogStore = freetier.NewCatalogStore(db)
+	if catalogStore == nil && dbConn != nil {
+		catalogStore = freetier.NewCatalogStore(dbConn)
+	}
+	if quotaTracker == nil && dbConn != nil {
+		quotaTracker = quota.NewTracker(&db.DB{DB: dbConn}, crypto, nil)
 	}
 	return &AdminHandler{
-		db:            db,
+		db:            dbConn,
 		cfg:           cfg,
 		crypto:        crypto,
 		usageRec:      usageRec,
@@ -85,6 +94,7 @@ func NewAdminHandler(
 		poolEngine:    poolEngine,
 		healthChecker: healthChecker,
 		catalogStore:  catalogStore,
+		quotaTracker:  quotaTracker,
 	}
 }
 

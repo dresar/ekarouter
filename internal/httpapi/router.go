@@ -197,6 +197,7 @@ func NewServer(
 
 	r.Route("/api", func(api chi.Router) {
 		api.Post("/auth/login", adminHandler.Login)
+		api.Get("/accounts/oauth/callback", adminHandler.OAuthCallback)
 
 		api.Group(func(authApi chi.Router) {
 			authApi.Use(SessionAuthMiddleware(db))
@@ -219,6 +220,11 @@ func NewServer(
 			authApi.Delete("/accounts/{id}", adminHandler.DeleteAccount)
 			authApi.Post("/accounts/oauth/start", adminHandler.OAuthStart)
 			authApi.Post("/accounts/oauth/callback", adminHandler.OAuthCallback)
+			authApi.Get("/accounts/oauth/callback", adminHandler.OAuthCallback)
+
+			authApi.Get("/quota", adminHandler.GetQuotas)
+			authApi.Post("/quota/refresh", adminHandler.GetQuotas)
+			authApi.Post("/quota/{id}/refresh", adminHandler.RefreshQuota)
 
 			authApi.Get("/credentials", adminHandler.ListCredentials)
 			authApi.Get("/credentials/{id}", adminHandler.GetCredential)

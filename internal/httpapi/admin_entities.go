@@ -1410,20 +1410,29 @@ func (a *AdminHandler) TestProxyProfile(w http.ResponseWriter, r *http.Request) 
 
 func (a *AdminHandler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ProviderID string `json:"provider_id"`
+		ProviderID  string `json:"provider_id"`
+		RedirectURI string `json:"redirect_uri"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ProviderID == "" {
 		http.Error(w, `{"error":"provider_id is required"}`, http.StatusBadRequest)
 		return
 	}
 
-	rawState, codeChallenge, err := a.oauthMgr.GenerateState(body.ProviderID, 10*time.Minute)
+	rawState, codeChallenge, err := a.oauthMgr.GenerateState(body.ProviderID, 15*time.Minute)
 	if err != nil {
 		http.Error(w, `{"error":"failed to generate oauth state"}`, http.StatusInternalServerError)
 		return
 	}
 
-	authURL := "/oauth/authorize?provider=" + body.ProviderID + "&state=" + rawState + "&code_challenge=" + codeChallenge
+	redirectURI := body.RedirectURI
+	if redirectURI == "" {
+		redirectURI = "http://localhost:8080/api/accounts/oauth/callback"
+	}
+
+	authURL, err := a.oauthMgr.BuildAuthURL(body.ProviderID, redirectURI, rawState, codeChallenge)
+	if err != nil {
+		authURL = "/oauth/authorize?provider=" + body.ProviderID + "&state=" + rawState + "&code_challenge=" + codeChallenge
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{
@@ -1431,30 +1440,76 @@ func (a *AdminHandler) OAuthStart(w http.ResponseWriter, r *http.Request) {
 		"auth_url":       authURL,
 		"state":          rawState,
 		"code_challenge": codeChallenge,
+		"redirect_uri":   redirectURI,
 	})
 }
 
 func (a *AdminHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		State       string `json:"state"`
-		Code        string `json:"code"`
-		AccountName string `json:"account_name"`
+	var state, code, accName, redirectURI string
+	if r.Method == http.MethodGet {
+		state = r.URL.Query().Get("state")
+		code = r.URL.Query().Get("code")
+		redirectURI = r.URL.Query().Get("redirect_uri")
+	} else {
+		var body struct {
+			State       string `json:"state"`
+			Code        string `json:"code"`
+			AccountName string `json:"account_name"`
+			RedirectURI string `json:"redirect_uri"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
+			state = body.State
+			code = body.Code
+			accName = body.AccountName
+			redirectURI = body.RedirectURI
+		}
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.State == "" || body.Code == "" {
+
+	if state == "" || code == "" {
 		http.Error(w, `{"error":"state and code are required"}`, http.StatusBadRequest)
 		return
 	}
 
-	stateRec, err := a.oauthMgr.ConsumeState(body.State)
+	stateRec, err := a.oauthMgr.ConsumeState(state)
 	if err != nil {
 		http.Error(w, `{"error":"invalid or expired oauth state"}`, http.StatusBadRequest)
 		return
 	}
 
-	accID := "acc_oauth_" + body.State[:8]
-	accName := body.AccountName
+	if redirectURI == "" {
+		redirectURI = "http://localhost:8080/api/accounts/oauth/callback"
+	}
+
+	tok, err := a.oauthMgr.ExchangeToken(r.Context(), stateRec.ProviderID, code, redirectURI, stateRec.CodeVerifier)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"token exchange failed: %s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	var provExists int
+	_ = a.db.QueryRowContext(r.Context(), "SELECT COUNT(1) FROM providers WHERE id = ?", stateRec.ProviderID).Scan(&provExists)
+	if provExists == 0 {
+		baseURL := "https://daily-cloudcode-pa.googleapis.com"
+		kind := stateRec.ProviderID
+		if stateRec.ProviderID == "antigravity" || stateRec.ProviderID == "gemini-agy" {
+			kind = "gemini-agy"
+		} else if stateRec.ProviderID == "gemini-cli" {
+			baseURL = "https://cloudaicompanion.googleapis.com/v1"
+			kind = "gemini-cli"
+		}
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO providers (id, key, name, kind, base_url, enabled)
+			VALUES (?, ?, ?, ?, ?, 1)
+		`, stateRec.ProviderID, "key_"+stateRec.ProviderID, strings.Title(stateRec.ProviderID), kind, baseURL)
+	}
+
+	accID := "acc_oauth_" + state[:8]
 	if accName == "" {
-		accName = stateRec.ProviderID + "-oauth"
+		if tok.Email != "" {
+			accName = tok.Email
+		} else {
+			accName = stateRec.ProviderID + "-oauth"
+		}
 	}
 
 	tx, err := a.db.BeginTx(r.Context(), nil)
@@ -1465,17 +1520,22 @@ func (a *AdminHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(r.Context(),
-		"INSERT INTO accounts (id, provider_id, name, auth_type, priority, state, enabled) VALUES (?, ?, ?, 'oauth', 10, 'active', 1)",
-		accID, stateRec.ProviderID, accName)
+		"INSERT INTO accounts (id, provider_id, name, auth_type, priority, state, enabled, expires_at) VALUES (?, ?, ?, 'oauth', 10, 'active', 1, ?)",
+		accID, stateRec.ProviderID, accName, tok.ExpiresAt)
 	if err != nil {
 		http.Error(w, `{"error":"failed to insert account"}`, http.StatusInternalServerError)
 		return
 	}
 
-	encAccess, _ := a.crypto.Encrypt(body.Code)
+	encAccess, _ := a.crypto.Encrypt(tok.AccessToken)
+	encRefresh := ""
+	if tok.RefreshToken != "" {
+		encRefresh, _ = a.crypto.Encrypt(tok.RefreshToken)
+	}
+
 	_, err = tx.ExecContext(r.Context(),
-		"INSERT INTO credentials (id, account_id, encrypted_access) VALUES (?, ?, ?)",
-		"cred_"+accID, accID, encAccess)
+		"INSERT INTO credentials (id, account_id, encrypted_access, encrypted_refresh) VALUES (?, ?, ?, ?)",
+		"cred_"+accID, accID, encAccess, encRefresh)
 	if err != nil {
 		http.Error(w, `{"error":"failed to insert credentials"}`, http.StatusInternalServerError)
 		return
@@ -1490,9 +1550,56 @@ func (a *AdminHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		_ = a.router.LoadFromDB(r.Context(), a.db)
 	}
 
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><title>OAuth Success</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d0e12;color:#f3f4f6;text-align:center;}</style></head>
+<body><div><h2>Authentication Successful!</h2><p>Account <b>%s</b> has been connected.</p><p>You can close this window now.</p><script>if(window.opener){window.opener.postMessage({type:'oauth_success',accountId:'%s'},'*');setTimeout(function(){window.close();},1500);}</script></div></body>
+</html>`, accName, accID)
+		_, _ = w.Write([]byte(html))
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":     "connected",
 		"account_id": accID,
+		"name":       accName,
+		"email":      tok.Email,
 	})
+}
+
+func (a *AdminHandler) GetQuotas(w http.ResponseWriter, r *http.Request) {
+	if a.quotaTracker == nil {
+		http.Error(w, `{"error":"quota tracker not initialized"}`, http.StatusInternalServerError)
+		return
+	}
+	force := r.URL.Query().Get("force") == "1" || r.URL.Query().Get("force") == "true"
+	quotas, err := a.quotaTracker.GetAllQuotas(r.Context(), force)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"failed to fetch quotas: %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(quotas)
+}
+
+func (a *AdminHandler) RefreshQuota(w http.ResponseWriter, r *http.Request) {
+	if a.quotaTracker == nil {
+		http.Error(w, `{"error":"quota tracker not initialized"}`, http.StatusInternalServerError)
+		return
+	}
+	accID := chi.URLParam(r, "id")
+	if accID == "" {
+		http.Error(w, `{"error":"account id required"}`, http.StatusBadRequest)
+		return
+	}
+	q, err := a.quotaTracker.GetAccountQuota(r.Context(), accID, true)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"failed to refresh quota: %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(q)
 }

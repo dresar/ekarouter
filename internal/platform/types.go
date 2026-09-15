@@ -19,6 +19,9 @@ const (
 	CategoryMaps         Category = "maps"
 	CategorySecurity     Category = "security"
 	CategoryCustom       Category = "custom"
+	CategoryOAuth        Category = "oauth"
+	CategoryFreeTier     Category = "free_tier"
+	CategoryAI           Category = "ai"
 )
 
 type AuthType string

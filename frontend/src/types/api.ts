@@ -290,3 +290,28 @@ export interface BackupItem {
   size_bytes: number
   created_at: string
 }
+
+export interface ModelQuota {
+  id: string
+  name: string
+  used: number
+  total: number
+  remaining_percentage: number
+  reset_at?: string
+  display_name?: string
+}
+
+export interface AccountQuota {
+  account_id: string
+  account_name: string
+  provider_id: string
+  provider_name: string
+  auth_type: string
+  email?: string
+  state: string
+  plan?: string
+  overall_remaining: number
+  reset_at?: string
+  quotas: ModelQuota[]
+  last_checked: string
+}

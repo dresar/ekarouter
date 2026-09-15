@@ -18,6 +18,7 @@ import {
   BookOpen,
   Wrench,
   Layers,
+  Gauge,
 } from 'lucide-react'
 
 interface NavItem {
@@ -62,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'OBSERVABILITY',
     items: [
+      { to: '/quota', label: 'Quota Tracker', icon: Gauge },
       { to: '/console', label: 'Console', icon: Terminal },
       { to: '/audit-logs', label: 'Audit Logs', icon: FileText },
       { to: '/settings', label: 'Settings', icon: Settings },

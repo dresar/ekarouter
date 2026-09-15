@@ -4,6 +4,8 @@ import {
   Plus,
   Search,
   RefreshCw,
+  Play,
+  CheckCircle2,
 } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
@@ -16,7 +18,7 @@ interface UnifiedProvider {
   id: string
   key: string
   name: string
-  category: string
+  category: 'oauth' | 'free_tier' | 'apikey' | 'developer' | 'cloud' | 'tools'
   kind: string
   base_url: string
   doc_url?: string
@@ -29,12 +31,11 @@ interface UnifiedProvider {
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
-  { id: 'ai', label: 'AI' },
-  { id: 'coding', label: 'Coding' },
   { id: 'oauth', label: 'OAuth' },
   { id: 'free_tier', label: 'Free Tier' },
-  { id: 'tools', label: 'Tools' },
+  { id: 'apikey', label: 'API Key' },
   { id: 'cloud', label: 'Cloud' },
+  { id: 'tools', label: 'Tools' },
 ]
 
 export function ProvidersListPage() {
@@ -44,6 +45,8 @@ export function ProvidersListPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [testingCategory, setTestingCategory] = useState<string | null>(null)
+  const [testMessage, setTestMessage] = useState<string | null>(null)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -63,15 +66,35 @@ export function ProvidersListPage() {
 
       const unifiedMap = new Map<string, UnifiedProvider>()
 
+      const isOAuthProvider = (id: string, cat?: string) => {
+        const oauthIds = [
+          'antigravity', 'gemini-agy', 'claude', 'qoder', 'codex',
+          'github-copilot', 'github', 'cursor', 'kilocode', 'cline',
+          'clinepass', 'codebuddy-intl', 'codebuddy-cn', 'kimi',
+          'grok-cli', 'xai', 'xiaomi-mimo', 'zed', 'windsurf', 'trae',
+        ]
+        return cat === 'oauth' || oauthIds.includes(id)
+      }
+
+      const isFreeTierProvider = (id: string, cat?: string) => {
+        const freeIds = [
+          'opencode', 'gemini-cli', 'kiro', 'openrouter', 'nvidia',
+          'ollama', 'vertex', 'gemini', 'poolside', 'byteplus',
+          'kimchi', 'api-airforce', 'bazaarlink', 'kilo-gateway',
+          'mimo-free', 'mmf', 'devin-cli',
+        ]
+        return cat === 'free_tier' || cat === 'free' || freeIds.includes(id)
+      }
+
       for (const p of platformProviders) {
-        let cat = (p.category || 'ai').toLowerCase()
-        if (p.id.includes('github') || p.id.includes('code') || p.id.includes('cline') || p.id.includes('devin')) {
-          cat = 'coding'
-        } else if (p.free_tier_status === 'available' || p.id.includes('free')) {
+        let cat: UnifiedProvider['category'] = 'apikey'
+        if (isOAuthProvider(p.id, p.category)) {
+          cat = 'oauth'
+        } else if (isFreeTierProvider(p.id, p.category)) {
           cat = 'free_tier'
-        } else if (cat === 'developer' || cat === 'cloud' || cat === 'storage') {
+        } else if (p.category === 'cloud' || p.category === 'developer' || p.category === 'storage') {
           cat = 'cloud'
-        } else if (cat === 'tool' || cat === 'tools') {
+        } else if (p.category === 'tools' || p.category === 'security' || p.category === 'automation') {
           cat = 'tools'
         }
 
@@ -104,9 +127,12 @@ export function ProvidersListPage() {
           existing.base_url = p.base_url || existing.base_url
           existing.connections_count = Math.max(existing.connections_count, relatedAccounts.length + relatedCredentials.length)
         } else {
-          let cat = 'ai'
-          if (p.id.includes('github') || p.kind.includes('code')) cat = 'coding'
-          if (p.id.includes('free')) cat = 'free_tier'
+          let cat: UnifiedProvider['category'] = 'apikey'
+          if (isOAuthProvider(p.id, p.kind)) {
+            cat = 'oauth'
+          } else if (isFreeTierProvider(p.id, p.kind)) {
+            cat = 'free_tier'
+          }
 
           unifiedMap.set(p.id, {
             id: p.id,
@@ -134,21 +160,99 @@ export function ProvidersListPage() {
     fetchData()
   }, [])
 
-  const filteredProviders = providers.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.id.toLowerCase().includes(search.toLowerCase()) ||
-      p.base_url.toLowerCase().includes(search.toLowerCase())
-    const matchesCat = selectedCategory === 'all' || p.category === selectedCategory
-    return matchesSearch && matchesCat
-  })
+  const handleTestAll = async (categoryName: string) => {
+    setTestingCategory(categoryName)
+    setTestMessage(null)
+    try {
+      const res = await api.post<{ message?: string; tested?: number; healthy?: number }>('/api/accounts/test-all', {})
+      const healthy = res?.healthy ?? 0
+      const tested = res?.tested ?? 0
+      setTestMessage(`Batch health check complete: ${healthy}/${tested} healthy accounts`)
+      await fetchData()
+      setTimeout(() => setTestMessage(null), 4000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Test failed'
+      setError(msg)
+    } finally {
+      setTestingCategory(null)
+    }
+  }
+
+  const matchesSearch = (p: UnifiedProvider) => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q) ||
+      p.base_url.toLowerCase().includes(q)
+    )
+  }
+
+  const oauthProviders = providers.filter((p) => p.category === 'oauth' && matchesSearch(p))
+  const freeTierProviders = providers.filter((p) => p.category === 'free_tier' && matchesSearch(p))
+  const apiKeyProviders = providers.filter(
+    (p) => (p.category === 'apikey' || p.category === 'developer' || p.category === 'cloud' || p.category === 'tools') && matchesSearch(p)
+  )
 
   const totalCount = providers.length
   const connectedCount = providers.filter((p) => p.connections_count > 0).length
   const totalConnections = providers.reduce((acc, p) => acc + p.connections_count, 0)
 
+  const renderCard = (p: UnifiedProvider) => {
+    const isConnected = p.connections_count > 0
+    const isReady = p.free_tier_status === 'available' && p.connections_count === 0 && (p.id === 'opencode' || p.id.includes('free'))
+
+    return (
+      <button
+        key={p.id}
+        type="button"
+        onClick={() => navigate(`/providers/${p.id}`)}
+        className="group relative flex items-center justify-between p-3.5 rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-panel)]/50 transition-all cursor-pointer text-left w-full shadow-xs"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <ProviderLogo providerId={p.id} name={p.name} size="md" />
+
+          <div className="flex flex-col min-w-0">
+            <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate leading-tight group-hover:text-[var(--brand-text)] transition-colors">
+              {p.name}
+            </span>
+
+            <div className="flex items-center gap-1.5 mt-1">
+              {!p.enabled ? (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                    Disabled
+                  </span>
+                </div>
+              ) : isConnected ? (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--status-success)] shadow-xs" />
+                  <span className="text-[11px] font-medium text-[var(--status-success)]">
+                    {p.connections_count} Connected
+                  </span>
+                </div>
+              ) : isReady ? (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span className="text-[11px] font-medium text-emerald-400">
+                    Ready
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                  No connections
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         title="Providers"
         description="Manage AI provider connections."
@@ -186,12 +290,19 @@ export function ProvidersListPage() {
 
       {error && <ErrorBanner message={error} onRetry={fetchData} />}
 
+      {testMessage && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-[var(--status-success-bg)] border border-[var(--status-success)] text-[var(--status-success)] text-[12px]">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{testMessage}</span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 min-w-0 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
           <input
             type="search"
-            placeholder="Cari"
+            placeholder="Cari provider..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-8 pl-8 pr-3 text-[12.5px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
@@ -216,59 +327,73 @@ export function ProvidersListPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {filteredProviders.map((p) => {
-          const isConnected = p.connections_count > 0
-
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => navigate(`/providers/${p.id}`)}
-              className="group relative flex items-center justify-between p-3 rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-panel)]/50 transition-all cursor-pointer text-left w-full"
+      {(selectedCategory === 'all' || selectedCategory === 'oauth') && oauthProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+              OAuth Providers
+            </h2>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('oauth')}
+              isLoading={testingCategory === 'oauth'}
+              leftIcon={<Play className="w-3 h-3" />}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <ProviderLogo providerId={p.id} name={p.name} size="md" />
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {oauthProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
 
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate leading-tight group-hover:text-[var(--brand-text)] transition-colors">
-                      {p.name}
-                    </span>
-                  </div>
+      {(selectedCategory === 'all' || selectedCategory === 'free_tier') && freeTierProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+              Free Tier Providers
+            </h2>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('free')}
+              isLoading={testingCategory === 'free'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {freeTierProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
 
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10.5px] font-mono text-[var(--text-muted)] uppercase">
-                      {p.category}
-                    </span>
-                    <span className="text-[var(--border-strong)]">&bull;</span>
-                    <div className="flex items-center gap-1">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          !p.enabled
-                            ? 'bg-slate-500'
-                            : isConnected
-                            ? 'bg-[var(--status-success)]'
-                            : 'bg-[var(--text-muted)]'
-                        }`}
-                      />
-                      <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-                        {!p.enabled
-                          ? 'Disabled'
-                          : isConnected
-                          ? `${p.connections_count} connected`
-                          : 'No connections'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      {(selectedCategory === 'all' || selectedCategory === 'apikey' || selectedCategory === 'cloud' || selectedCategory === 'tools') && apiKeyProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+              API Key Providers
+            </h2>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('apikey')}
+              isLoading={testingCategory === 'apikey'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {apiKeyProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
 
-      {filteredProviders.length === 0 && !isLoading && (
+      {oauthProviders.length === 0 && freeTierProviders.length === 0 && apiKeyProviders.length === 0 && !isLoading && (
         <div className="py-16 text-center rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)]">
           <p className="text-[13px] font-medium text-[var(--text-primary)]">No providers found</p>
           <p className="text-[12px] text-[var(--text-muted)] mt-1">

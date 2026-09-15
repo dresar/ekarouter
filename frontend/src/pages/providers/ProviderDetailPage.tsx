@@ -112,6 +112,13 @@ export function ProviderDetailPage() {
   const [isBulkAdding, setIsBulkAdding] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
 
+  const [showOAuthModal, setShowOAuthModal] = useState(false)
+  const [isStartingOAuth, setIsStartingOAuth] = useState(false)
+  const [oauthData, setOauthData] = useState<{ auth_url: string; state: string } | null>(null)
+  const [manualCode, setManualCode] = useState('')
+  const [isCompletingOAuth, setIsCompletingOAuth] = useState(false)
+  const [oauthError, setOauthError] = useState<string | null>(null)
+
   const [addForm, setAddForm] = useState({
     name: '',
     auth_type: 'apikey',
@@ -268,6 +275,19 @@ export function ProviderDetailPage() {
     document.documentElement.scrollTo(0, 0)
     document.body.scrollTo(0, 0)
     loadData()
+  }, [id])
+
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'oauth_success') {
+        setShowOAuthModal(false)
+        setActionSuccess('Account connected successfully via OAuth!')
+        setTimeout(() => setActionSuccess(null), 3500)
+        loadData()
+      }
+    }
+    window.addEventListener('message', handleMsg)
+    return () => window.removeEventListener('message', handleMsg)
   }, [id])
 
   const handleTest = async () => {
@@ -616,6 +636,58 @@ export function ProviderDetailPage() {
     }
   }
 
+  const handleStartOAuth = async () => {
+    if (!id) return
+    setIsStartingOAuth(true)
+    setOauthError(null)
+    setOauthData(null)
+    setManualCode('')
+    try {
+      const redirectUri = window.location.origin + '/api/accounts/oauth/callback'
+      const res = await api.post<{ auth_url: string; state: string }>('/api/accounts/oauth/start', {
+        provider_id: id,
+        redirect_uri: redirectUri,
+      })
+      if (res && res.auth_url) {
+        setOauthData(res)
+        setShowOAuthModal(true)
+        window.open(res.auth_url, '_blank', 'width=600,height=700')
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to initiate OAuth')
+    } finally {
+      setIsStartingOAuth(false)
+    }
+  }
+
+  const handleCompleteOAuth = async (codeToUse?: string) => {
+    const code = codeToUse || manualCode.trim()
+    if (!code || !oauthData) return
+    setIsCompletingOAuth(true)
+    setOauthError(null)
+    try {
+      let cleanCode = code
+      if (cleanCode.includes('code=')) {
+        const u = new URL(cleanCode.startsWith('http') ? cleanCode : 'http://dummy/' + cleanCode)
+        cleanCode = u.searchParams.get('code') || cleanCode
+      }
+      const redirectUri = window.location.origin + '/api/accounts/oauth/callback'
+      await api.post('/api/accounts/oauth/callback', {
+        state: oauthData.state,
+        code: cleanCode,
+        redirect_uri: redirectUri,
+      })
+      setShowOAuthModal(false)
+      setActionSuccess('Account successfully connected via OAuth!')
+      setTimeout(() => setActionSuccess(null), 3500)
+      await loadData()
+    } catch (err: unknown) {
+      setOauthError(err instanceof Error ? err.message : 'Failed to complete OAuth authentication')
+    } finally {
+      setIsCompletingOAuth(false)
+    }
+  }
+
   const handleResetAllActive = async () => {
     const inactiveAccounts = accounts.filter(
       (a) => !a.enabled || a.state === 'cooling_down' || !!a.last_error
@@ -761,6 +833,29 @@ export function ProviderDetailPage() {
   const activeModels = models.filter((m) => m.enabled)
   const disabledModels = models.filter((m) => !m.enabled)
 
+  const isOAuth =
+    id === 'antigravity' ||
+    id === 'gemini-agy' ||
+    id === 'gemini-cli' ||
+    id === 'claude' ||
+    id === 'codex' ||
+    id === 'github-copilot' ||
+    id === 'github' ||
+    id === 'qoder' ||
+    id === 'cursor' ||
+    id === 'kilocode' ||
+    id === 'cline' ||
+    id === 'clinepass' ||
+    id === 'codebuddy-intl' ||
+    id === 'codebuddy-cn' ||
+    id === 'kimi' ||
+    id === 'grok-cli' ||
+    id === 'xai' ||
+    id === 'xiaomi-mimo' ||
+    provider?.kind === 'gemini-agy' ||
+    platProvider?.category === 'oauth' ||
+    platProvider?.auth_type === 'oauth2'
+
   return (
     <div className="space-y-4 pb-28">
       <div className="flex items-center justify-between gap-3">
@@ -897,6 +992,18 @@ export function ProviderDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {isOAuth && (
+              <button
+                type="button"
+                onClick={handleStartOAuth}
+                disabled={isStartingOAuth}
+                className="h-8 px-3 text-[12px] font-semibold rounded-[6px] bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>{isStartingOAuth ? 'Starting...' : 'Connect OAuth'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -1915,6 +2022,72 @@ export function ProviderDetailPage() {
             </Button>
           </div>
         </form>
+      </BottomSheet>
+
+      <BottomSheet
+        isOpen={showOAuthModal}
+        onClose={() => setShowOAuthModal(false)}
+        title={`Connect ${provider?.name || id} via OAuth`}
+        description="Masuk dengan akun provider Anda secara aman menggunakan protokol OAuth 2.0 PKCE."
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-[8px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] space-y-2 text-[12px]">
+            <div className="flex items-center gap-2 text-[var(--status-success)] font-medium">
+              <Shield className="w-4 h-4" />
+              <span>Proteksi Kredensial Maksimal (PKCE + AES-256-GCM)</span>
+            </div>
+            <p className="text-[var(--text-secondary)] leading-relaxed">
+              Jendela otorisasi resmi Google / Provider telah dibuka di tab baru. Silakan izinkan akses untuk menghubungkan akun.
+            </p>
+          </div>
+
+          {oauthError && (
+            <div className="p-3 rounded-[6px] bg-rose-950/40 border border-rose-600/40 text-rose-300 text-[12px]">
+              {oauthError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => {
+                if (oauthData?.auth_url) {
+                  window.open(oauthData.auth_url, '_blank', 'width=600,height=700')
+                }
+              }}
+              className="w-full justify-center"
+              leftIcon={<ExternalLink className="w-3.5 h-3.5" />}
+            >
+              Buka Ulang Jendela Otorisasi
+            </Button>
+          </div>
+
+          <div className="pt-3 border-t border-[var(--border-subtle)] space-y-2">
+            <label className="text-[12px] font-medium text-[var(--text-secondary)] block">
+              Atau Tempel Kode Otorisasi / Callback URL Manual:
+            </label>
+            <input
+              type="text"
+              placeholder="Contoh: 4/0AQl... atau http://localhost:8080/api/accounts/oauth/callback?code=..."
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              className="w-full h-8.5 px-3 text-[12px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="compact"
+              disabled={!manualCode.trim()}
+              isLoading={isCompletingOAuth}
+              onClick={() => handleCompleteOAuth()}
+              className="w-full justify-center mt-2"
+            >
+              Selesaikan Koneksi
+            </Button>
+          </div>
+        </div>
       </BottomSheet>
     </div>
   )
