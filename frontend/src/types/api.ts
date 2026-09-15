@@ -353,3 +353,40 @@ export interface AccountQuota {
   last_validated?: string
   is_valid?: boolean
 }
+
+export interface MediaStorageConfig {
+  provider: 'local' | 'cloudinary' | 'imagekit' | 'github'
+  cloudinary_cloud_name: string
+  cloudinary_api_key: string
+  cloudinary_api_secret?: string
+  cloudinary_folder: string
+  imagekit_public_key: string
+  imagekit_private_key?: string
+  imagekit_url_endpoint: string
+  imagekit_folder: string
+  cdn_custom_domain?: string
+  github_token?: string
+  github_owner?: string
+  github_repo?: string
+  github_branch?: string
+  github_folder?: string
+  github_cdn_domain?: string
+}
+
+export interface UploadResult {
+  url: string
+  provider: string
+  file_id: string
+  size: number
+  width?: number
+  height?: number
+  format?: string
+}
+
+export interface ProviderCustomIcon {
+  provider_id: string
+  icon_url: string
+  display_name?: string
+  storage_provider?: string
+  updated_at?: string
+}

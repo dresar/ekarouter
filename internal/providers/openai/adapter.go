@@ -281,6 +281,12 @@ func (a *Adapter) Execute(ctx context.Context, req *providers.Request, creds *pr
 		res.Content = c.Message.Content
 		res.Reasoning = c.Message.ReasoningContent
 		res.FinishReason = c.FinishReason
+		if len(c.Message.ToolCalls) > 0 {
+			res.ToolCalls = c.Message.ToolCalls
+			if res.FinishReason == "" || res.FinishReason == "stop" {
+				res.FinishReason = "tool_calls"
+			}
+		}
 	}
 
 	return res, nil

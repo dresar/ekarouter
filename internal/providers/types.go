@@ -67,13 +67,14 @@ type Usage struct {
 }
 
 type Response struct {
-	ID           string `json:"id"`
-	Model        string `json:"model"`
-	Role         string `json:"role"`
-	Content      string `json:"content"`
-	Reasoning    string `json:"reasoning,omitempty"`
-	FinishReason string `json:"finish_reason"`
-	Usage        Usage  `json:"usage"`
+	ID           string     `json:"id"`
+	Model        string     `json:"model"`
+	Role         string     `json:"role"`
+	Content      string     `json:"content"`
+	Reasoning    string     `json:"reasoning,omitempty"`
+	FinishReason string     `json:"finish_reason"`
+	ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
+	Usage        Usage      `json:"usage"`
 }
 
 type StreamEventType string

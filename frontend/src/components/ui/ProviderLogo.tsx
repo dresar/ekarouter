@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface ProviderLogoProps {
   providerId: string
   name?: string
+  customIcon?: string
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }
@@ -100,10 +101,15 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'generic-rest-api': '/providers/generic.svg',
   'github': '/providers/github.png',
   'github-copilot': '/providers/copilot.png',
+  'github-models': '/providers/github.png',
   'gitlab': '/providers/gitlab.png',
   'glm': '/providers/glm.png',
   'glm-cn': '/providers/glm-cn.png',
   'google': '/providers/gemini.png',
+  'google-cloud': '/providers/google.svg',
+  'gcp': '/providers/google.svg',
+  'r2': '/providers/cloudflare.svg',
+  'supabase-storage': '/providers/supabase.svg',
   'google-pse': '/providers/google-pse.png',
   'google-tts': '/providers/google-tts.png',
   'grok': '/providers/xai.png',
@@ -286,10 +292,48 @@ function resolveIcon(providerId: string, name: string): string {
   return '/providers/generic.svg'
 }
 
-export function ProviderLogo({ providerId, name = '', size = 'md', className = '' }: ProviderLogoProps) {
-  const [hasError, setHasError] = useState(false)
+let customIconCache: Record<string, string> = {}
+let isFetchingCustomIcons = false
+const customIconListeners = new Set<() => void>()
 
-  const iconSrc = resolveIcon(providerId, name)
+export function setCustomIconInMemory(providerId: string, url: string) {
+  if (url) {
+    customIconCache[providerId] = url
+  } else {
+    delete customIconCache[providerId]
+  }
+  customIconListeners.forEach((fn) => fn())
+}
+
+export function ProviderLogo({ providerId, name = '', customIcon, size = 'md', className = '' }: ProviderLogoProps) {
+  const [hasError, setHasError] = useState(false)
+  const [, setVersion] = useState(0)
+
+  useEffect(() => {
+    const listener = () => setVersion((v) => v + 1)
+    customIconListeners.add(listener)
+    if (!isFetchingCustomIcons && Object.keys(customIconCache).length === 0) {
+      isFetchingCustomIcons = true
+      fetch('/api/providers/custom-icons')
+        .then((r) => r.json())
+        .then((data: Record<string, { icon_url?: string }>) => {
+          if (data && typeof data === 'object') {
+            for (const [pId, item] of Object.entries(data)) {
+              if (item && item.icon_url) {
+                customIconCache[pId] = item.icon_url
+              }
+            }
+            customIconListeners.forEach((fn) => fn())
+          }
+        })
+        .catch(() => {})
+    }
+    return () => {
+      customIconListeners.delete(listener)
+    }
+  }, [])
+
+  const iconSrc = customIcon || customIconCache[providerId] || resolveIcon(providerId, name)
 
   const sizeClasses = {
     sm: 'w-5 h-5 text-[10px]',

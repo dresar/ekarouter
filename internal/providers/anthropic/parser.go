@@ -7,9 +7,12 @@ import (
 )
 
 type ContentBlock struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	Thinking string `json:"thinking,omitempty"`
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	Thinking string          `json:"thinking,omitempty"`
+	ID       string          `json:"id,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	Input    json.RawMessage `json:"input,omitempty"`
 }
 
 type MessageResponse struct {
@@ -52,17 +55,28 @@ func ParseStreamEventPayload(data []byte) (*StreamEventPayload, error) {
 	return &ev, nil
 }
 
-func ExtractBlocks(blocks []ContentBlock) (string, string) {
+func ExtractBlocks(blocks []ContentBlock) (string, string, []providers.ToolCall) {
 	var text, thinking string
+	var toolCalls []providers.ToolCall
 	for _, b := range blocks {
 		switch b.Type {
 		case "text":
 			text += b.Text
 		case "thinking":
 			thinking += b.Thinking
+		case "tool_use":
+			toolName := DecloakToolName(b.Name)
+			toolCalls = append(toolCalls, providers.ToolCall{
+				ID:   b.ID,
+				Type: "function",
+				Function: providers.FunctionCall{
+					Name:      toolName,
+					Arguments: string(b.Input),
+				},
+			})
 		}
 	}
-	return text, thinking
+	return text, thinking, toolCalls
 }
 
 func ConvertUsage(inputTokens, outputTokens int) providers.Usage {

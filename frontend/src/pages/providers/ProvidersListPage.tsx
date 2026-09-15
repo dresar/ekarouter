@@ -20,7 +20,7 @@ interface UnifiedProvider {
   id: string
   key: string
   name: string
-  category: 'oauth' | 'free_tier' | 'apikey' | 'developer' | 'cloud' | 'tools'
+  category: 'oauth' | 'free_tier' | 'apikey' | 'ai' | 'cloud' | 'storage' | 'tools'
   kind: string
   base_url: string
   doc_url?: string
@@ -34,12 +34,110 @@ interface UnifiedProvider {
 const CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'connected', label: 'Connected' },
+  { id: 'ai', label: 'AI Providers' },
+  { id: 'storage', label: 'Storage' },
+  { id: 'cloud', label: 'Cloud' },
   { id: 'oauth', label: 'OAuth' },
   { id: 'free_tier', label: 'Free Tier' },
   { id: 'apikey', label: 'API Key' },
-  { id: 'cloud', label: 'Cloud' },
   { id: 'tools', label: 'Tools' },
 ]
+
+const STORAGE_IDS = new Set([
+  'cloudinary',
+  'imagekit',
+  'aws-s3',
+  's3',
+  'r2',
+  'cloudflare-r2',
+  'backblaze-b2',
+  'b2',
+  'bunny',
+  'bunnycdn',
+  'supabase-storage',
+])
+
+const isStorageProvider = (id: string, cat?: string) => {
+  const norm = id.toLowerCase().replace(/_/g, '-')
+  return cat === 'storage' || STORAGE_IDS.has(norm) || STORAGE_IDS.has(id.toLowerCase())
+}
+
+const CLOUD_IDS = new Set([
+  'cloudflare',
+  'vercel',
+  'supabase',
+  'neon',
+  'github',
+  'azure',
+  'aws',
+  'gcp',
+  'google-cloud',
+  'digitalocean',
+  'railway',
+])
+
+const isCloudProvider = (id: string, cat?: string) => {
+  if (isStorageProvider(id, cat)) return false
+  const norm = id.toLowerCase().replace(/_/g, '-')
+  if (norm.includes('copilot') || norm.includes('models') || norm.includes('cloudflare-ai')) return false
+  return cat === 'developer' || cat === 'cloud' || CLOUD_IDS.has(norm) || CLOUD_IDS.has(id.toLowerCase())
+}
+
+const isOAuth = (id: string, cat?: string) => {
+  const oauthIds = [
+    'antigravity', 'gemini-agy', 'claude', 'qoder', 'codex',
+    'cursor', 'kilocode', 'cline', 'clinepass', 'codebuddy-intl',
+    'codebuddy-cn', 'kimi', 'grok-cli', 'xai', 'xiaomi-mimo', 'zed',
+    'windsurf', 'trae', 'github-copilot',
+  ]
+  return cat === 'oauth' || oauthIds.includes(id.toLowerCase())
+}
+
+const isFreeTier = (id: string, cat?: string) => {
+  const freeIds = [
+    'opencode', 'gemini-cli', 'kiro', 'openrouter', 'nvidia',
+    'ollama', 'vertex', 'gemini', 'poolside', 'byteplus',
+    'kimchi', 'api-airforce', 'bazaarlink', 'kilo-gateway',
+    'mimo-free', 'mmf', 'devin-cli',
+  ]
+  return cat === 'free_tier' || cat === 'free' || freeIds.includes(id.toLowerCase())
+}
+
+const isAI = (id: string, cat?: string, kind?: string) => {
+  const aiIds = [
+    'openai', 'anthropic', 'groq', 'mistral', 'cohere',
+    'together', 'perplexity', 'sambanova', 'fireworks',
+    'siliconflow', 'nebius', 'tencent', 'minimax', 'glm',
+    'deepseek', 'github-models', 'venice', 'iflow', 'qwen',
+    'cerebras', 'chutes', 'coqui', 'edgetts', 'cloudflare-ai',
+    'vercel-ai-gateway', 'node_9inference_cloud', 'hyperbolic',
+  ]
+  return (
+    cat === 'ai' ||
+    aiIds.includes(id.toLowerCase()) ||
+    kind === 'openai' ||
+    kind === 'anthropic' ||
+    kind === 'gemini' ||
+    kind === 'groq' ||
+    kind === 'cerebras' ||
+    kind === 'chutes'
+  )
+}
+
+const isTool = (cat?: string) => {
+  const toolCats = ['tools', 'security', 'automation', 'scraping_and_data', 'monitoring', 'communication', 'payments', 'analytics', 'maps']
+  return toolCats.includes(cat || '')
+}
+
+function resolveCategory(id: string, cat?: string, kind?: string): UnifiedProvider['category'] {
+  if (isStorageProvider(id, cat)) return 'storage'
+  if (isOAuth(id, cat)) return 'oauth'
+  if (isFreeTier(id, cat)) return 'free_tier'
+  if (isCloudProvider(id, cat)) return 'cloud'
+  if (isAI(id, cat, kind)) return 'ai'
+  if (isTool(cat)) return 'tools'
+  return 'apikey'
+}
 
 export function ProvidersListPage() {
   const navigate = useNavigate()
@@ -69,38 +167,8 @@ export function ProvidersListPage() {
 
       const unifiedMap = new Map<string, UnifiedProvider>()
 
-      const isOAuthProvider = (id: string, cat?: string) => {
-        const oauthIds = [
-          'antigravity', 'gemini-agy', 'claude', 'qoder', 'codex',
-          'github-copilot', 'github', 'cursor', 'kilocode', 'cline',
-          'clinepass', 'codebuddy-intl', 'codebuddy-cn', 'kimi',
-          'grok-cli', 'xai', 'xiaomi-mimo', 'zed', 'windsurf', 'trae',
-        ]
-        return cat === 'oauth' || oauthIds.includes(id)
-      }
-
-      const isFreeTierProvider = (id: string, cat?: string) => {
-        const freeIds = [
-          'opencode', 'gemini-cli', 'kiro', 'openrouter', 'nvidia',
-          'ollama', 'vertex', 'gemini', 'poolside', 'byteplus',
-          'kimchi', 'api-airforce', 'bazaarlink', 'kilo-gateway',
-          'mimo-free', 'mmf', 'devin-cli',
-        ]
-        return cat === 'free_tier' || cat === 'free' || freeIds.includes(id)
-      }
-
       for (const p of platformProviders) {
-        let cat: UnifiedProvider['category'] = 'apikey'
-        if (isOAuthProvider(p.id, p.category)) {
-          cat = 'oauth'
-        } else if (isFreeTierProvider(p.id, p.category)) {
-          cat = 'free_tier'
-        } else if (p.category === 'cloud' || p.category === 'developer' || p.category === 'storage') {
-          cat = 'cloud'
-        } else if (p.category === 'tools' || p.category === 'security' || p.category === 'automation') {
-          cat = 'tools'
-        }
-
+        const cat = resolveCategory(p.id, p.category)
         const relatedAccounts = accounts.filter((a) => a.provider_id === p.id)
         const relatedCredentials = credentials.filter((c) => c.provider_id === p.id)
 
@@ -130,18 +198,11 @@ export function ProvidersListPage() {
           existing.base_url = p.base_url || existing.base_url
           existing.connections_count = Math.max(existing.connections_count, relatedAccounts.length + relatedCredentials.length)
         } else {
-          let cat: UnifiedProvider['category'] = 'apikey'
-          if (isOAuthProvider(p.id, p.kind)) {
-            cat = 'oauth'
-          } else if (isFreeTierProvider(p.id, p.kind)) {
-            cat = 'free_tier'
-          }
-
           unifiedMap.set(p.id, {
             id: p.id,
             key: p.key || p.id,
             name: p.name || p.id,
-            category: cat,
+            category: resolveCategory(p.id, undefined, p.kind),
             kind: p.kind || 'openai',
             base_url: p.base_url,
             enabled: p.enabled,
@@ -183,11 +244,13 @@ export function ProvidersListPage() {
 
   const matchesSearch = (p: UnifiedProvider) => {
     if (!search.trim()) return true
-    const q = search.toLowerCase()
+    const q = search.toLowerCase().trim()
     return (
       p.name.toLowerCase().includes(q) ||
       p.id.toLowerCase().includes(q) ||
-      p.base_url.toLowerCase().includes(q)
+      (p.description && p.description.toLowerCase().includes(q)) ||
+      p.base_url.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q)
     )
   }
 
@@ -199,11 +262,13 @@ export function ProvidersListPage() {
   }
 
   const connectedProviders = providers.filter((p) => p.connections_count > 0 && matchesSearch(p)).sort(sortByConnection)
+  const aiProviders = providers.filter((p) => p.category === 'ai' && matchesSearch(p)).sort(sortByConnection)
+  const storageProviders = providers.filter((p) => p.category === 'storage' && matchesSearch(p)).sort(sortByConnection)
+  const cloudProviders = providers.filter((p) => p.category === 'cloud' && matchesSearch(p)).sort(sortByConnection)
   const oauthProviders = providers.filter((p) => p.category === 'oauth' && matchesSearch(p)).sort(sortByConnection)
   const freeTierProviders = providers.filter((p) => p.category === 'free_tier' && matchesSearch(p)).sort(sortByConnection)
-  const apiKeyProviders = providers.filter(
-    (p) => (p.category === 'apikey' || p.category === 'developer' || p.category === 'cloud' || p.category === 'tools') && matchesSearch(p)
-  ).sort(sortByConnection)
+  const apiKeyProviders = providers.filter((p) => p.category === 'apikey' && matchesSearch(p)).sort(sortByConnection)
+  const toolProviders = providers.filter((p) => p.category === 'tools' && matchesSearch(p)).sort(sortByConnection)
 
   const totalCount = providers.length
   const connectedCount = providers.filter((p) => p.connections_count > 0).length
@@ -280,7 +345,7 @@ export function ProvidersListPage() {
     <div className="space-y-6">
       <PageHeader
         title="Providers"
-        description="Manage AI provider connections."
+        description="Manage AI, Storage, Cloud, and Developer platform connections."
         breadcrumbs={[
           { label: 'Home', to: '/overview' },
           { label: 'Providers' },
@@ -327,7 +392,7 @@ export function ProvidersListPage() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
           <input
             type="search"
-            placeholder="Cari provider..."
+            placeholder="Cari provider (contoh: cloudinary, imagekit, github)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-8 pl-8 pr-3 text-[12.5px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
@@ -379,12 +444,98 @@ export function ProvidersListPage() {
         </div>
       )}
 
+      {(selectedCategory === 'all' || selectedCategory === 'ai') && aiProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                AI Providers
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                {aiProviders.length}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('ai')}
+              isLoading={testingCategory === 'ai'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {aiProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
+
+      {(selectedCategory === 'all' || selectedCategory === 'storage') && storageProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                Storage Providers
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                {storageProviders.length}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('storage')}
+              isLoading={testingCategory === 'storage'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {storageProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
+
+      {(selectedCategory === 'all' || selectedCategory === 'cloud') && cloudProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                Cloud Platforms
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                {cloudProviders.length}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('cloud')}
+              isLoading={testingCategory === 'cloud'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {cloudProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
+
       {(selectedCategory === 'all' || selectedCategory === 'oauth') && oauthProviders.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
-              OAuth Providers
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                OAuth Providers
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                {oauthProviders.length}
+              </span>
+            </div>
             <Button
               variant="secondary"
               size="compact"
@@ -404,9 +555,14 @@ export function ProvidersListPage() {
       {(selectedCategory === 'all' || selectedCategory === 'free_tier') && freeTierProviders.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
-              Free Tier Providers
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                Free Tier Providers
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                {freeTierProviders.length}
+              </span>
+            </div>
             <Button
               variant="secondary"
               size="compact"
@@ -423,12 +579,17 @@ export function ProvidersListPage() {
         </div>
       )}
 
-      {(selectedCategory === 'all' || selectedCategory === 'apikey' || selectedCategory === 'cloud' || selectedCategory === 'tools') && apiKeyProviders.length > 0 && (
+      {(selectedCategory === 'all' || selectedCategory === 'apikey') && apiKeyProviders.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
-              API Key Providers
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                API Key Providers
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                {apiKeyProviders.length}
+              </span>
+            </div>
             <Button
               variant="secondary"
               size="compact"
@@ -445,25 +606,60 @@ export function ProvidersListPage() {
         </div>
       )}
 
-      {connectedProviders.length === 0 && oauthProviders.length === 0 && freeTierProviders.length === 0 && apiKeyProviders.length === 0 && !isLoading && (
-        <div className="py-16 text-center rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)]">
-          <p className="text-[13px] font-medium text-[var(--text-primary)]">No providers found</p>
-          <p className="text-[12px] text-[var(--text-muted)] mt-1">
-            Try adjusting your search or category filter.
-          </p>
-          <Button
-            variant="secondary"
-            size="compact"
-            onClick={() => {
-              setSearch('')
-              setSelectedCategory('all')
-            }}
-            className="mt-3"
-          >
-            Clear Filters
-          </Button>
+      {(selectedCategory === 'all' || selectedCategory === 'tools') && toolProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                Tools &amp; Integrations
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                {toolProviders.length}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('tools')}
+              isLoading={testingCategory === 'tools'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {toolProviders.map(renderCard)}
+          </div>
         </div>
       )}
+
+      {connectedProviders.length === 0 &&
+        aiProviders.length === 0 &&
+        storageProviders.length === 0 &&
+        cloudProviders.length === 0 &&
+        oauthProviders.length === 0 &&
+        freeTierProviders.length === 0 &&
+        apiKeyProviders.length === 0 &&
+        toolProviders.length === 0 &&
+        !isLoading && (
+          <div className="py-16 text-center rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)]">
+            <p className="text-[13px] font-medium text-[var(--text-primary)]">No providers found</p>
+            <p className="text-[12px] text-[var(--text-muted)] mt-1">
+              Try adjusting your search or category filter.
+            </p>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => {
+                setSearch('')
+                setSelectedCategory('all')
+              }}
+              className="mt-3"
+            >
+              Clear Filters
+            </Button>
+          </div>
+        )}
     </div>
   )
 }

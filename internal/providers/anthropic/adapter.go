@@ -162,8 +162,13 @@ func (a *Adapter) Execute(ctx context.Context, req *providers.Request, creds *pr
 		return nil, err
 	}
 
-	text, thinking := ExtractBlocks(anthropicResp.Content)
+	text, thinking, toolCalls := ExtractBlocks(anthropicResp.Content)
 	usage := ConvertUsage(anthropicResp.Usage.InputTokens, anthropicResp.Usage.OutputTokens)
+
+	stopReason := anthropicResp.StopReason
+	if len(toolCalls) > 0 && (stopReason == "" || stopReason == "end_turn") {
+		stopReason = "tool_use"
+	}
 
 	return &providers.Response{
 		ID:           anthropicResp.ID,
@@ -171,7 +176,8 @@ func (a *Adapter) Execute(ctx context.Context, req *providers.Request, creds *pr
 		Role:         anthropicResp.Role,
 		Content:      text,
 		Reasoning:    thinking,
-		FinishReason: anthropicResp.StopReason,
+		FinishReason: stopReason,
+		ToolCalls:    toolCalls,
 		Usage:        usage,
 	}, nil
 }

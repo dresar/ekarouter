@@ -33,6 +33,7 @@ export function SearchableSelect({
   emptyMessage = 'Tidak ada hasil yang cocok',
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [openUpward, setOpenUpward] = useState(false)
   const [query, setQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -79,6 +80,11 @@ export function SearchableSelect({
     }
 
     if (isOpen) {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        setOpenUpward(spaceBelow < 280 && rect.top > spaceBelow)
+      }
       document.addEventListener('mousedown', handleClickOutside)
       document.addEventListener('keydown', handleKeyDown)
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -159,7 +165,7 @@ export function SearchableSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 w-full min-w-[280px] rounded-[8px] bg-[#14151c] border border-[#2e3240] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <div className={`absolute left-0 ${openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} z-50 w-full min-w-[280px] rounded-[8px] bg-[#14151c] border border-[#2e3240] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100`}>
           <div className="p-2 border-b border-[#242733] bg-[#111217]">
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-[#7c8294] absolute left-2.5 top-1/2 -translate-y-1/2" />

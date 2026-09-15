@@ -230,6 +230,8 @@ func NewServer(
 	r.Route("/api", func(api chi.Router) {
 		api.Post("/auth/login", adminHandler.Login)
 		api.Get("/accounts/oauth/callback", adminHandler.OAuthCallback)
+		api.Get("/uploads/{filename}", adminHandler.ServeUploads)
+		api.Get("/providers/custom-icons", adminHandler.ListProviderCustomIcons)
 
 		api.Group(func(authApi chi.Router) {
 			authApi.Use(SessionAuthMiddleware(db))
@@ -368,6 +370,16 @@ func NewServer(
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(headroomCollect())
 			})
+
+			authApi.Route("/storage", func(st chi.Router) {
+				st.Get("/config", adminHandler.GetStorageConfig)
+				st.Post("/config", adminHandler.SaveStorageConfig)
+				st.Post("/test", adminHandler.TestStorageConnection)
+				st.Post("/upload", adminHandler.UploadStorageFile)
+			})
+
+			authApi.Post("/providers/{id}/icon", adminHandler.SaveProviderCustomIcon)
+			authApi.Delete("/providers/{id}/icon", adminHandler.DeleteProviderCustomIcon)
 		})
 	})
 

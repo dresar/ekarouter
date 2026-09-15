@@ -89,6 +89,9 @@ func GatewayAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				token = strings.TrimPrefix(authHeader, "Bearer ")
 			}
 			if token == "" {
+				token = r.Header.Get("x-api-key")
+			}
+			if token == "" {
 				if cookie, err := r.Cookie("session_token"); err == nil && cookie.Value != "" {
 					token = cookie.Value
 				}

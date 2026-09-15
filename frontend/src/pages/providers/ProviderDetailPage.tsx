@@ -7,14 +7,12 @@ import {
   Server,
   AlertCircle,
   ExternalLink,
-  Radio,
   Shield,
   Globe,
   Pencil,
   ChevronUp,
   ChevronDown,
   CheckCircle2,
-  XCircle,
   Clock,
   ToggleLeft,
   ToggleRight,
@@ -73,12 +71,6 @@ export function ProviderDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
-  const [testResult, setTestResult] = useState<{
-    status: 'idle' | 'testing' | 'success' | 'error'
-    message?: string
-    latency?: number
-  }>({ status: 'idle' })
-
   const [thinkingMode, setThinkingMode] = useState('Auto')
   const [roundRobin, setRoundRobin] = useState(true)
   const [stickyCount, setStickyCount] = useState(1)
@@ -114,6 +106,7 @@ export function ProviderDetailPage() {
   const [bulkText, setBulkText] = useState('')
   const [bulkPrefix, setBulkPrefix] = useState('Key')
   const [bulkProxyId, setBulkProxyId] = useState('')
+  const [bulkAutoRandom, setBulkAutoRandom] = useState(false)
   const [isBulkAdding, setIsBulkAdding] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
 
@@ -295,17 +288,6 @@ export function ProviderDetailPage() {
     return () => window.removeEventListener('message', handleMsg)
   }, [id])
 
-  const handleTest = async () => {
-    if (!provider) return
-    setTestResult({ status: 'testing' })
-    const start = performance.now()
-    try {
-      await api.post(`/api/v1/providers/${provider.id}/health`, {})
-      setTestResult({ status: 'success', latency: Math.round(performance.now() - start), message: 'Connection healthy' })
-    } catch {
-      setTestResult({ status: 'error', latency: Math.round(performance.now() - start), message: 'Connection failed' })
-    }
-  }
 
   const handleApplyProxy = async (mode: 'rotate' | 'none' | 'single', proxyPoolId?: string) => {
     if (!provider) return
@@ -941,82 +923,7 @@ export function ProviderDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="secondary"
-              size="compact"
-              onClick={handleTest}
-              isLoading={testResult.status === 'testing'}
-              leftIcon={<Radio className="w-3.5 h-3.5" />}
-            >
-              Test Provider
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {testResult.status !== 'idle' && (
-        <div
-          className={`px-4 py-2.5 rounded-[7px] flex items-center gap-2.5 text-[12px] border ${testResult.status === 'success'
-              ? 'bg-emerald-950/20 border-emerald-600/30 text-emerald-300'
-              : testResult.status === 'error'
-                ? 'bg-rose-950/20 border-rose-600/30 text-rose-300'
-                : 'bg-[var(--bg-panel)] border-[var(--border-subtle)] text-[var(--text-muted)]'
-            }`}
-        >
-          {testResult.status === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-          ) : testResult.status === 'error' ? (
-            <XCircle className="w-4 h-4 shrink-0" />
-          ) : (
-            <Clock className="w-4 h-4 shrink-0 animate-spin" />
-          )}
-          <span>{testResult.message || 'Testing provider health…'}</span>
-          {testResult.latency !== undefined && (
-            <span className="ml-auto font-mono text-[10.5px]">{testResult.latency}ms</span>
-          )}
-        </div>
-      )}
-
-      {isTestingOneByOne && (
-        <div className="px-4 py-3 rounded-[8px] bg-[#1c1e25] border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[12px]">
-          <div className="flex items-center gap-2 text-amber-300">
-            <Clock className="w-4 h-4 animate-spin shrink-0" />
-            <span>
-              Testing connection {testingIndex + 1} of {accounts.length} —{' '}
-              <strong className="text-white">{accounts[testingIndex]?.name || '...'}</strong>
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-emerald-400">{testStats.success} Healthy</span>
-            <span className="text-[#686d80]">•</span>
-            <span className="font-mono text-rose-400">{testStats.failed} Failed</span>
-            <button
-              type="button"
-              onClick={() => {
-                abortTestRef.current = true
-                setIsTestingOneByOne(false)
-              }}
-              className="px-2 py-1 rounded-[4px] bg-rose-950/40 border border-rose-600/40 text-rose-300 hover:bg-rose-900/50 text-[11px] cursor-pointer"
-            >
-              Stop
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)] bg-[#14151b]">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[16px] font-bold text-[var(--text-primary)]">
-              Connections
-            </h3>
-            <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-panel)] px-1.5 py-0.5 rounded">
-              {accounts.length}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
             {isOAuth ? (
               <button
                 type="button"
@@ -1067,26 +974,29 @@ export function ProviderDetailPage() {
             <button
               type="button"
               onClick={handleTestOneByOne}
-              className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer ${isTestingOneByOne
+              className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer ${
+                isTestingOneByOne
                   ? 'bg-amber-950/30 border-amber-600/50 text-amber-300'
                   : 'bg-[#202227] hover:bg-[#2a2d35] border-[#363a45]'
-                }`}
+              }`}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-[#9fa3b4] ${isTestingOneByOne ? 'animate-spin' : ''}`} />
               <span>{isTestingOneByOne ? 'Stop Testing' : 'Test One-by-One'}</span>
             </button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pl-2 border-l border-[#2d3139]">
               <span className="text-[12px] font-medium text-[#9da1b2]">Round Robin</span>
               <button
                 type="button"
                 onClick={handleRoundRobinToggle}
-                className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
-                  }`}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
+                  roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
+                }`}
               >
                 <div
-                  className={`w-4 h-4 rounded-full bg-white transition-transform ${roundRobin ? 'translate-x-4' : 'translate-x-0'
-                    }`}
+                  className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                    roundRobin ? 'translate-x-4' : 'translate-x-0'
+                  }`}
                 />
               </button>
             </div>
@@ -1104,9 +1014,49 @@ export function ProviderDetailPage() {
             </div>
           </div>
         </div>
+      )}
 
-        <div className="flex items-center justify-between px-4 py-2 bg-[#121318] border-b border-[#232630] text-[12px] flex-wrap gap-2">
+      {isTestingOneByOne && (
+        <div className="px-4 py-3 rounded-[8px] bg-[#1c1e25] border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[12px]">
+          <div className="flex items-center gap-2 text-amber-300">
+            <Clock className="w-4 h-4 animate-spin shrink-0" />
+            <span>
+              Testing connection {testingIndex + 1} of {accounts.length} —{' '}
+              <strong className="text-white">{accounts[testingIndex]?.name || '...'}</strong>
+            </span>
+          </div>
           <div className="flex items-center gap-3">
+            <span className="font-mono text-emerald-400">{testStats.success} Healthy</span>
+            <span className="text-[#686d80]">•</span>
+            <span className="font-mono text-rose-400">{testStats.failed} Failed</span>
+            <button
+              type="button"
+              onClick={() => {
+                abortTestRef.current = true
+                setIsTestingOneByOne(false)
+              }}
+              className="px-2 py-1 rounded-[4px] bg-rose-950/40 border border-rose-600/40 text-rose-300 hover:bg-rose-900/50 text-[11px] cursor-pointer"
+            >
+              Stop
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#14151b] border-b border-[var(--border-subtle)] text-[12px] flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-[14px] font-bold text-[var(--text-primary)]">
+                Connections
+              </h3>
+              <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-panel)] px-1.5 py-0.5 rounded">
+                {accounts.length}
+              </span>
+            </div>
+
+            <span className="text-[#363a45]">|</span>
+
             <label className="flex items-center gap-2 cursor-pointer select-none text-[#9ca3af] hover:text-[#e0e2eb]">
               <input
                 type="checkbox"

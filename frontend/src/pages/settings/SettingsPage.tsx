@@ -14,24 +14,51 @@ import {
   Wrench,
   Sparkles,
   Layers,
+  HardDrive,
+  Eye,
+  EyeOff,
+  Radio,
 } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Tabs } from '../../components/ui/Tabs.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
-import { SystemHealth, UserProfile } from '../../types/api.ts'
+import { SystemHealth, UserProfile, MediaStorageConfig } from '../../types/api.ts'
 import { useAuth } from '../../context/AuthContext.tsx'
 import { setStoredUser } from '../../utils/storage.ts'
 
 export function SettingsPage() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<'general' | 'system' | 'security'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'storage' | 'system' | 'security'>('general')
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [health, setHealth] = useState<SystemHealth | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
+
+  const [storageConfig, setStorageConfig] = useState<MediaStorageConfig>({
+    provider: 'local',
+    cloudinary_cloud_name: '',
+    cloudinary_api_key: '',
+    cloudinary_api_secret: '',
+    cloudinary_folder: 'ekarouter',
+    imagekit_public_key: '',
+    imagekit_private_key: '',
+    imagekit_url_endpoint: '',
+    imagekit_folder: '/ekarouter',
+    cdn_custom_domain: '',
+    github_token: '',
+    github_owner: '',
+    github_repo: '',
+    github_branch: 'main',
+    github_folder: 'uploads',
+    github_cdn_domain: 'cdn.jsdelivr.net',
+  })
+  const [isSavingStorage, setIsSavingStorage] = useState(false)
+  const [isTestingStorage, setIsTestingStorage] = useState(false)
+  const [storageFeedback, setStorageFeedback] = useState<{ success: boolean; message: string } | null>(null)
+  const [showSecrets, setShowSecrets] = useState(false)
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -43,12 +70,16 @@ export function SettingsPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const [settingsData, healthData] = await Promise.all([
+      const [settingsData, healthData, storageData] = await Promise.all([
         api.get<Record<string, string>>('/api/settings').catch(() => ({})),
         api.get<SystemHealth>('/health').catch(() => null),
+        api.get<MediaStorageConfig>('/api/storage/config').catch(() => null),
       ])
       setSettings(settingsData || {})
       setHealth(healthData)
+      if (storageData && typeof storageData === 'object') {
+        setStorageConfig((prev) => ({ ...prev, ...storageData }))
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load settings'
       setError(msg)
@@ -106,11 +137,57 @@ export function SettingsPage() {
     }
   }
 
+  const handleSaveStorage = async (e: FormEvent) => {
+    e.preventDefault()
+    setIsSavingStorage(true)
+    setStorageFeedback(null)
+    try {
+      await api.post('/api/storage/config', storageConfig)
+      setStorageFeedback({
+        success: true,
+        message: `Konfigurasi storage '${storageConfig.provider}' berhasil disimpan!`,
+      })
+      setTimeout(() => setStorageFeedback(null), 4000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal menyimpan konfigurasi storage'
+      setStorageFeedback({ success: false, message: msg })
+    } finally {
+      setIsSavingStorage(false)
+    }
+  }
+
+  const handleTestStorage = async () => {
+    setIsTestingStorage(true)
+    setStorageFeedback(null)
+    try {
+      const res = await api.post<{ status: string; url?: string; file_id?: string; message?: string }>(
+        '/api/storage/test',
+        { provider: storageConfig.provider }
+      )
+      if (res?.status === 'ok') {
+        setStorageFeedback({
+          success: true,
+          message: `Koneksi storage (${storageConfig.provider}) berhasil diverifikasi! ${res.url ? `URL: ${res.url}` : ''}`,
+        })
+      } else {
+        setStorageFeedback({
+          success: false,
+          message: res?.message || 'Tes koneksi storage gagal',
+        })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Tes koneksi storage gagal'
+      setStorageFeedback({ success: false, message: msg })
+    } finally {
+      setIsTestingStorage(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Settings"
-        description="Configure runtime environment variables, token saver preferences, and administrative security."
+        description="Configure runtime environment variables, storage & media CDN, token saver preferences, and administrative security."
         breadcrumbs={[
           { label: 'Home', to: '/overview' },
           { label: 'Settings' },
@@ -145,11 +222,12 @@ export function SettingsPage() {
       <Tabs
         items={[
           { key: 'general', label: 'General Configuration', icon: <Settings className="w-4 h-4" /> },
+          { key: 'storage', label: 'Storage & Media CDN', icon: <HardDrive className="w-4 h-4" /> },
           { key: 'security', label: 'Security & Access', icon: <Shield className="w-4 h-4" /> },
           { key: 'system', label: 'Runtime Environment', icon: <Server className="w-4 h-4" /> },
         ]}
         activeKey={activeTab}
-        onChange={(k) => setActiveTab(k as 'general' | 'system' | 'security')}
+        onChange={(k) => setActiveTab(k as 'general' | 'storage' | 'system' | 'security')}
       />
 
       {activeTab === 'general' ? (
@@ -214,6 +292,317 @@ export function SettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+      ) : activeTab === 'storage' ? (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-5 max-w-3xl">
+          <div>
+            <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">Storage &amp; Media CDN Configuration</h3>
+            <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+              Pilih dan konfigurasikan provider penyimpanan media untuk file, icon provider kustom, dan aset CDN.
+            </p>
+          </div>
+
+          {storageFeedback && (
+            <div
+              className={`p-3 rounded-[6px] border text-[12px] flex items-center gap-2 ${
+                storageFeedback.success
+                  ? 'bg-emerald-950/20 border-emerald-600/30 text-emerald-300'
+                  : 'bg-rose-950/20 border-rose-600/30 text-rose-300'
+              }`}
+            >
+              {storageFeedback.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span className="break-all">{storageFeedback.message}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveStorage} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1.5">
+                Active Storage Provider
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'local', label: 'Local Disk', desc: 'Local /uploads folder' },
+                  { id: 'cloudinary', label: 'Cloudinary', desc: 'Media API & CDN' },
+                  { id: 'imagekit', label: 'ImageKit', desc: 'Realtime Optimization' },
+                  { id: 'github', label: 'GitHub CDN', desc: 'jsDelivr Delivery' },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setStorageConfig((prev) => ({ ...prev, provider: p.id as any }))}
+                    className={`p-2.5 rounded-[6px] border text-left transition-colors cursor-pointer ${
+                      storageConfig.provider === p.id
+                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--text-primary)]'
+                        : 'border-[var(--border-subtle)] bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]'
+                    }`}
+                  >
+                    <div className="text-[12px] font-semibold">{p.label}</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{p.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {storageConfig.provider === 'cloudinary' && (
+              <div className="p-3.5 rounded-[6px] bg-[var(--bg-panel)]/60 border border-[var(--border-subtle)] space-y-3">
+                <div className="text-[12px] font-semibold text-[var(--text-primary)]">Cloudinary Credentials</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Cloud Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. demo-cloud"
+                      value={storageConfig.cloudinary_cloud_name || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, cloudinary_cloud_name: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      API Key
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 123456789012345"
+                      value={storageConfig.cloudinary_api_key || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, cloudinary_api_key: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-medium text-[var(--text-secondary)]">
+                        API Secret
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSecrets(!showSecrets)}
+                        className="text-[11px] text-[var(--brand-text)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        {showSecrets ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {showSecrets ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <input
+                      type={showSecrets ? 'text' : 'password'}
+                      placeholder="•••••••• (leave unchanged to keep existing secret)"
+                      value={storageConfig.cloudinary_api_secret || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, cloudinary_api_secret: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] font-mono rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Upload Folder
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="ekarouter"
+                      value={storageConfig.cloudinary_folder || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, cloudinary_folder: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {storageConfig.provider === 'imagekit' && (
+              <div className="p-3.5 rounded-[6px] bg-[var(--bg-panel)]/60 border border-[var(--border-subtle)] space-y-3">
+                <div className="text-[12px] font-semibold text-[var(--text-primary)]">ImageKit Credentials</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      URL Endpoint
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="https://ik.imagekit.io/your_imagekit_id"
+                      value={storageConfig.imagekit_url_endpoint || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, imagekit_url_endpoint: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Public Key
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="public_..."
+                      value={storageConfig.imagekit_public_key || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, imagekit_public_key: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Folder
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="/ekarouter"
+                      value={storageConfig.imagekit_folder || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, imagekit_folder: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-medium text-[var(--text-secondary)]">
+                        Private Key
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSecrets(!showSecrets)}
+                        className="text-[11px] text-[var(--brand-text)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        {showSecrets ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {showSecrets ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <input
+                      type={showSecrets ? 'text' : 'password'}
+                      placeholder="•••••••• (leave unchanged to keep existing secret)"
+                      value={storageConfig.imagekit_private_key || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, imagekit_private_key: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] font-mono rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {storageConfig.provider === 'github' && (
+              <div className="p-3.5 rounded-[6px] bg-[var(--bg-panel)]/60 border border-[var(--border-subtle)] space-y-3">
+                <div className="text-[12px] font-semibold text-[var(--text-primary)]">GitHub Storage &amp; jsDelivr CDN</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Repo Owner
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. username"
+                      value={storageConfig.github_owner || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, github_owner: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Repo Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. assets-cdn"
+                      value={storageConfig.github_repo || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, github_repo: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Branch
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="main"
+                      value={storageConfig.github_branch || 'main'}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, github_branch: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+                      Upload Folder
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="uploads"
+                      value={storageConfig.github_folder || 'uploads'}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, github_folder: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-medium text-[var(--text-secondary)]">
+                        GitHub Personal Access Token (PAT)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSecrets(!showSecrets)}
+                        className="text-[11px] text-[var(--brand-text)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        {showSecrets ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {showSecrets ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <input
+                      type={showSecrets ? 'text' : 'password'}
+                      placeholder="ghp_•••••••• (requires repo scope)"
+                      value={storageConfig.github_token || ''}
+                      onChange={(e) => setStorageConfig((prev) => ({ ...prev, github_token: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-[12px] font-mono rounded-[5px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Custom CDN Domain */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
+                Custom CDN Domain (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. https://cdn.yourdomain.com"
+                value={storageConfig.cdn_custom_domain || ''}
+                onChange={(e) => setStorageConfig((prev) => ({ ...prev, cdn_custom_domain: e.target.value }))}
+                className="w-full px-3 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
+              />
+              <span className="text-[11px] text-[var(--text-muted)] mt-1 block">
+                Digunakan untuk mengganti domain default saat menghasilkan public CDN URLs.
+              </span>
+            </div>
+
+            <div className="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                size="compact"
+                onClick={handleTestStorage}
+                isLoading={isTestingStorage}
+                leftIcon={<Radio className="w-3.5 h-3.5" />}
+              >
+                Test Connection ({storageConfig.provider})
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="compact"
+                isLoading={isSavingStorage}
+                leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+              >
+                Save Storage Config
+              </Button>
+            </div>
+          </form>
         </div>
       ) : activeTab === 'security' ? (
         <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-[8px] p-4 space-y-4 max-w-2xl">

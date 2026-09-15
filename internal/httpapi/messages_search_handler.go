@@ -5,18 +5,149 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dresar/ekarouter/internal/providers"
 )
 
+func parseAnthropicSystem(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var str string
+	if err := json.Unmarshal(raw, &str); err == nil {
+		return str
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err == nil {
+		var sb strings.Builder
+		for _, b := range blocks {
+			if b.Text != "" {
+				if sb.Len() > 0 {
+					sb.WriteString("\n\n")
+				}
+				sb.WriteString(b.Text)
+			}
+		}
+		return sb.String()
+	}
+	return ""
+}
+
+func parseAnthropicMessages(raw []json.RawMessage) []providers.Message {
+	var msgs []providers.Message
+	for _, rm := range raw {
+		var item struct {
+			Role    string          `json:"role"`
+			Content json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal(rm, &item); err != nil {
+			continue
+		}
+		var textStr string
+		if err := json.Unmarshal(item.Content, &textStr); err == nil {
+			msgs = append(msgs, providers.Message{
+				Role:    item.Role,
+				Content: textStr,
+			})
+			continue
+		}
+		var blocks []struct {
+			Type      string          `json:"type"`
+			Text      string          `json:"text,omitempty"`
+			ID        string          `json:"id,omitempty"`
+			Name      string          `json:"name,omitempty"`
+			Input     json.RawMessage `json:"input,omitempty"`
+			ToolUseID string          `json:"tool_use_id,omitempty"`
+			Content   any             `json:"content,omitempty"`
+		}
+		if err := json.Unmarshal(item.Content, &blocks); err == nil {
+			var sb strings.Builder
+			var toolCalls []providers.ToolCall
+			for _, b := range blocks {
+				switch b.Type {
+				case "text":
+					if sb.Len() > 0 {
+						sb.WriteString("\n")
+					}
+					sb.WriteString(b.Text)
+				case "tool_use":
+					toolCalls = append(toolCalls, providers.ToolCall{
+						ID:   b.ID,
+						Type: "function",
+						Function: providers.FunctionCall{
+							Name:      b.Name,
+							Arguments: string(b.Input),
+						},
+					})
+				case "tool_result":
+					if sb.Len() > 0 {
+						sb.WriteString("\n")
+					}
+					switch cv := b.Content.(type) {
+					case string:
+						sb.WriteString(cv)
+					default:
+						resBytes, _ := json.Marshal(cv)
+						sb.WriteString(string(resBytes))
+					}
+				}
+			}
+			msgs = append(msgs, providers.Message{
+				Role:      item.Role,
+				Content:   sb.String(),
+				ToolCalls: toolCalls,
+			})
+		}
+	}
+	return msgs
+}
+
+func formatAnthropicContent(resp *providers.Response) []any {
+	var content []any
+	if resp.Content != "" {
+		content = append(content, map[string]any{
+			"type": "text",
+			"text": resp.Content,
+		})
+	}
+	for _, tc := range resp.ToolCalls {
+		var inputMap any
+		if err := json.Unmarshal([]byte(tc.Function.Arguments), &inputMap); err != nil {
+			inputMap = map[string]any{}
+		}
+		content = append(content, map[string]any{
+			"type":  "tool_use",
+			"id":    tc.ID,
+			"name":  tc.Function.Name,
+			"input": inputMap,
+		})
+	}
+	if len(content) == 0 {
+		content = append(content, map[string]any{
+			"type": "text",
+			"text": "",
+		})
+	}
+	return content
+}
+
 func (h *GatewayHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Model     string              `json:"model"`
-		Messages  []providers.Message `json:"messages"`
-		MaxTokens int                 `json:"max_tokens"`
-		System    string              `json:"system"`
-		Stream    bool                `json:"stream"`
+		Model     string            `json:"model"`
+		Messages  []json.RawMessage `json:"messages"`
+		MaxTokens int               `json:"max_tokens"`
+		System    json.RawMessage   `json:"system"`
+		Stream    bool              `json:"stream"`
+		Tools     []any             `json:"tools"`
+		Thinking  *struct {
+			Type         string `json:"type"`
+			BudgetTokens int    `json:"budget_tokens"`
+		} `json:"thinking"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -37,18 +168,23 @@ func (h *GatewayHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgs := req.Messages
-	if req.System != "" {
-		msgs = append([]providers.Message{{Role: "system", Content: req.System}}, msgs...)
+	msgs := parseAnthropicMessages(req.Messages)
+	systemStr := parseAnthropicSystem(req.System)
+	if systemStr != "" {
+		msgs = append([]providers.Message{{Role: "system", Content: systemStr}}, msgs...)
 	}
 
 	openAIReq := &providers.Request{
 		Model:    req.Model,
 		Messages: msgs,
 		Stream:   req.Stream,
+		Tools:    req.Tools,
 	}
 	if req.MaxTokens > 0 {
 		openAIReq.MaxTokens = &req.MaxTokens
+	}
+	if req.Thinking != nil && req.Thinking.BudgetTokens > 0 {
+		openAIReq.ThinkingBudget = &req.Thinking.BudgetTokens
 	}
 
 	if req.Stream {
@@ -64,16 +200,21 @@ func (h *GatewayHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stopReason := resp.FinishReason
+	if len(resp.ToolCalls) > 0 {
+		stopReason = "tool_use"
+	} else if stopReason == "" || stopReason == "stop" {
+		stopReason = "end_turn"
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"id":   resp.ID,
-		"type": "message",
-		"role": "assistant",
-		"content": []map[string]any{
-			{"type": "text", "text": resp.Content},
-		},
+		"id":            resp.ID,
+		"type":          "message",
+		"role":          "assistant",
+		"content":       formatAnthropicContent(resp),
 		"model":         resp.Model,
-		"stop_reason":   resp.FinishReason,
+		"stop_reason":   stopReason,
 		"stop_sequence": nil,
 		"usage": map[string]int{
 			"input_tokens":  resp.Usage.PromptTokens,

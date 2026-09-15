@@ -8,9 +8,10 @@ import (
 )
 
 type ChoiceMessage struct {
-	Role             string `json:"role"`
-	Content          string `json:"content"`
-	ReasoningContent string `json:"reasoning_content,omitempty"`
+	Role             string               `json:"role"`
+	Content          string               `json:"content"`
+	ReasoningContent string               `json:"reasoning_content,omitempty"`
+	ToolCalls        []providers.ToolCall `json:"tool_calls,omitempty"`
 }
 
 type Choice struct {
