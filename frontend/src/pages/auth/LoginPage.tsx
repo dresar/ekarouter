@@ -106,7 +106,7 @@ export function LoginPage() {
               isLoading={isLoading}
               className="w-full mt-2"
             >
-              Sign In to Console
+              Masuk
             </Button>
           </form>
 
@@ -114,9 +114,9 @@ export function LoginPage() {
             <button
               type="button"
               onClick={handleUseDefault}
-              className="text-[11.5px] text-[var(--brand-text)] hover:underline"
+              className="text-[11.5px] text-[var(--brand-text)] hover:underline cursor-pointer"
             >
-              Fill default development credentials
+              Demo
             </button>
           </div>
         </div>

@@ -154,7 +154,7 @@ export function TokenSaverPage() {
             rows={12}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Paste code diff, JSON log, or prompt text here..."
+            placeholder="Input"
             className="w-full p-3 font-mono text-[12px] rounded-[6px] bg-[var(--bg-card)] border border-[var(--border-subtle)] focus:outline-none resize-y leading-relaxed"
           />
         </div>
@@ -188,7 +188,7 @@ export function TokenSaverPage() {
             readOnly
             rows={12}
             value={result?.output || ''}
-            placeholder="Compacted output will appear here after execution..."
+            placeholder="Output"
             className="w-full p-3 font-mono text-[12px] rounded-[6px] border border-[var(--border-subtle)] focus:outline-none resize-y bg-[#07090E] text-[var(--text-secondary)] leading-relaxed"
           />
         </div>

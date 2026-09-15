@@ -48,8 +48,8 @@ export function ToolCreatePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <PageHeader
-        title="Define Generic HTTP Tool"
-        description="Configure parameterized REST API actions with SSRF protection."
+        title="Tambah Tool"
+        description="Konfigurasi aksi REST API terproteksi SSRF."
         breadcrumbs={[
           { label: 'Tools', to: '/tools' },
           { label: 'New Tool' },
@@ -57,7 +57,7 @@ export function ToolCreatePage() {
         actions={
           <Link to="/tools">
             <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to Tools
+              Kembali
             </Button>
           </Link>
         }
@@ -84,7 +84,7 @@ export function ToolCreatePage() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. send_email"
+              placeholder="Nama"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -98,7 +98,7 @@ export function ToolCreatePage() {
               required
               value={formData.provider_id}
               onChange={(e) => setFormData({ ...formData, provider_id: e.target.value })}
-              placeholder="e.g. resend or stripe"
+              placeholder="Kategori"
               className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
             />
           </div>
@@ -112,7 +112,7 @@ export function ToolCreatePage() {
             type="text"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Functional summary for tool calling"
+            placeholder="Deskripsi"
             className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
           />
         </div>
@@ -163,7 +163,7 @@ export function ToolCreatePage() {
             required
             value={formData.url_template}
             onChange={(e) => setFormData({ ...formData, url_template: e.target.value })}
-            placeholder="https://api.service.com/v1/resource/{{id}}"
+            placeholder="URL"
             className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
           />
           <span className="text-[11px] text-[var(--text-muted)] mt-1 block">
@@ -206,7 +206,7 @@ export function ToolCreatePage() {
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
           <Link to="/tools">
             <Button type="button" variant="ghost" size="compact">
-              Cancel
+              Batal
             </Button>
           </Link>
           <Button
@@ -216,7 +216,7 @@ export function ToolCreatePage() {
             isLoading={isSubmitting}
             leftIcon={<Save className="w-3.5 h-3.5" />}
           >
-            Save Tool Definition
+            Simpan
           </Button>
         </div>
       </form>

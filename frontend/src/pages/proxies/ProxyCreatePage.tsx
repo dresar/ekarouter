@@ -46,8 +46,8 @@ export function ProxyCreatePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <PageHeader
-        title="Add Outbound Proxy Profile"
-        description="Configure an egress proxy for geographic routing or network IP isolation."
+        title="Tambah Proxy"
+        description="Konfigurasi egress proxy untuk isolasi IP atau jaringan."
         breadcrumbs={[
           { label: 'Proxies', to: '/proxies' },
           { label: 'New Proxy' },
@@ -55,7 +55,7 @@ export function ProxyCreatePage() {
         actions={
           <Link to="/proxies">
             <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to Proxies
+              Kembali
             </Button>
           </Link>
         }
@@ -82,7 +82,7 @@ export function ProxyCreatePage() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. US Residential Egress"
+              placeholder="Nama"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -114,7 +114,7 @@ export function ProxyCreatePage() {
               required
               value={formData.host}
               onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-              placeholder="e.g. proxy.gateway.net"
+              placeholder="Host"
               className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
             />
           </div>
@@ -146,7 +146,7 @@ export function ProxyCreatePage() {
               type="text"
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              placeholder="Auth username"
+              placeholder="Username"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -160,7 +160,7 @@ export function ProxyCreatePage() {
               autoComplete="new-password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Auth password"
+              placeholder="Password"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -182,7 +182,7 @@ export function ProxyCreatePage() {
           <div className="flex items-center gap-2">
             <Link to="/proxies">
               <Button type="button" variant="ghost" size="compact">
-                Cancel
+                Batal
               </Button>
             </Link>
             <Button
@@ -192,7 +192,7 @@ export function ProxyCreatePage() {
               isLoading={isSubmitting}
               leftIcon={<Save className="w-3.5 h-3.5" />}
             >
-              Save Proxy
+              Simpan
             </Button>
           </div>
         </div>

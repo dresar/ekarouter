@@ -88,7 +88,7 @@ export function ToolDetailPage() {
             onClick={() => navigate('/tools')}
             leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
           >
-            Back to Tools
+            Kembali
           </Button>
         }
       />
@@ -179,7 +179,7 @@ export function ToolDetailPage() {
             leftIcon={<Play className="w-3.5 h-3.5" />}
             className="w-full"
           >
-            Execute Tool Action
+            Jalankan
           </Button>
         </div>
 

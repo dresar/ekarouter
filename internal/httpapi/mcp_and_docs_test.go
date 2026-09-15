@@ -65,6 +65,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			last_used_at DATETIME
 		);`,
+		`INSERT INTO providers (id, key, name, kind, base_url, enabled) VALUES ('p1', 'openai', 'OpenAI', 'openai', 'https://api.openai.com', 1);`,
 		`INSERT INTO models (id, provider_id, external_name, display_name, enabled) VALUES ('m1', 'p1', 'gpt-4o', 'GPT-4o', 1);`,
 		`INSERT INTO routes (id, name, strategy, enabled) VALUES ('r1', 'fast', 'priority', 1);`,
 		`INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES ('k1', 'Default Key', 'er-test1234', 'hash1234', '*', 1);`,
@@ -296,6 +297,137 @@ func TestMCPHandler(t *testing.T) {
 		resList := resultMap["resources"].([]any)
 		if len(resList) == 0 {
 			t.Fatalf("expected non-empty resources list")
+		}
+	})
+
+	t.Run("GetMCPInfo", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+		rec := httptest.NewRecorder()
+		handler.HandleJSONRPC(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var mcpInfo map[string]any
+		if err := json.NewDecoder(rec.Body).Decode(&mcpInfo); err != nil {
+			t.Fatalf("failed to decode MCP info: %v", err)
+		}
+		if mcpInfo["service"] != "EkaRouter MCP Server" {
+			t.Fatalf("unexpected service name: %v", mcpInfo["service"])
+		}
+	})
+
+	t.Run("CallToolGenerateApiKey", func(t *testing.T) {
+		reqBody := `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"generate_api_key","arguments":{"name":"Test Subagent"}}}`
+		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewBufferString(reqBody))
+		rec := httptest.NewRecorder()
+		handler.HandleJSONRPC(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var res JSONRPCResponse
+		if err := json.NewDecoder(rec.Body).Decode(&res); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		resultMap := res.Result.(map[string]any)
+		if resultMap["isError"] == true {
+			t.Fatalf("generate_api_key returned error: %v", resultMap)
+		}
+		content := resultMap["content"].([]any)[0].(map[string]any)["text"].(string)
+		if !strings.Contains(content, "eka_live_") && !strings.Contains(content, "secret_key") {
+			t.Fatalf("expected generated secret key in response, got: %s", content)
+		}
+	})
+
+	t.Run("CallToolGetApiKeysCreateNew", func(t *testing.T) {
+		reqBody := `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"get_api_keys","arguments":{"create_new":true,"name":"Cursor Assistant"}}}`
+		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewBufferString(reqBody))
+		rec := httptest.NewRecorder()
+		handler.HandleJSONRPC(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var res JSONRPCResponse
+		_ = json.NewDecoder(rec.Body).Decode(&res)
+		resultMap := res.Result.(map[string]any)
+		if resultMap["isError"] == true {
+			t.Fatalf("get_api_keys returned error: %v", resultMap)
+		}
+		content := resultMap["content"].([]any)[0].(map[string]any)["text"].(string)
+		if !strings.Contains(content, "secret_key") {
+			t.Fatalf("expected secret_key when create_new=true, got: %s", content)
+		}
+	})
+
+	t.Run("CallToolListModels", func(t *testing.T) {
+		reqBody := `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"list_available_models","arguments":{}}}`
+		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewBufferString(reqBody))
+		rec := httptest.NewRecorder()
+		handler.HandleJSONRPC(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var res JSONRPCResponse
+		_ = json.NewDecoder(rec.Body).Decode(&res)
+		resultMap := res.Result.(map[string]any)
+		content := resultMap["content"].([]any)[0].(map[string]any)["text"].(string)
+		if !strings.Contains(content, "gpt-4o") || !strings.Contains(content, "fast") {
+			t.Fatalf("expected model list to include gpt-4o and combo fast, got: %s", content)
+		}
+	})
+}
+
+func TestAIDocsModelsAndKeyGeneration(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	cfg := &config.Config{SecretKey: "01234567890123456789012345678901"}
+	cd := routing.NewCooldownManager()
+	rt := routing.NewRouter(cd)
+	handler := NewAIDocsHandler(db, cfg, rt)
+
+	t.Run("GetModels", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/ai/models", nil)
+		rec := httptest.NewRecorder()
+		handler.GetModels(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+		var res map[string]any
+		if err := json.NewDecoder(rec.Body).Decode(&res); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if res["total_models"].(float64) < 1 {
+			t.Fatalf("expected at least 1 model, got %v", res["total_models"])
+		}
+		if res["total_combos"].(float64) < 1 {
+			t.Fatalf("expected at least 1 combo, got %v", res["total_combos"])
+		}
+	})
+
+	t.Run("CreateKey", func(t *testing.T) {
+		body := `{"name":"Automated AI Agent"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/keys", bytes.NewBufferString(body))
+		rec := httptest.NewRecorder()
+		handler.CreateKey(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d", rec.Code)
+		}
+		var res map[string]any
+		if err := json.NewDecoder(rec.Body).Decode(&res); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if res["success"] != true {
+			t.Fatalf("expected success: true, got %v", res)
+		}
+		key, ok := res["key"].(string)
+		if !ok || !strings.HasPrefix(key, "eka_live_") {
+			t.Fatalf("expected valid eka_live_ key, got: %v", key)
 		}
 	})
 }

@@ -63,8 +63,8 @@ export function ProviderCreatePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <PageHeader
-        title="Register AI Provider"
-        description="Configure a new upstream AI model backend and connection parameters."
+        title="Tambah Provider"
+        description="Konfigurasi backend provider model baru."
         breadcrumbs={[
           { label: 'Providers', to: '/providers' },
           { label: 'New Provider' },
@@ -72,7 +72,7 @@ export function ProviderCreatePage() {
         actions={
           <Link to="/providers">
             <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to List
+              Kembali
             </Button>
           </Link>
         }
@@ -99,7 +99,7 @@ export function ProviderCreatePage() {
               required
               value={formData.key}
               onChange={(e) => setFormData({ ...formData, key: e.target.value })}
-              placeholder="e.g. openai-prod"
+              placeholder="Kunci"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
             <span className="text-[11px] text-[var(--text-muted)] mt-1 block">
@@ -116,7 +116,7 @@ export function ProviderCreatePage() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. OpenAI Commercial"
+              placeholder="Nama"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -148,7 +148,7 @@ export function ProviderCreatePage() {
               type="text"
               value={formData.id}
               onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-              placeholder="Auto-generated if empty"
+              placeholder="ID"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -163,7 +163,7 @@ export function ProviderCreatePage() {
             required
             value={formData.base_url}
             onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
-            placeholder="https://api.openai.com/v1"
+            placeholder="URL"
             className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
           />
         </div>
@@ -184,7 +184,7 @@ export function ProviderCreatePage() {
           <div className="flex items-center gap-2">
             <Link to="/providers">
               <Button type="button" variant="ghost" size="compact">
-                Cancel
+                Batal
               </Button>
             </Link>
             <Button
@@ -194,7 +194,7 @@ export function ProviderCreatePage() {
               isLoading={isSubmitting}
               leftIcon={<Save className="w-3.5 h-3.5" />}
             >
-              Save Provider
+              Simpan
             </Button>
           </div>
         </div>

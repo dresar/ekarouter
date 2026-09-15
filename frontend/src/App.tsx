@@ -35,6 +35,7 @@ import { SettingsPage } from './pages/settings/SettingsPage.tsx'
 import { BackupPage } from './pages/backup/BackupPage.tsx'
 import { ApiDocsPage } from './pages/apidocs/ApiDocsPage.tsx'
 import { PlaygroundPage } from './pages/playground/PlaygroundPage.tsx'
+import { LearnPage } from './pages/learn/LearnPage.tsx'
 import { NotFoundPage } from './pages/error/NotFoundPage.tsx'
 
 function ProtectedLayout() {
@@ -94,6 +95,7 @@ export function App() {
                 <Route path="/playground" element={<PlaygroundPage />} />
                 <Route path="/models" element={<Navigate to="/providers" replace />} />
                 <Route path="/boost" element={<BoostPage />} />
+                <Route path="/learn" element={<LearnPage />} />
                 <Route path="/token-saver" element={<TokenSaverPage />} />
                 <Route path="/vault" element={<VaultListPage />} />
                 <Route path="/vault/new" element={<VaultCreatePage />} />

@@ -144,7 +144,7 @@ export function RouteCreatePage() {
         actions={
           <Link to="/routing">
             <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to List
+              Kembali
             </Button>
           </Link>
         }
@@ -169,7 +169,7 @@ export function RouteCreatePage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. gpt-4o or claude-code"
+                placeholder="Model"
                 className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
               />
               <span className="text-[11px] text-[var(--text-muted)] mt-1 block">
@@ -352,7 +352,7 @@ export function RouteCreatePage() {
         <div className="flex items-center justify-end gap-2 pt-2">
           <Link to="/routing">
             <Button type="button" variant="ghost" size="compact">
-              Cancel
+              Batal
             </Button>
           </Link>
           <Button
@@ -362,7 +362,7 @@ export function RouteCreatePage() {
             isLoading={isSubmitting}
             leftIcon={<Save className="w-3.5 h-3.5" />}
           >
-            Save Routing Combo
+            Simpan
           </Button>
         </div>
       </form>

@@ -145,17 +145,17 @@ export function UsagePage() {
       {!hasAnyTelemetry && !isLoading ? (
         <EmptyState
           icon={<BarChart3 className="w-5 h-5" />}
-          title="No telemetry recorded yet"
-          description="Inference requests dispatched through /v1/chat/completions will record throughput metrics."
+          title="Belum Ada Data"
+          description="Metrik akan tercatat saat request inferensi diproses."
           action={
             <div className="flex items-center gap-2">
               <Link to="/console">
                 <Button variant="primary" size="compact" leftIcon={<Terminal className="w-3.5 h-3.5" />}>
-                  Open Live Console
+                  Konsol
                 </Button>
               </Link>
               <Button variant="secondary" size="compact" onClick={loadUsage}>
-                Check Again
+                Periksa
               </Button>
             </div>
           }

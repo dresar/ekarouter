@@ -317,7 +317,7 @@ export function OverviewPage() {
                 leftIcon={<Send className="w-3.5 h-3.5" />}
                 className="w-full"
               >
-                Execute Test Ingress
+                Uji Ingress
               </Button>
             </form>
 

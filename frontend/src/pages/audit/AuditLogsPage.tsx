@@ -167,7 +167,7 @@ export function AuditLogsPage() {
         <Search className="w-3.5 h-3.5 text-[var(--text-muted)] ml-1 pointer-events-none" />
         <input
           type="text"
-          placeholder="Filter audit logs by action, actor, or resource..."
+          placeholder="Cari"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full px-2 py-1 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]"

@@ -198,7 +198,7 @@ export function ProxiesListPage() {
             </Button>
             <Link to="/proxies/new">
               <Button variant="primary" size="compact" leftIcon={<Plus className="w-3.5 h-3.5" />}>
-                Add Proxy Profile
+                Tambah
               </Button>
             </Link>
           </div>

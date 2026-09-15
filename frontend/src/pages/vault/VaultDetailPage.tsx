@@ -287,11 +287,11 @@ export function VaultDetailPage() {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title="Rotate Secret"
-        description="Update the encrypted secret value. Active sessions will immediately use the new key."
+        description="Perbarui nilai rahasia terenkripsi."
         footer={
           <>
             <Button variant="ghost" size="compact" onClick={() => setDrawerOpen(false)}>
-              Cancel
+              Batal
             </Button>
             <Button
               variant="primary"
@@ -300,7 +300,7 @@ export function VaultDetailPage() {
               onClick={handleRotateSecret}
               leftIcon={<Save className="w-3.5 h-3.5" />}
             >
-              Rotate Secret Now
+              Rotasi
             </Button>
           </>
         }
@@ -323,7 +323,7 @@ export function VaultDetailPage() {
               autoComplete="new-password"
               value={newSecret}
               onChange={(e) => setNewSecret(e.target.value)}
-              placeholder="Paste new secret..."
+              placeholder="Secret"
               className="w-full px-3 py-2 text-[13px] font-mono rounded-[5px] focus:outline-none"
             />
             <span className="text-[11px] text-[var(--text-muted)] mt-1 block">

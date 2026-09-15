@@ -270,7 +270,7 @@ export function ApiKeysPage() {
                 required
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
-                placeholder="e.g. Cursor IDE Workstation"
+                placeholder="Nama"
                 className="w-full px-2.5 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
               />
             </div>
@@ -283,7 +283,7 @@ export function ApiKeysPage() {
                 type="text"
                 value={keyScopes}
                 onChange={(e) => setKeyScopes(e.target.value)}
-                placeholder="*"
+                placeholder="Scope"
                 className="w-full px-2.5 py-1.5 text-[12px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
               />
             </div>

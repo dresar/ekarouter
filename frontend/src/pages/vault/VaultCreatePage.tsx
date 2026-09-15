@@ -46,8 +46,8 @@ export function VaultCreatePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <PageHeader
-        title="Add Vault Credential"
-        description="Encrypt and store developer API credentials into the AES-256-GCM vault."
+        title="Tambah Kredensial"
+        description="Enkripsi dan simpan kredensial ke dalam vault AES-256-GCM."
         breadcrumbs={[
           { label: 'Vault', to: '/vault' },
           { label: 'New Credential' },
@@ -55,7 +55,7 @@ export function VaultCreatePage() {
         actions={
           <Link to="/vault">
             <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to Vault
+              Kembali
             </Button>
           </Link>
         }
@@ -82,7 +82,7 @@ export function VaultCreatePage() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. OpenAI Production Key"
+              placeholder="Nama"
               className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
             />
           </div>
@@ -96,7 +96,7 @@ export function VaultCreatePage() {
               required
               value={formData.provider_id}
               onChange={(e) => setFormData({ ...formData, provider_id: e.target.value })}
-              placeholder="e.g. openai or github"
+              placeholder="Provider"
               className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
             />
           </div>
@@ -112,7 +112,7 @@ export function VaultCreatePage() {
             autoComplete="new-password"
             value={formData.secret_value}
             onChange={(e) => setFormData({ ...formData, secret_value: e.target.value })}
-            placeholder="Paste secret (encrypted with AES-256-GCM before storage)"
+            placeholder="Secret"
             className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
           />
           <span className="text-[11px] text-[var(--text-muted)] mt-1 block">
@@ -177,7 +177,7 @@ export function VaultCreatePage() {
             type="text"
             value={formData.tags}
             onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-            placeholder="ai, llm, primary"
+            placeholder="Tag"
             className="w-full px-3 py-1.5 text-[13px] rounded-[5px] focus:outline-none"
           />
         </div>
@@ -185,7 +185,7 @@ export function VaultCreatePage() {
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
           <Link to="/vault">
             <Button type="button" variant="ghost" size="compact">
-              Cancel
+              Batal
             </Button>
           </Link>
           <Button
@@ -195,7 +195,7 @@ export function VaultCreatePage() {
             isLoading={isSubmitting}
             leftIcon={<Save className="w-3.5 h-3.5" />}
           >
-            Encrypt & Store Secret
+            Simpan
           </Button>
         </div>
       </form>

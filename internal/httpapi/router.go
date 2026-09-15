@@ -63,12 +63,17 @@ func NewServer(
 	r.Get("/api/ai/skills", aiDocsHandler.GetSkills)
 	r.Get("/api/ai/status", aiDocsHandler.GetStatus)
 	r.Get("/api/ai/keys", aiDocsHandler.GetKeys)
+	r.Post("/api/ai/keys", aiDocsHandler.CreateKey)
+	r.Get("/api/ai/models", aiDocsHandler.GetModels)
 
+	r.Get("/mcp", mcpHandler.HandleJSONRPC)
 	r.Post("/mcp", mcpHandler.HandleJSONRPC)
 	r.Get("/mcp/sse", mcpHandler.HandleSSE)
 	r.Post("/mcp/messages", mcpHandler.HandleMessages)
+	r.Get("/api/mcp", mcpHandler.HandleJSONRPC)
 	r.Post("/api/mcp", mcpHandler.HandleJSONRPC)
 	r.Get("/api/mcp/sse", mcpHandler.HandleSSE)
+	r.Post("/api/mcp/messages", mcpHandler.HandleMessages)
 
 	r.Route("/auth", func(authRouter chi.Router) {
 		authRouter.Post("/login", adminHandler.Login)

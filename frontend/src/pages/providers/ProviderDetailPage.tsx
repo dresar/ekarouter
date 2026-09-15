@@ -770,7 +770,7 @@ export function ProviderDetailPage() {
           className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#9ca3af] hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Providers</span>
+          <span>Kembali</span>
         </button>
 
         {provider && (
@@ -1005,7 +1005,7 @@ export function ProviderDetailPage() {
                 className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-rose-950/40 border border-rose-600/40 text-rose-300 hover:bg-rose-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>Delete Selected ({selectedAccountIds.size})</span>
+                <span>Hapus ({selectedAccountIds.size})</span>
               </button>
             )}
 
@@ -1017,7 +1017,7 @@ export function ProviderDetailPage() {
                   className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-emerald-950/40 border border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Check className="w-3 h-3" />
-                  <span>Aktifkan Semua (Reset Active)</span>
+                  <span>Aktifkan</span>
                 </button>
 
                 <button
@@ -1027,7 +1027,7 @@ export function ProviderDetailPage() {
                   className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-[#221c21] border border-rose-500/30 text-rose-300 hover:bg-rose-950/50 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3 h-3" />
-                  <span>Hapus Unavailable</span>
+                  <span>Bersihkan</span>
                 </button>
               </>
             )}
@@ -1374,7 +1374,7 @@ export function ProviderDetailPage() {
                 autoFocus
                 value={customModelName}
                 onChange={(e) => setCustomModelName(e.target.value)}
-                placeholder="e.g. gemini-2.0-flash"
+                placeholder="Model"
                 className="w-36 h-6 text-[11.5px] font-mono bg-transparent border-none text-[#e6e8f0] focus:outline-none"
               />
               <button
@@ -1546,7 +1546,7 @@ export function ProviderDetailPage() {
                 type="text"
                 value={bulkPrefix}
                 onChange={(e) => setBulkPrefix(e.target.value)}
-                placeholder="Contoh: Key atau Gemini"
+                placeholder="Nama"
                 className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
               />
             </div>
@@ -1590,7 +1590,7 @@ export function ProviderDetailPage() {
               rows={8}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={`AIzaSyD-contohKey1...\nAIzaSyD-contohKey2...\nAIzaSyD-contohKey3...\n\nAtau dengan format nama kustom:\nAkun Utama: AIzaSyD-xxx...\nAkun Cadangan: AIzaSyD-yyy...`}
+              placeholder="Kunci"
               className="w-full p-3 text-[12.5px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors leading-relaxed"
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1">
@@ -1614,7 +1614,7 @@ export function ProviderDetailPage() {
               isLoading={isBulkAdding}
               leftIcon={<Plus className="w-3.5 h-3.5" />}
             >
-              Tambah Massal Sekarang
+              Tambah
             </Button>
           </div>
         </form>
@@ -1645,7 +1645,7 @@ export function ProviderDetailPage() {
                 required
                 value={addForm.name}
                 onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                placeholder="e.g. Key 52"
+                placeholder="Nama"
                 className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
               />
             </div>
@@ -1675,7 +1675,7 @@ export function ProviderDetailPage() {
               autoComplete="new-password"
               value={addForm.api_key}
               onChange={(e) => setAddForm({ ...addForm, api_key: e.target.value })}
-              placeholder="sk-... or AIza..."
+              placeholder="Kunci"
               className="w-full h-9 px-3 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
             />
           </div>
@@ -1871,7 +1871,7 @@ export function ProviderDetailPage() {
               autoComplete="new-password"
               value={editForm.api_key}
               onChange={(e) => setEditForm({ ...editForm, api_key: e.target.value })}
-              placeholder="Masukkan API key baru untuk mengganti yang lama…"
+              placeholder="Kunci"
               className="w-full h-9 px-3 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1">

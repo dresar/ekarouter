@@ -10,15 +10,15 @@ export function NotFoundPage() {
       </div>
       <h1 className="text-[28px] font-bold font-mono text-[var(--text-primary)]">404</h1>
       <h2 className="text-[16px] font-semibold text-[var(--text-secondary)] mt-1">
-        Page Not Found
+        Halaman Hilang
       </h2>
       <p className="text-[12.5px] text-[var(--text-muted)] mt-1 max-w-sm">
-        The console route you requested does not exist or has been relocated.
+        Rute halaman tidak ditemukan.
       </p>
       <div className="mt-6">
         <Link to="/overview">
           <Button variant="primary" size="standard" leftIcon={<ArrowLeft className="w-4 h-4" />}>
-            Return to Command Center
+            Kembali
           </Button>
         </Link>
       </div>

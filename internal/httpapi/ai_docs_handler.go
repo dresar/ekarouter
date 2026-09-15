@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dresar/ekarouter/internal/auth"
 	"github.com/dresar/ekarouter/internal/config"
 	"github.com/dresar/ekarouter/internal/routing"
 )
@@ -272,6 +273,105 @@ func (h *AIDocsHandler) GetKeys(w http.ResponseWriter, r *http.Request) {
 			"python": "from openai import OpenAI\n\nclient = OpenAI(base_url=\"http://localhost:8080/v1\", api_key=\"<YOUR_API_KEY>\")\nresponse = client.chat.completions.create(model=\"fast\", messages=[{\"role\": \"user\", \"content\": \"Hello EkaRouter\"}])\nprint(response.choices[0].message.content)",
 			"mcp_config": "{\n  \"mcpServers\": {\n    \"ekarouter\": {\n      \"url\": \"http://localhost:8080/mcp/sse\"\n    }\n  }\n}",
 		},
+	})
+}
+
+func (h *AIDocsHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name string `json:"name"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Name == "" {
+		body.Name = "AI Agent Key"
+	}
+
+	rawKey, prefix, hash, genErr := auth.GenerateApiKey()
+	if genErr != nil {
+		http.Error(w, `{"error":"failed to generate api key"}`, http.StatusInternalServerError)
+		return
+	}
+
+	id := "key_" + prefix[9:]
+	_, insErr := h.db.ExecContext(r.Context(), "INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+		id, body.Name, prefix, hash, "*", 1)
+	if insErr != nil {
+		http.Error(w, `{"error":"failed to persist api key"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"id":      id,
+		"name":    body.Name,
+		"key":     rawKey,
+		"prefix":  prefix,
+		"scopes":  "*",
+		"message": "Key created successfully. Store it securely; this secret key cannot be retrieved again.",
+		"curl":    fmt.Sprintf("curl -X POST http://localhost:8080/v1/chat/completions -H \"Authorization: Bearer %s\" -H \"Content-Type: application/json\" -d '{\"model\": \"fast\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}]}'", rawKey),
+	})
+}
+
+func (h *AIDocsHandler) GetModels(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.db.QueryContext(r.Context(), `
+		SELECT m.id, m.external_name, m.display_name, m.context_limit, p.name as provider_name
+		FROM models m
+		JOIN providers p ON m.provider_id = p.id
+		WHERE m.enabled = 1 AND p.enabled = 1
+		ORDER BY m.display_name
+	`)
+	if err != nil {
+		http.Error(w, `{"error":"failed to query models"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type ModelItem struct {
+		ID           string `json:"id"`
+		ExternalName string `json:"external_name"`
+		DisplayName  string `json:"display_name"`
+		ContextLimit int    `json:"context_limit"`
+		ProviderName string `json:"provider_name"`
+	}
+
+	var models []ModelItem
+	for rows.Next() {
+		var it ModelItem
+		if err := rows.Scan(&it.ID, &it.ExternalName, &it.DisplayName, &it.ContextLimit, &it.ProviderName); err == nil {
+			models = append(models, it)
+		}
+	}
+	if models == nil {
+		models = make([]ModelItem, 0)
+	}
+
+	routeRows, rErr := h.db.QueryContext(r.Context(), "SELECT id, name, strategy FROM routes WHERE enabled = 1")
+	type RouteItem struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Strategy string `json:"strategy"`
+	}
+	var routes []RouteItem
+	if rErr == nil {
+		defer routeRows.Close()
+		for routeRows.Next() {
+			var rt RouteItem
+			if err := routeRows.Scan(&rt.ID, &rt.Name, &rt.Strategy); err == nil {
+				routes = append(routes, rt)
+			}
+		}
+	}
+	if routes == nil {
+		routes = make([]RouteItem, 0)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"models":       models,
+		"combos":       routes,
+		"total_models": len(models),
+		"total_combos": len(routes),
 	})
 }
 

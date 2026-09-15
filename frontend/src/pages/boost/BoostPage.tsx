@@ -45,7 +45,7 @@ export function BoostPage() {
     <div className="space-y-4">
       <PageHeader
         title="Gateway Boost"
-        description="Accelerate inference throughput and compress prompt tokens with edge optimizations."
+        description="Akselerasi throughput dan kompresi token gateway."
         breadcrumbs={[
           { label: 'Home', to: '/overview' },
           { label: 'Boost' },
@@ -53,7 +53,7 @@ export function BoostPage() {
         metadata={
           <span className="flex items-center gap-1.5 text-emerald-400">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Active Turbo Profile
+            Turbo Aktif
           </span>
         }
         actions={
@@ -63,7 +63,7 @@ export function BoostPage() {
               size="compact"
               leftIcon={<Zap className="w-3.5 h-3.5" />}
             >
-              Token Saver Studio
+              Token Saver
             </Button>
           </Link>
         }
@@ -72,7 +72,7 @@ export function BoostPage() {
       {savedFeedback && (
         <div className="p-3 rounded-[6px] bg-emerald-950/20 border border-emerald-600/30 text-emerald-300 text-[12px] flex items-center gap-2 animate-in fade-in-50">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>Boost configuration updated successfully.</span>
+          <span>✓ Tersimpan!</span>
         </div>
       )}
 
@@ -198,12 +198,12 @@ export function BoostPage() {
         <div className="pt-2 flex items-center gap-3">
           <Link to="/token-saver">
             <Button variant="secondary" size="compact" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-              Open Token Saver Studio
+              Token Saver
             </Button>
           </Link>
           <Link to="/routing">
             <Button variant="ghost" size="compact">
-              Configure Routing Combos
+              Routing
             </Button>
           </Link>
         </div>

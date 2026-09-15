@@ -314,7 +314,7 @@ export function LiveConsolePage() {
             <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
             <input
               type="text"
-              placeholder="Grep logs..."
+              placeholder="Cari"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-7 pr-2 py-1 text-[11.5px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]"
@@ -425,12 +425,12 @@ export function LiveConsolePage() {
                 isLoading={isPinging}
                 leftIcon={<Send className="w-3.5 h-3.5" />}
               >
-                Dispatch Live Probe
+                Kirim Probe
               </Button>
             </div>
           ) : filteredLogs.length === 0 ? (
             <div className="py-20 text-center text-slate-500 text-[12px]">
-              No log records match the current filter criteria.
+              Tidak ada log yang cocok.
             </div>
           ) : null}
 

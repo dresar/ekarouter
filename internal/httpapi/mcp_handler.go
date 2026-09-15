@@ -69,6 +69,24 @@ func NewMCPHandler(
 }
 
 func (h *MCPHandler) HandleJSONRPC(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"service":         "EkaRouter MCP Server",
+			"protocolVersion": "2024-11-05",
+			"status":          "healthy",
+			"transports": map[string]string{
+				"jsonrpc":  "/mcp",
+				"sse":      "/mcp/sse",
+				"messages": "/mcp/messages",
+			},
+			"tools_count": len(h.listTools()),
+			"resources":   []string{"ekarouter://docs/official", "ekarouter://docs/skills", "ekarouter://config/mcp"},
+			"prompts":     []string{"ekarouter-master", "tokensaver-compact"},
+		})
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -169,6 +187,9 @@ func (h *MCPHandler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 			case ch <- respBytes:
 			default:
 			}
+		} else {
+			http.Error(w, `{"error":"session not found or expired"}`, http.StatusNotFound)
+			return
 		}
 	}
 
@@ -267,7 +288,7 @@ func (h *MCPHandler) dispatch(ctx context.Context, req *JSONRPCRequest) JSONRPCR
 			content = MasterAIPromptDoc
 			mimeType = "text/markdown"
 		case "ekarouter://config/mcp":
-			content = `{\n  "mcpServers": {\n    "ekarouter": {\n      "url": "http://localhost:8080/mcp/sse"\n    }\n  }\n}`
+			content = "{\n  \"mcpServers\": {\n    \"ekarouter\": {\n      \"url\": \"http://localhost:8080/mcp/sse\"\n    }\n  }\n}"
 			mimeType = "application/json"
 		default:
 			resp.Error = &JSONRPCError{Code: -32602, Message: fmt.Sprintf("Unknown resource URI: %s", params.URI)}
@@ -366,14 +387,31 @@ func (h *MCPHandler) listTools() []map[string]any {
 			},
 		},
 		{
-			"name":        "get_api_keys",
-			"description": "Get or generate active EkaRouter API keys and gateway integration snippets for external AI tools.",
+			"name":        "generate_api_key",
+			"description": "Generate a brand-new, active EkaRouter Bearer API key for external AI agents to use with the /v1 gateway.",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"auto_create": map[string]any{
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Descriptive name for the API key (e.g., Cursor, Claude Desktop, AI Agent)",
+					},
+				},
+			},
+		},
+		{
+			"name":        "get_api_keys",
+			"description": "Get active EkaRouter API keys or generate a usable gateway API key for external AI tools.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"create_new": map[string]any{
 						"type":        "boolean",
-						"description": "If true and no active key exists, automatically creates a new gateway API key",
+						"description": "If true, generates a new active API key and returns the full secret bearer token for immediate use",
+					},
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Optional name for newly generated API key",
 					},
 				},
 			},
@@ -386,7 +424,11 @@ func (h *MCPHandler) listTools() []map[string]any {
 				"properties": map[string]any{
 					"model": map[string]any{
 						"type":        "string",
-						"description": "Model name or routing combo name (e.g., fast, smart, code, gpt-4o, claude-3-7-sonnet)",
+						"description": "Model name or routing combo name (e.g., fast, smart, code). Defaults to 'fast'.",
+					},
+					"prompt": map[string]any{
+						"type":        "string",
+						"description": "Shorthand user prompt string",
 					},
 					"messages": map[string]any{
 						"type": "array",
@@ -409,7 +451,6 @@ func (h *MCPHandler) listTools() []map[string]any {
 						"description": "Max tokens in response",
 					},
 				},
-				"required": []string{"model", "messages"},
 			},
 		},
 		{
@@ -490,11 +531,72 @@ func (h *MCPHandler) callTool(ctx context.Context, name string, args json.RawMes
 		resBytes, _ := json.MarshalIndent(items, "", "  ")
 		return string(resBytes), false
 
-	case "get_api_keys":
+	case "generate_api_key":
 		var params struct {
-			AutoCreate bool `json:"auto_create"`
+			Name string `json:"name"`
 		}
 		_ = json.Unmarshal(args, &params)
+		if params.Name == "" {
+			params.Name = "MCP Generated Key"
+		}
+		rawKey, prefix, hash, genErr := auth.GenerateApiKey()
+		if genErr != nil {
+			return fmt.Sprintf("Failed to generate API key: %v", genErr), true
+		}
+		id := "key_" + prefix[9:]
+		_, insErr := h.db.ExecContext(ctx, "INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+			id, params.Name, prefix, hash, "*", 1)
+		if insErr != nil {
+			return fmt.Sprintf("Failed to store generated API key: %v", insErr), true
+		}
+		res := map[string]any{
+			"status":     "created",
+			"id":         id,
+			"name":       params.Name,
+			"secret_key": rawKey,
+			"prefix":     prefix,
+			"scopes":     "*",
+			"usage":      fmt.Sprintf("Authorization: Bearer %s", rawKey),
+			"hint":       "Save this secret key now. It cannot be displayed again.",
+		}
+		resBytes, _ := json.MarshalIndent(res, "", "  ")
+		return string(resBytes), false
+
+	case "get_api_keys":
+		var params struct {
+			CreateNew  bool   `json:"create_new"`
+			AutoCreate bool   `json:"auto_create"`
+			Name       string `json:"name"`
+		}
+		_ = json.Unmarshal(args, &params)
+
+		if params.CreateNew || params.AutoCreate {
+			name := params.Name
+			if name == "" {
+				name = "MCP Generated Key"
+			}
+			rawKey, prefix, hash, genErr := auth.GenerateApiKey()
+			if genErr != nil {
+				return fmt.Sprintf("Failed to generate API key: %v", genErr), true
+			}
+			id := "key_" + prefix[9:]
+			_, insErr := h.db.ExecContext(ctx, "INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+				id, name, prefix, hash, "*", 1)
+			if insErr != nil {
+				return fmt.Sprintf("Failed to store generated API key: %v", insErr), true
+			}
+			res := map[string]any{
+				"generated":  true,
+				"id":         id,
+				"name":       name,
+				"secret_key": rawKey,
+				"prefix":     prefix,
+				"scopes":     "*",
+				"usage":      fmt.Sprintf("Authorization: Bearer %s", rawKey),
+			}
+			resBytes, _ := json.MarshalIndent(res, "", "  ")
+			return string(resBytes), false
+		}
 
 		rows, err := h.db.QueryContext(ctx, "SELECT id, name, prefix, scopes, enabled, created_at FROM api_keys WHERE enabled = 1")
 		if err != nil {
@@ -518,29 +620,42 @@ func (h *MCPHandler) callTool(ctx context.Context, name string, args json.RawMes
 			}
 		}
 
-		if len(keys) == 0 && params.AutoCreate {
+		if len(keys) == 0 {
 			rawKey, prefix, hash, genErr := auth.GenerateApiKey()
 			if genErr != nil {
-				return fmt.Sprintf("Failed to generate API key: %v", genErr), true
+				return fmt.Sprintf("Failed to generate default API key: %v", genErr), true
 			}
 			id := "key_" + prefix[9:]
 			_, insErr := h.db.ExecContext(ctx, "INSERT INTO api_keys (id, name, prefix, hash, scopes, enabled) VALUES (?, ?, ?, ?, ?, ?)",
-				id, "MCP Generated Key", prefix, hash, "*", 1)
+				id, "MCP Auto-Generated Key", prefix, hash, "*", 1)
 			if insErr != nil {
 				return fmt.Sprintf("Failed to store generated API key: %v", insErr), true
 			}
-			return fmt.Sprintf("Generated new gateway key successfully:\nKey: %s\nPrefix: %s\nScope: *\nUse with Authorization: Bearer %s", rawKey, prefix, rawKey), false
+			res := map[string]any{
+				"generated":  true,
+				"id":         id,
+				"name":       "MCP Auto-Generated Key",
+				"secret_key": rawKey,
+				"prefix":     prefix,
+				"scopes":     "*",
+				"usage":      fmt.Sprintf("Authorization: Bearer %s", rawKey),
+				"notice":     "No keys existed; a new key was automatically generated for you.",
+			}
+			resBytes, _ := json.MarshalIndent(res, "", "  ")
+			return string(resBytes), false
 		}
 
 		resBytes, _ := json.MarshalIndent(map[string]any{
 			"active_keys": keys,
-			"hint":        "Use full API key with Authorization: Bearer <key> against /v1 endpoints.",
+			"hint":        "To generate a new full secret key for direct API calls, call this tool with {\"create_new\": true} or use generate_api_key.",
 		}, "", "  ")
 		return string(resBytes), false
 
 	case "chat_completion":
 		var params struct {
 			Model       string              `json:"model"`
+			Prompt      string              `json:"prompt"`
+			Message     string              `json:"message"`
 			Messages    []providers.Message `json:"messages"`
 			Temperature *float64            `json:"temperature,omitempty"`
 			MaxTokens   *int                `json:"max_tokens,omitempty"`
@@ -548,8 +663,22 @@ func (h *MCPHandler) callTool(ctx context.Context, name string, args json.RawMes
 		if err := json.Unmarshal(args, &params); err != nil {
 			return fmt.Sprintf("Invalid chat parameters: %v", err), true
 		}
-		if params.Model == "" || len(params.Messages) == 0 {
-			return "Model and messages are required", true
+		if params.Model == "" {
+			params.Model = "fast"
+		}
+		if len(params.Messages) == 0 {
+			content := params.Prompt
+			if content == "" {
+				content = params.Message
+			}
+			if content != "" {
+				params.Messages = []providers.Message{
+					{Role: "user", Content: content},
+				}
+			}
+		}
+		if len(params.Messages) == 0 {
+			return "Either prompt or messages is required", true
 		}
 
 		req := &providers.Request{
@@ -565,7 +694,14 @@ func (h *MCPHandler) callTool(ctx context.Context, name string, args json.RawMes
 			return fmt.Sprintf("Chat completion failed: %v", err), true
 		}
 
-		return resp.Content, false
+		output := resp.Content
+		if output == "" && resp.Reasoning != "" {
+			output = resp.Reasoning
+		} else if resp.Reasoning != "" {
+			output = fmt.Sprintf("<think>\n%s\n</think>\n\n%s", resp.Reasoning, output)
+		}
+
+		return output, false
 
 	case "check_gateway_health":
 		var modelCount, providerCount, routeCount int

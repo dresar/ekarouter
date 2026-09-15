@@ -163,7 +163,7 @@ export function RouteDetailPage() {
         actions={
           <Link to="/routing">
             <Button variant="ghost" size="compact" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-              Back to List
+              Kembali
             </Button>
           </Link>
         }
@@ -183,7 +183,7 @@ export function RouteDetailPage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. gpt-4o"
+                placeholder="Model"
                 className="w-full px-3 py-1.5 text-[13px] font-mono rounded-[5px] focus:outline-none"
               />
             </div>

@@ -228,7 +228,7 @@ export function PoolsListPage() {
                 required
                 value={newPool.name}
                 onChange={(e) => setNewPool({ ...newPool, name: e.target.value })}
-                placeholder="e.g. OpenAI HA Cluster"
+                placeholder="Nama"
                 className="w-full px-2.5 py-1.5 text-[12px] rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
               />
             </div>
@@ -242,7 +242,7 @@ export function PoolsListPage() {
                 required
                 value={newPool.provider_id}
                 onChange={(e) => setNewPool({ ...newPool, provider_id: e.target.value })}
-                placeholder="openai"
+                placeholder="Provider"
                 className="w-full px-2.5 py-1.5 text-[12px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none"
               />
             </div>

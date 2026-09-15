@@ -93,12 +93,12 @@ export function RoutingListPage() {
       ) : routes.length === 0 ? (
         <EmptyState
           icon={<GitFork className="w-5 h-5" />}
-          title="No Routing Combos Defined"
-          description="Create a model routing combo to point model names like gpt-4o or claude-code to upstream provider accounts."
+          title="Belum Ada Rute"
+          description="Buat combo routing model ke akun upstream."
           action={
             <Link to="/routing/new">
               <Button variant="primary" size="compact" leftIcon={<Plus className="w-3.5 h-3.5" />}>
-                Create First Route
+                Tambah
               </Button>
             </Link>
           }

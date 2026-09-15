@@ -14,6 +14,10 @@ import {
   ChevronRight,
   Sparkles,
   X,
+  Zap,
+  BookOpen,
+  Wrench,
+  Layers,
 } from 'lucide-react'
 
 interface NavItem {
@@ -31,24 +35,34 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'CORE GATEWAY',
     items: [
-      { to: '/overview', label: 'Command Center', icon: Activity },
-      { to: '/providers', label: 'AI Providers', icon: Server },
-      { to: '/routing', label: 'Routing Combos', icon: GitFork },
+      { to: '/overview', label: 'Overview', icon: Activity },
+      { to: '/providers', label: 'Providers', icon: Server },
+      { to: '/routing', label: 'Routing', icon: GitFork },
       { to: '/playground', label: 'Playground', icon: Sparkles },
       { to: '/api-keys', label: 'API Keys', icon: Key },
     ],
   },
   {
-    title: 'SECURITY & EGRESS',
+    title: 'ACCELERATION & AI',
     items: [
-      { to: '/vault', label: 'Credential Vault', icon: KeyRound },
-      { to: '/proxies', label: 'Outbound Proxies', icon: Globe },
+      { to: '/boost', label: 'Boost', icon: Zap },
+      { to: '/learn', label: 'Learn', icon: BookOpen },
+      { to: '/token-saver', label: 'Token Saver', icon: Zap },
+      { to: '/tools', label: 'Tools & MCP', icon: Wrench },
     ],
   },
   {
-    title: 'OBSERVABILITY & SYSTEM',
+    title: 'SECURITY & VAULT',
     items: [
-      { to: '/console', label: 'Live Console', icon: Terminal },
+      { to: '/vault', label: 'Vault', icon: KeyRound },
+      { to: '/proxies', label: 'Proxies', icon: Globe },
+      { to: '/credential-pools', label: 'Pools', icon: Layers },
+    ],
+  },
+  {
+    title: 'OBSERVABILITY',
+    items: [
+      { to: '/console', label: 'Console', icon: Terminal },
       { to: '/audit-logs', label: 'Audit Logs', icon: FileText },
       { to: '/settings', label: 'Settings', icon: Settings },
     ],
