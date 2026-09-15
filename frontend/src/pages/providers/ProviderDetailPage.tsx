@@ -28,11 +28,11 @@ import {
   RefreshCw,
   Ban,
   RotateCw,
+  KeyRound,
   X,
 } from 'lucide-react'
 import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
-import { StatusBadge } from '../../components/ui/StatusBadge.tsx'
 import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { BottomSheet } from '../../components/ui/BottomSheet.tsx'
@@ -104,6 +104,8 @@ export function ProviderDetailPage() {
   const [proxyTargetAccount, setProxyTargetAccount] = useState<Account | null>(null)
   const [showRowProxySheet, setShowRowProxySheet] = useState(false)
   const [isSavingRowProxy, setIsSavingRowProxy] = useState(false)
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const [addForm, setAddForm] = useState({
     name: '',
@@ -563,6 +565,98 @@ export function ProviderDetailPage() {
     setShowEditSheet(true)
   }
 
+  const handleMovePriority = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= accounts.length) return
+
+    const currentAcc = accounts[index]
+    const targetAcc = accounts[targetIndex]
+
+    let currP = currentAcc.priority
+    let targetP = targetAcc.priority
+
+    if (currP === targetP) {
+      if (direction === 'up') {
+        currP = targetP + 1
+      } else {
+        currP = Math.max(1, targetP - 1)
+      }
+    } else {
+      const temp = currP
+      currP = targetP
+      targetP = temp
+    }
+
+    try {
+      await Promise.all([
+        api.put(`/api/accounts/${currentAcc.id}`, { priority: currP }),
+        api.put(`/api/accounts/${targetAcc.id}`, { priority: targetP }),
+      ])
+      await loadData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal memindahkan prioritas')
+    }
+  }
+
+  const handleToggleSelectAll = () => {
+    if (selectedAccountIds.size === accounts.length && accounts.length > 0) {
+      setSelectedAccountIds(new Set())
+    } else {
+      setSelectedAccountIds(new Set(accounts.map((a) => a.id)))
+    }
+  }
+
+  const handleToggleSelectRow = (id: string) => {
+    setSelectedAccountIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkDeleteSelected = async () => {
+    if (selectedAccountIds.size === 0) return
+    if (!window.confirm(`Hapus ${selectedAccountIds.size} koneksi yang dipilih?`)) return
+    setIsBulkDeleting(true)
+    try {
+      const ids = Array.from(selectedAccountIds)
+      await Promise.allSettled(ids.map((id) => api.delete(`/api/accounts/${id}`)))
+      setSelectedAccountIds(new Set())
+      setActionSuccess(`Berhasil menghapus ${ids.length} koneksi.`)
+      setTimeout(() => setActionSuccess(null), 3500)
+      await loadData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal menghapus koneksi terpilih')
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
+  const handleBulkDeleteUnavailable = async () => {
+    const unavailable = accounts.filter(
+      (a) => !a.enabled || a.state === 'cooling_down' || !!a.last_error
+    )
+    if (unavailable.length === 0) return
+    if (!window.confirm(`Hapus ${unavailable.length} koneksi yang bermasalah / unavailable?`)) return
+    setIsBulkDeleting(true)
+    try {
+      await Promise.allSettled(unavailable.map((a) => api.delete(`/api/accounts/${a.id}`)))
+      setSelectedAccountIds((prev) => {
+        const next = new Set(prev)
+        unavailable.forEach((a) => next.delete(a.id))
+        return next
+      })
+      setActionSuccess(`Berhasil menghapus ${unavailable.length} koneksi yang unavailable.`)
+      setTimeout(() => setActionSuccess(null), 3500)
+      await loadData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal menghapus koneksi unavailable')
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
   const toggleExpand = (accountId: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev)
@@ -572,12 +666,6 @@ export function ProviderDetailPage() {
     })
   }
 
-  const getStateVariant = (acc: Account) => {
-    if (!acc.enabled) return 'disabled'
-    if (acc.state === 'active') return 'healthy'
-    if (acc.state === 'cooling_down') return 'cooling_down'
-    return 'disabled'
-  }
 
   const getStateLabel = (acc: Account) => {
     if (!acc.enabled) return 'disabled'
@@ -690,63 +778,6 @@ export function ProviderDetailPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] px-4 py-2.5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowApplyProxySheet(true)}
-            className="h-8 px-3 text-[12px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#2a2d35] border border-[#363a45] text-[#e0e2eb] flex items-center gap-2 transition-colors cursor-pointer"
-          >
-            <Network className="w-3.5 h-3.5 text-[#9fa3b4]" />
-            <span>Apply Proxy</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleTestOneByOne}
-            className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-2 transition-colors cursor-pointer ${
-              isTestingOneByOne
-                ? 'bg-amber-950/30 border-amber-600/50 text-amber-300'
-                : 'bg-[#202227] hover:bg-[#2a2d35] border-[#363a45]'
-            }`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#9fa3b4] ${isTestingOneByOne ? 'animate-spin' : ''}`} />
-            <span>{isTestingOneByOne ? 'Stop Testing' : 'Test Connection One-by-One'}</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] font-medium text-[#9da1b2]">Round Robin</span>
-            <button
-              type="button"
-              onClick={handleRoundRobinToggle}
-              className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
-                roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                  roundRobin ? 'translate-x-4' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[12px] font-medium text-[#9da1b2]">Sticky:</span>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={stickyCount}
-              onChange={(e) => handleStickyChange(parseInt(e.target.value) || 1)}
-              className="w-10 h-7 text-center text-[12px] font-mono rounded-[5px] bg-[#1a1b20] border border-[#333742] text-[#e0e2eb] focus:outline-none focus:border-[#ea580c]"
-            />
-          </div>
-        </div>
-      </div>
-
       {isTestingOneByOne && (
         <div className="px-4 py-3 rounded-[8px] bg-[#1c1e25] border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[12px]">
           <div className="flex items-center gap-2 text-amber-300">
@@ -775,9 +806,9 @@ export function ProviderDetailPage() {
       )}
 
       <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border-subtle)] bg-[#14151b]">
           <div className="flex items-center gap-2">
-            <h3 className="text-[13.5px] font-semibold text-[var(--text-primary)]">
+            <h3 className="text-[16px] font-bold text-[var(--text-primary)]">
               Connections
             </h3>
             <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-panel)] px-1.5 py-0.5 rounded">
@@ -785,18 +816,104 @@ export function ProviderDetailPage() {
             </span>
           </div>
 
-          <Button
-            variant="primary"
-            size="compact"
-            onClick={() => {
-              setAddForm({ name: '', auth_type: 'apikey', priority: accounts.length + 1, api_key: '', proxy_pool_id: '' })
-              setFormError(null)
-              setShowAddSheet(true)
-            }}
-            leftIcon={<Plus className="w-3.5 h-3.5" />}
-          >
-            Add Connection
-          </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowApplyProxySheet(true)}
+              className="h-8 px-3 text-[12px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#2a2d35] border border-[#363a45] text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Network className="w-3.5 h-3.5 text-[#9fa3b4]" />
+              <span>Apply Proxy</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTestOneByOne}
+              className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer ${
+                isTestingOneByOne
+                  ? 'bg-amber-950/30 border-amber-600/50 text-amber-300'
+                  : 'bg-[#202227] hover:bg-[#2a2d35] border-[#363a45]'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#9fa3b4] ${isTestingOneByOne ? 'animate-spin' : ''}`} />
+              <span>{isTestingOneByOne ? 'Stop Testing' : 'Test Connection One-by-One'}</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium text-[#9da1b2]">Round Robin</span>
+              <button
+                type="button"
+                onClick={handleRoundRobinToggle}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
+                  roundRobin ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                    roundRobin ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] font-medium text-[#9da1b2]">Sticky:</span>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={stickyCount}
+                onChange={(e) => handleStickyChange(parseInt(e.target.value) || 1)}
+                className="w-10 h-7 text-center text-[12px] font-mono rounded-[5px] bg-[#1a1b20] border border-[#333742] text-[#e0e2eb] focus:outline-none focus:border-[#ea580c]"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2 bg-[#121318] border-b border-[#232630] text-[12px]">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-[#9ca3af] hover:text-[#e0e2eb]">
+              <input
+                type="checkbox"
+                checked={accounts.length > 0 && selectedAccountIds.size === accounts.length}
+                onChange={handleToggleSelectAll}
+                className="w-4 h-4 rounded border-[#383d4c] bg-[#1a1b20] text-[#ea580c] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              />
+              <span className="font-medium">Select All</span>
+            </label>
+
+            {selectedAccountIds.size > 0 && (
+              <span className="text-[#6b7280]">
+                ({selectedAccountIds.size} of {accounts.length} selected)
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {selectedAccountIds.size > 0 && (
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDeleteSelected}
+                className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-rose-950/40 border border-rose-600/40 text-rose-300 hover:bg-rose-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete Selected ({selectedAccountIds.size})</span>
+              </button>
+            )}
+
+            {accounts.some((a) => !a.enabled || a.state === 'cooling_down' || !!a.last_error) && (
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDeleteUnavailable}
+                className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-[#221c21] border border-rose-500/30 text-rose-300 hover:bg-rose-950/50 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Hapus Unavailable</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -812,94 +929,130 @@ export function ProviderDetailPage() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
+          <div className="max-h-[480px] overflow-y-auto divide-y divide-[#232630] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[#363a45] [&::-webkit-scrollbar-thumb]:rounded-full">
             {accounts.map((acc, idx) => {
               const isExpanded = expandedIds.has(acc.id)
               const proxy = proxyById(acc.proxy_pool_id)
-              const hasError = !!acc.last_error
               const isCurrentlyTesting = isTestingOneByOne && testingIndex === idx
+              const hasProxy = !!(acc.proxy_pool_id || acc.proxy_url)
 
               return (
                 <div
                   key={acc.id}
-                  className={`group transition-colors ${isCurrentlyTesting ? 'bg-amber-950/10 border-l-2 border-l-amber-400' : ''}`}
+                  className={`group transition-colors ${
+                    isCurrentlyTesting ? 'bg-amber-950/10 border-l-2 border-l-amber-400' : 'hover:bg-[#15161c]'
+                  }`}
                 >
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-3 px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedAccountIds.has(acc.id)}
+                      onChange={() => handleToggleSelectRow(acc.id)}
+                      className="w-4 h-4 rounded border-[#383d4c] bg-[#1a1b20] text-[#ea580c] focus:ring-0 focus:ring-offset-0 cursor-pointer shrink-0"
+                    />
+
+                    <div className="flex flex-col items-center justify-center -space-y-1 text-[#6b7280] shrink-0">
                       <button
                         type="button"
-                        onClick={() => toggleExpand(acc.id)}
-                        className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                        disabled={idx === 0}
+                        title="Move priority up"
+                        onClick={() => handleMovePriority(idx, 'up')}
+                        className="p-0.5 hover:text-white disabled:opacity-20 disabled:hover:text-[#6b7280] cursor-pointer"
                       >
-                        {isExpanded ? (
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        )}
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === accounts.length - 1}
+                        title="Move priority down"
+                        onClick={() => handleMovePriority(idx, 'down')}
+                        className="p-0.5 hover:text-white disabled:opacity-20 disabled:hover:text-[#6b7280] cursor-pointer"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                    <KeyRound className="w-4 h-4 text-[#8e93a6] shrink-0" />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(acc.id)}
+                          className="text-[13px] font-bold text-[#f3f4f6] hover:text-[#ea580c] transition-colors truncate text-left cursor-pointer"
+                        >
                           {acc.name}
-                        </span>
-                      </div>
+                        </button>
 
-                      <div className="flex items-center flex-wrap gap-1.5">
-                        <StatusBadge variant={getStateVariant(acc)}>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium ${
+                            !acc.enabled
+                              ? 'bg-[#202228] text-[#8e93a6] border border-[#333744]'
+                              : acc.state === 'active'
+                              ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-600/30'
+                              : 'bg-rose-950/40 text-rose-400 border border-rose-600/30'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              !acc.enabled
+                                ? 'bg-[#8e93a6]'
+                                : acc.state === 'active'
+                                ? 'bg-emerald-400'
+                                : 'bg-rose-400'
+                            }`}
+                          />
                           {getStateLabel(acc)}
-                        </StatusBadge>
+                        </span>
 
-                        <span className="text-[10.5px] font-mono px-1.5 py-0.5 rounded-[4px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[4px] bg-[#1e2027] border border-[#323644] text-[#8e93a6]">
                           API Key
                         </span>
 
-                        {(acc.proxy_pool_id || acc.proxy_url) && (
-                          <span
-                            title={acc.proxy_name || acc.proxy_url}
-                            className="text-[10.5px] font-mono px-1.5 py-0.5 rounded-[4px] bg-[var(--brand-subtle)] border border-[var(--brand-primary)]/30 text-[var(--brand-text)] flex items-center gap-1 max-w-[170px] truncate"
-                          >
-                            <Globe className="w-2.5 h-2.5 shrink-0" />
-                            <span className="truncate">{acc.proxy_name || 'Proxy'}</span>
+                        {hasProxy && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[4px] bg-emerald-950/40 border border-emerald-600/30 text-emerald-300">
+                            Proxy
                           </span>
                         )}
 
-                        {hasError && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[4px] bg-rose-950/20 border border-rose-600/30 text-rose-400 max-w-[180px] truncate">
-                            {acc.last_error?.slice(0, 40)}…
-                          </span>
-                        )}
-
-                        <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                        <span className="text-[10.5px] font-mono text-[#6b7280]">
                           #{idx + 1}
                         </span>
                       </div>
+
+                      <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#9ca3af] mt-0.5">
+                        <span>Pool: {acc.proxy_name || (hasProxy ? 'Proxy Relay' : 'Direct (no proxy)')}</span>
+                        {acc.proxy_url && (
+                          <span className="px-1.5 py-0.2 rounded-[4px] bg-[#1a1c22] border border-[#2b2f3d] text-[#8e93a6] font-mono text-[10.5px] truncate max-w-[280px]">
+                            {acc.proxy_url}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
-                        title={acc.proxy_pool_id || acc.proxy_url ? `Proxy aktif: ${acc.proxy_name || acc.proxy_url}` : 'Pasang proxy untuk koneksi ini'}
+                        title={hasProxy ? `Proxy aktif: ${acc.proxy_name || acc.proxy_url}` : 'Pasang proxy untuk koneksi ini'}
                         onClick={() => openAccountProxy(acc)}
-                        className={`px-2 py-1.5 text-[10.5px] font-medium rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer ${
-                          acc.proxy_pool_id || acc.proxy_url
-                            ? 'bg-[#2a1d17] border border-[#ea580c]/40 text-[#f97316] hover:bg-[#382319]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] border border-transparent'
+                        className={`min-w-[42px] py-1 px-1.5 rounded-[6px] flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer ${
+                          hasProxy
+                            ? 'text-[#f97316] hover:bg-[#2a1d17]'
+                            : 'text-[#8e93a6] hover:text-[#e0e2eb] hover:bg-[#20222a]'
                         }`}
                       >
-                        <Globe className={`w-3.5 h-3.5 ${acc.proxy_pool_id || acc.proxy_url ? 'text-[#f97316]' : 'text-[var(--text-muted)]'}`} />
-                        <span className="hidden sm:block">Proxy</span>
+                        <Network className="w-4 h-4" />
+                        <span className="text-[10px] font-medium">Proxy</span>
                       </button>
 
                       <button
                         type="button"
                         title="Edit connection"
                         onClick={() => openEdit(acc)}
-                        className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer"
+                        className="min-w-[42px] py-1 px-1.5 rounded-[6px] flex flex-col items-center justify-center gap-0.5 text-[#8e93a6] hover:text-white hover:bg-[#20222a] transition-colors cursor-pointer"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
-                        <span className="hidden sm:block">Edit</span>
+                        <Pencil className="w-4 h-4" />
+                        <span className="text-[10px] font-medium">Edit</span>
                       </button>
 
                       <InlineConfirm
@@ -907,10 +1060,10 @@ export function ProviderDetailPage() {
                           <button
                             type="button"
                             title="Delete connection"
-                            className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--status-danger)] hover:bg-rose-950/20 rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer"
+                            className="min-w-[42px] py-1 px-1.5 rounded-[6px] flex flex-col items-center justify-center gap-0.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors cursor-pointer"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span className="hidden sm:block">Delete</span>
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-[10px] font-medium">Delete</span>
                           </button>
                         }
                         confirmText="Delete?"
@@ -919,64 +1072,64 @@ export function ProviderDetailPage() {
 
                       <button
                         type="button"
-                        title={acc.enabled ? 'Disable' : 'Enable'}
+                        title={acc.enabled ? 'Click to disable' : 'Click to enable'}
                         onClick={() => handleToggle(acc)}
-                        className="px-2 py-1.5 rounded-[5px] transition-colors text-[var(--text-muted)] hover:bg-[var(--bg-panel)] cursor-pointer"
+                        className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer shrink-0 ml-1 ${
+                          acc.enabled ? 'bg-[#ea580c]' : 'bg-[#2d3139]'
+                        }`}
                       >
-                        {acc.enabled ? (
-                          <ToggleRight className="w-4.5 h-4.5 text-[var(--status-success)]" />
-                        ) : (
-                          <ToggleLeft className="w-4.5 h-4.5" />
-                        )}
+                        <div
+                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                            acc.enabled ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
                       </button>
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="px-10 pb-3 pt-1 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[var(--bg-panel)]/30 border-t border-[var(--border-subtle)]/50">
+                    <div className="px-12 py-3 bg-[#111216] border-t border-[#232630] grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11.5px]">
                       <div>
-                        <span className="text-[10px] font-semibold uppercase text-[var(--text-muted)] block mb-0.5">
+                        <span className="text-[10px] font-semibold uppercase text-[#717686] block mb-0.5">
                           Masked Key
                         </span>
-                        <span className="text-[11.5px] font-mono text-[var(--text-secondary)]">
+                        <span className="font-mono text-[#d1d5db]">
                           {acc.masked_secret || '••••••••••••'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-semibold uppercase text-[var(--text-muted)] block mb-0.5">
+                        <span className="text-[10px] font-semibold uppercase text-[#717686] block mb-0.5">
                           Priority
                         </span>
-                        <span className="text-[12px] font-mono text-[var(--brand-text)] font-semibold">
+                        <span className="font-mono text-[#ea580c] font-semibold">
                           #{acc.priority}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-semibold uppercase text-[var(--text-muted)] block mb-0.5">
-                          Proxy
+                        <span className="text-[10px] font-semibold uppercase text-[#717686] block mb-0.5">
+                          Proxy Details
                         </span>
                         {proxy ? (
                           <a
                             href={`${proxy.scheme}://${proxy.host}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[11.5px] font-mono text-[var(--brand-text)] hover:underline truncate block max-w-[220px]"
+                            className="font-mono text-[#ea580c] hover:underline truncate block max-w-[220px]"
                           >
                             {proxy.scheme}://{proxy.host} ({proxy.name})
                           </a>
                         ) : acc.proxy_url ? (
-                          <span className="text-[11.5px] font-mono text-[var(--text-secondary)] truncate block max-w-[220px]">
+                          <span className="font-mono text-[#d1d5db] truncate block max-w-[220px]">
                             {acc.proxy_url}
                           </span>
                         ) : (
-                          <span className="text-[11.5px] text-[var(--text-muted)]">Direct (no proxy)</span>
+                          <span className="text-[#717686]">Direct (no proxy)</span>
                         )}
                       </div>
                       {acc.last_error && (
-                        <div className="col-span-full">
-                          <span className="text-[10px] font-semibold uppercase text-rose-400 block mb-0.5">
-                            Last Error
-                          </span>
-                          <span className="text-[11px] font-mono text-rose-300/80 break-all">{acc.last_error}</span>
+                        <div className="col-span-full p-2.5 rounded-[6px] bg-rose-950/30 border border-rose-600/30 text-rose-300 font-mono text-[11px] break-all">
+                          <span className="font-bold block mb-1 text-rose-200">Error Detail:</span>
+                          {acc.last_error}
                         </div>
                       )}
                     </div>
@@ -986,6 +1139,25 @@ export function ProviderDetailPage() {
             })}
           </div>
         )}
+
+        <div className="flex items-center justify-between px-4 py-3 border-t border-[#232630] bg-[#14151b]">
+          <button
+            type="button"
+            onClick={() => {
+              setAddForm({ name: '', auth_type: 'apikey', priority: accounts.length + 1, api_key: '', proxy_pool_id: '' })
+              setFormError(null)
+              setShowAddSheet(true)
+            }}
+            className="h-8 px-4 text-[12.5px] font-semibold rounded-[6px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add</span>
+          </button>
+
+          <span className="text-[11px] font-mono text-[#717686]">
+            {accounts.length} total connections
+          </span>
+        </div>
       </div>
 
       <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 sm:p-5 space-y-4">
