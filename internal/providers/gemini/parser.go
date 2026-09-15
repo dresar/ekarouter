@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/dresar/ekarouter/internal/providers"
@@ -58,7 +59,11 @@ func NormalizeFinishReason(r string) string {
 func ParseResponsePayload(data []byte) (*ResponsePayload, error) {
 	var payload ResponsePayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		return nil, err
+		snippet := strings.TrimSpace(string(data))
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return nil, fmt.Errorf("upstream returned invalid JSON response: %q (error: %w)", snippet, err)
 	}
 	return &payload, nil
 }

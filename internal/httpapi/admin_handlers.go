@@ -432,7 +432,7 @@ func (a *AdminHandler) CheckKeyHealth(w http.ResponseWriter, r *http.Request) {
 		if model == "" {
 			switch provider {
 			case "groq":
-				model = "llama-3.1-8b-instant"
+				model = "openai/gpt-oss-120b"
 			case "openrouter":
 				model = "google/gemini-2.5-flash"
 			case "deepseek":

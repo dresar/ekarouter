@@ -2,6 +2,7 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/dresar/ekarouter/internal/providers"
@@ -55,7 +56,11 @@ type ChatCompletionChunk struct {
 func ParseChatResponse(data []byte) (*ChatCompletionResponse, error) {
 	var resp ChatCompletionResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
+		snippet := strings.TrimSpace(string(data))
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return nil, fmt.Errorf("upstream returned invalid JSON response: %q (error: %w)", snippet, err)
 	}
 	return &resp, nil
 }

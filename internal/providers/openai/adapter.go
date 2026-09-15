@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -80,13 +81,22 @@ func (a *Adapter) Models(ctx context.Context, creds *providers.Credentials) ([]p
 		return nil, providers.ClassifyHTTPError(resp.StatusCode, string(b))
 	}
 
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, readErr
+	}
+
 	var data struct {
 		Data []struct {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
+	if err := json.Unmarshal(bodyBytes, &data); err != nil {
+		snippet := strings.TrimSpace(string(bodyBytes))
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return nil, fmt.Errorf("upstream returned non-JSON models list: %q (error: %w)", snippet, err)
 	}
 
 	var models []providers.ModelInfo
