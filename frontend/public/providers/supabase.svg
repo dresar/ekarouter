@@ -1,10 +1,5 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="supa-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#249361"/>
-      <stop offset="100%" stop-color="#3ECF8E"/>
-    </linearGradient>
-  </defs>
-  <path d="M56.18 97.1c-2.53 3.17-7.64 1.43-7.7-2.62L47.59 35.15h39.89c7.22 0 11.25 8.35 6.76 14.01L56.18 97.1z" fill="url(#supa-grad)"/>
-  <path d="M39.95 1.64c2.53-3.18 7.64-1.44 7.7 2.62l.39 59.32H8.65c-7.22 0-11.25-8.34-6.76-14L39.95 1.64z" fill="#3ECF8E"/>
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <rect width="24" height="24" rx="5" fill="#13231B"/>
+  <path d="M13.5 23c-.6.8-1.8.3-1.8-.7l-.1-14.3h9.6c1.7 0 2.7 2 1.6 3.4L13.5 23z" fill="#249361" transform="scale(0.8) translate(3, 2.5)"/>
+  <path d="M9.6 1c.6-.8 1.8-.3 1.8.7l.1 14.3H1.9c-1.7 0-2.7-2-1.6-3.4L9.6 1z" fill="#3ECF8E" transform="scale(0.8) translate(3, 2.5)"/>
 </svg>

@@ -9,7 +9,9 @@ interface ProviderLogoProps {
 
 const PROVIDER_ICON_MAP: Record<string, string> = {
   '01-ai': '/providers/01-ai.svg',
-  'abuseipdb': '/providers/abuseipdb.png',
+  '9inf': '/providers/9inf.svg',
+  'node_9inference_cloud': '/providers/9inf.svg',
+  'abuseipdb': '/providers/abuseipdb.svg',
   'agentrouter': '/providers/agentrouter.png',
   'ai21': '/providers/ai21.svg',
   'airforce': '/providers/airforce.png',
@@ -23,9 +25,13 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'antigravity': '/providers/antigravity.png',
   'anyscale': '/providers/anyscale.svg',
   'api-airforce': '/providers/api-airforce.png',
+  'apx': '/providers/apx.svg',
+  'node_apinex': '/providers/apx.svg',
   'assemblyai': '/providers/assemblyai.png',
   'aws-polly': '/providers/aws-polly.png',
   'azure': '/providers/azure.png',
+  'bai': '/providers/bai.svg',
+  'node_b_ai_api': '/providers/bai.svg',
   'baichuan': '/providers/baichuan.svg',
   'baidu': '/providers/baidu.png',
   'baseten': '/providers/baseten.svg',
@@ -47,31 +53,39 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'cline': '/providers/cline.png',
   'clinepass': '/providers/clinepass.png',
   'cloudflare': '/providers/cloudflare.svg',
-  'cloudflare-ai': '/providers/cloudflare-ai.png',
+  'cloudflare-ai': '/providers/cloudflare.svg',
+  'cloudflare-r2': '/providers/cloudflare.svg',
+  'codebuddy': '/providers/codebuddy-intl.png',
   'codebuddy-cn': '/providers/codebuddy-cn.png',
   'codebuddy-intl': '/providers/codebuddy-intl.png',
-  'codex': '/providers/codex.png',
+  'codex': '/providers/openai.svg',
   'cohere': '/providers/cohere.png',
   'comfyui': '/providers/comfyui.png',
   'commandcode': '/providers/commandcode.png',
   'continue': '/providers/continue.png',
   'copilot': '/providers/copilot.png',
-  'coqui': '/providers/coqui.png',
+  'coqui': '/providers/coqui.svg',
+  'coqui-tts': '/providers/coqui.svg',
   'cursor': '/providers/cursor.png',
-  'custom': '/providers/custom.png',
+  'custom': '/providers/generic.svg',
+  'dahl': '/providers/dahl.svg',
+  'node_dahl_global': '/providers/dahl.svg',
+  'dalle': '/providers/openai.svg',
+  'dall-e': '/providers/openai.svg',
   'deepgram': '/providers/deepgram.png',
   'deepinfra': '/providers/deepinfra.svg',
   'deepseek': '/providers/deepseek.png',
   'deepseek-tui': '/providers/deepseek-tui.png',
-  'devin': '/providers/devin.png',
-  'devin-cli': '/providers/devin-cli.png',
+  'devin': '/providers/devin.svg',
+  'devin-cli': '/providers/devin.svg',
+  'devin-free': '/providers/devin.svg',
   'discord': '/providers/discord.svg',
   'docker': '/providers/docker.svg',
   'doubao': '/providers/doubao.svg',
   'drizzle': '/providers/drizzle.svg',
   'droid': '/providers/droid.png',
   'edge-tts': '/providers/edge-tts.png',
-  'edgetts': '/providers/edgetts.png',
+  'edgetts': '/providers/edge-tts.png',
   'elevenlabs': '/providers/elevenlabs.png',
   'exa': '/providers/exa.png',
   'fal-ai': '/providers/fal-ai.png',
@@ -82,6 +96,8 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'gemini': '/providers/gemini.png',
   'gemini-cli': '/providers/gemini-cli.png',
   'generic': '/providers/generic.svg',
+  'generic-rest': '/providers/generic.svg',
+  'generic-rest-api': '/providers/generic.svg',
   'github': '/providers/github.png',
   'github-copilot': '/providers/copilot.png',
   'gitlab': '/providers/gitlab.png',
@@ -93,8 +109,9 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'grok': '/providers/xai.png',
   'grok-cli': '/providers/grok-cli.png',
   'grok-web': '/providers/grok-web.png',
-  'groq': '/providers/groq.png',
+  'groq': '/providers/groq.svg',
   'hermes': '/providers/hermes.png',
+  'holver': '/providers/openai.svg',
   'huggingface': '/providers/huggingface.png',
   'hunyuan': '/providers/hunyuan.svg',
   'hyperbolic': '/providers/hyperbolic.png',
@@ -102,6 +119,7 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'inworld': '/providers/inworld.png',
   'ipinfo': '/providers/ipinfo.png',
   'jcode': '/providers/jcode.png',
+  'jina': '/providers/jina-reader.png',
   'jina-ai': '/providers/jina-ai.png',
   'jina-reader': '/providers/jina-reader.png',
   'k8s': '/providers/kubernetes.svg',
@@ -119,7 +137,7 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'lingyi': '/providers/lingyi.svg',
   'linkup': '/providers/linkup.png',
   'llm7': '/providers/llm7.png',
-  'local-device': '/providers/local-device.png',
+  'local-device': '/providers/generic.svg',
   'longcat': '/providers/longcat.png',
   'mapbox': '/providers/mapbox.svg',
   'meta': '/providers/meta.svg',
@@ -143,11 +161,13 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'neon': '/providers/neon.svg',
   'novita': '/providers/novita.png',
   'nvidia': '/providers/nvidia.png',
-  'oai-cc': '/providers/oai-cc.png',
-  'oai-r': '/providers/oai-r.png',
+  'oa': '/providers/openai.svg',
+  'oai-cc': '/providers/openai.svg',
+  'oai-r': '/providers/openai.svg',
   'ollama': '/providers/ollama.png',
   'ollama-local': '/providers/ollama-local.png',
-  'openai': '/providers/openai.png',
+  'openagentic': '/providers/anthropic.png',
+  'openai': '/providers/openai.svg',
   'openclaw': '/providers/openclaw.png',
   'opencode': '/providers/opencode.png',
   'opencode-go': '/providers/opencode-go.png',
@@ -179,9 +199,9 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'sdwebui': '/providers/sdwebui.png',
   'searchapi': '/providers/searchapi.png',
   'searxng': '/providers/searxng.png',
-  'selfhosted-embedding': '/providers/selfhosted-embedding.png',
-  'selfhosted-stt': '/providers/selfhosted-stt.png',
-  'selfhosted-tts': '/providers/selfhosted-tts.png',
+  'selfhosted-embedding': '/providers/generic.svg',
+  'selfhosted-stt': '/providers/generic.svg',
+  'selfhosted-tts': '/providers/generic.svg',
   'sendgrid': '/providers/sendgrid.svg',
   'sensenova': '/providers/sensenova.svg',
   'sentry': '/providers/sentry.svg',
@@ -194,7 +214,10 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'stepfun': '/providers/stepfun.svg',
   'stripe': '/providers/stripe.svg',
   'supabase': '/providers/supabase.svg',
-  'tavily': '/providers/tavily.png',
+  'tabitoken': '/providers/openai.svg',
+  'tavily': '/providers/tavily.svg',
+  'tavily-search': '/providers/tavily.svg',
+  'tavily-search-api': '/providers/tavily.svg',
   'tencent': '/providers/tencent.png',
   'together': '/providers/together.png',
   'tokenrouter': '/providers/tokenrouter.png',
@@ -206,16 +229,18 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'upstage': '/providers/upstage.svg',
   'upstash': '/providers/upstash.svg',
   'venice': '/providers/venice.png',
-  'vercel': '/providers/vercel.png',
-  'vercel-ai-gateway': '/providers/vercel-ai-gateway.png',
+  'vercel': '/providers/vercel.svg',
+  'vercel-ai-gateway': '/providers/vercel.svg',
   'vertex': '/providers/vertex.png',
-  'vertex-partner': '/providers/vertex-partner.png',
+  'vertex-partner': '/providers/vertex.png',
   'virustotal': '/providers/virustotal.svg',
   'volcengine-ark': '/providers/volcengine-ark.png',
   'voyage-ai': '/providers/voyage-ai.png',
   'weaviate': '/providers/weaviate.svg',
   'webhook': '/providers/webhook.svg',
   'webhooks': '/providers/webhook.svg',
+  'generic-webhook': '/providers/webhook.svg',
+  'generic-web': '/providers/webhook.svg',
   'windsurf': '/providers/windsurf.png',
   'workbuddy': '/providers/workbuddy.png',
   'writer': '/providers/writer.png',
@@ -225,6 +250,10 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
   'xquik': '/providers/xquik.png',
   'yi': '/providers/01-ai.svg',
   'youcom': '/providers/youcom.png',
+  'zans': '/providers/zans.svg',
+  'zanslab': '/providers/zans.svg',
+  'zanslab-id': '/providers/zans.svg',
+  'node_zanslab_id': '/providers/zans.svg',
   'zed': '/providers/zed.png',
   'zeroone': '/providers/01-ai.svg',
   'zhipu': '/providers/zhipu.svg',
@@ -234,23 +263,27 @@ function resolveIcon(providerId: string, name: string): string {
   const id = providerId.toLowerCase().trim()
   if (PROVIDER_ICON_MAP[id]) return PROVIDER_ICON_MAP[id]
 
-  const cleaned = id.replace(/[-_](api|v\d+|cn|intl|free|web|local|cloud)$/i, '')
+  const cleaned = id
+    .replace(/^node_/, '')
+    .replace(/[-_](api|v\d+|cn|intl|free|web|local|cloud|id|global|search)$/i, '')
+    .trim()
+
   if (PROVIDER_ICON_MAP[cleaned]) return PROVIDER_ICON_MAP[cleaned]
 
-  for (const key of Object.keys(PROVIDER_ICON_MAP)) {
-    if (id.startsWith(key) || id.includes(key) || key.includes(id)) {
-      return PROVIDER_ICON_MAP[key]
+  const nameLower = name.toLowerCase().trim()
+  const nameCleaned = nameLower.split(/[\s-_]+/)[0]
+
+  if (nameCleaned && PROVIDER_ICON_MAP[nameCleaned]) {
+    return PROVIDER_ICON_MAP[nameCleaned]
+  }
+
+  for (const [key, icon] of Object.entries(PROVIDER_ICON_MAP)) {
+    if (key.length >= 3 && (id.includes(key) || nameLower.includes(key))) {
+      return icon
     }
   }
 
-  const nameLower = name.toLowerCase()
-  for (const key of Object.keys(PROVIDER_ICON_MAP)) {
-    if (nameLower.includes(key) || key.includes(nameLower.split(' ')[0])) {
-      return PROVIDER_ICON_MAP[key]
-    }
-  }
-
-  return '/providers/local-device.png'
+  return '/providers/generic.svg'
 }
 
 export function ProviderLogo({ providerId, name = '', size = 'md', className = '' }: ProviderLogoProps) {
@@ -281,7 +314,7 @@ export function ProviderLogo({ providerId, name = '', size = 'md', className = '
   if (hasError) {
     return (
       <div
-        className={`${containerSizes[size]} rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] flex items-center justify-center font-mono font-bold text-[var(--text-secondary)] select-none shrink-0 ${className}`}
+        className={`${containerSizes[size]} rounded-[8px] bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center font-mono font-bold text-indigo-400 select-none shrink-0 ${className}`}
       >
         {initials}
       </div>
@@ -290,14 +323,14 @@ export function ProviderLogo({ providerId, name = '', size = 'md', className = '
 
   return (
     <div
-      className={`${containerSizes[size]} rounded-[7px] bg-white/5 border border-[var(--border-subtle)] flex items-center justify-center p-[3px] shrink-0 ${className}`}
+      className={`${containerSizes[size]} rounded-[8px] bg-white/[0.04] border border-white/10 flex items-center justify-center p-[2.5px] shrink-0 shadow-xs ${className}`}
     >
       <img
         src={iconSrc}
         alt={name || providerId}
         onError={() => setHasError(true)}
         className={`${sizeClasses[size]} object-contain`}
-        loading="lazy"
+        loading="eager"
       />
     </div>
   )
