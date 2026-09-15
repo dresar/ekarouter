@@ -11,6 +11,50 @@ Built with pure-Go SQLite (`modernc.org/sqlite`), EkaRouter is 100% CGO-free and
 
 ---
 
+## UI Preview
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/01-command-center.png" alt="Command Center — live topology, provider matrix, gateway ingress runner" width="100%"/>
+      <br/><sub><b>Command Center</b> — Live topology, 61 active backends, ingress runner</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/02-providers.png" alt="Providers — 45 connected providers, 183 accounts, 104 available" width="100%"/>
+      <br/><sub><b>Providers</b> — 45 connected · 183 accounts · Gemini, Groq, OpenRouter and more</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/03-routing.png" alt="Routing Combos — priority failover chains with 65 targets" width="100%"/>
+      <br/><sub><b>Routing Combos</b> — Priority failover chains, up to 65 cascaded targets</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/04-playground.png" alt="Playground — interactive model testing with pool rotation" width="100%"/>
+      <br/><sub><b>Playground</b> — Live model testing, pool rotation, 183 accounts</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/06-gateway-boost.png" alt="Gateway Boost — token compaction, fast-lane streaming, auto-failover" width="100%"/>
+      <br/><sub><b>Gateway Boost</b> — 34.8% token savings, -42ms latency, instant HA failover</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/07-quota-tracker.png" alt="Quota Tracker — real-time per-account quota monitoring" width="100%"/>
+      <br/><sub><b>Quota Tracker</b> — Real-time per-account quota bars with reset countdowns</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/05-api-keys.png" alt="API Keys — developer PAT token management" width="100%"/>
+      <br/><sub><b>Ingress API Keys</b> — Developer PAT tokens for /v1/* endpoint access</sub>
+    </td>
+    <td align="center"></td>
+  </tr>
+</table>
+
+---
+
 ## Key Features
 
 ### 1. Universal AI Gateway (`/v1/*`)

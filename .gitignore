@@ -57,3 +57,4 @@ AGENTS.md
 GEMINI.md
 *.tsbuildinfo
 *.png
+!docs/screenshots/*.png
