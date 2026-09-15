@@ -74,6 +74,7 @@ export function QuotaPage() {
 
   const [providerFilter, setProviderFilter] = useState('all')
   const [accountFilter, setAccountFilter] = useState('all')
+  const [trackableOnly, setTrackableOnly] = useState(true)
   const [expiringFirst, setExpiringFirst] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [countdown, setCountdown] = useState(30)
@@ -265,19 +266,36 @@ export function QuotaPage() {
       if (accountFilter !== 'all') {
         if (q.account_id !== accountFilter) return false
       }
+      if (trackableOnly) {
+        const hasLiveQuotas = q.quotas && q.quotas.length > 0
+        const hasError = !!q.error
+        if (!hasLiveQuotas && !hasError) return false
+      }
       return true
     })
 
-    if (expiringFirst) {
-      result = [...result].sort((a, b) => {
-        const timeA = a.reset_at ? new Date(a.reset_at).getTime() : Infinity
-        const timeB = b.reset_at ? new Date(b.reset_at).getTime() : Infinity
-        return timeA - timeB
-      })
+    const getPriority = (q: AccountQuota): number => {
+      if (q.error) return 3
+      if (q.quotas && q.quotas.length > 0) return 1
+      return 2
     }
 
+    result = [...result].sort((a, b) => {
+      const pA = getPriority(a)
+      const pB = getPriority(b)
+      if (pA !== pB) return pA - pB
+
+      if (expiringFirst) {
+        const timeA = a.reset_at ? new Date(a.reset_at).getTime() : Infinity
+        const timeB = b.reset_at ? new Date(b.reset_at).getTime() : Infinity
+        if (timeA !== timeB) return timeA - timeB
+      }
+
+      return (a.account_name || a.provider_name).localeCompare(b.account_name || b.provider_name)
+    })
+
     return result
-  }, [quotas, providerFilter, accountFilter, expiringFirst])
+  }, [quotas, providerFilter, accountFilter, expiringFirst, trackableOnly])
 
   return (
     <div className="space-y-4">
@@ -401,6 +419,19 @@ export function QuotaPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setTrackableOnly(!trackableOnly)}
+            className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border flex items-center gap-1.5 cursor-pointer transition-colors ${
+              trackableOnly
+                ? 'border-orange-500/40 bg-orange-500/10 text-orange-400'
+                : 'border-[#2e3344] bg-[#1a1c24] text-[#d1d5db] hover:border-[#3e4354] hover:text-white'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-orange-400" />
+            <span>Trackable only</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setExpiringFirst(!expiringFirst)}

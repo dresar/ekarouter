@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -144,6 +145,27 @@ func (t *Tracker) GetAllQuotas(ctx context.Context, force bool) ([]AccountQuota,
 			final = append(final, r)
 		}
 	}
+
+	sort.SliceStable(final, func(i, j int) bool {
+		pI := 2
+		if len(final[i].Quotas) > 0 && final[i].Error == "" {
+			pI = 1
+		} else if final[i].Error != "" {
+			pI = 3
+		}
+
+		pJ := 2
+		if len(final[j].Quotas) > 0 && final[j].Error == "" {
+			pJ = 1
+		} else if final[j].Error != "" {
+			pJ = 3
+		}
+
+		if pI != pJ {
+			return pI < pJ
+		}
+		return strings.ToLower(final[i].AccountName) < strings.ToLower(final[j].AccountName)
+	})
 
 	return final, nil
 }

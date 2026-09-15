@@ -33,6 +33,7 @@ interface UnifiedProvider {
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
+  { id: 'connected', label: 'Connected' },
   { id: 'oauth', label: 'OAuth' },
   { id: 'free_tier', label: 'Free Tier' },
   { id: 'apikey', label: 'API Key' },
@@ -190,11 +191,19 @@ export function ProvidersListPage() {
     )
   }
 
-  const oauthProviders = providers.filter((p) => p.category === 'oauth' && matchesSearch(p))
-  const freeTierProviders = providers.filter((p) => p.category === 'free_tier' && matchesSearch(p))
+  const sortByConnection = (a: UnifiedProvider, b: UnifiedProvider) => {
+    if (a.connections_count > 0 && b.connections_count === 0) return -1
+    if (b.connections_count > 0 && a.connections_count === 0) return 1
+    if (b.connections_count !== a.connections_count) return b.connections_count - a.connections_count
+    return a.name.localeCompare(b.name)
+  }
+
+  const connectedProviders = providers.filter((p) => p.connections_count > 0 && matchesSearch(p)).sort(sortByConnection)
+  const oauthProviders = providers.filter((p) => p.category === 'oauth' && matchesSearch(p)).sort(sortByConnection)
+  const freeTierProviders = providers.filter((p) => p.category === 'free_tier' && matchesSearch(p)).sort(sortByConnection)
   const apiKeyProviders = providers.filter(
     (p) => (p.category === 'apikey' || p.category === 'developer' || p.category === 'cloud' || p.category === 'tools') && matchesSearch(p)
-  )
+  ).sort(sortByConnection)
 
   const totalCount = providers.length
   const connectedCount = providers.filter((p) => p.connections_count > 0).length
@@ -343,6 +352,33 @@ export function ProvidersListPage() {
         </div>
       </div>
 
+      {(selectedCategory === 'all' || selectedCategory === 'connected') && connectedProviders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)] tracking-tight">
+                Connected Providers
+              </h2>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                {connectedProviders.length} Active
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => handleTestAll('all')}
+              isLoading={testingCategory === 'all'}
+              leftIcon={<Play className="w-3 h-3" />}
+            >
+              Test All
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {connectedProviders.map(renderCard)}
+          </div>
+        </div>
+      )}
+
       {(selectedCategory === 'all' || selectedCategory === 'oauth') && oauthProviders.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -409,7 +445,7 @@ export function ProvidersListPage() {
         </div>
       )}
 
-      {oauthProviders.length === 0 && freeTierProviders.length === 0 && apiKeyProviders.length === 0 && !isLoading && (
+      {connectedProviders.length === 0 && oauthProviders.length === 0 && freeTierProviders.length === 0 && apiKeyProviders.length === 0 && !isLoading && (
         <div className="py-16 text-center rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)]">
           <p className="text-[13px] font-medium text-[var(--text-primary)]">No providers found</p>
           <p className="text-[12px] text-[var(--text-muted)] mt-1">
