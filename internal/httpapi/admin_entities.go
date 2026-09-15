@@ -551,7 +551,11 @@ func (a *AdminHandler) TestAccount(w http.ResponseWriter, r *http.Request) {
 		var port int
 		var user sql.NullString
 		if err := a.db.QueryRowContext(r.Context(), "SELECT scheme, host, port, username FROM proxy_profiles WHERE id = ?", proxyPoolID).Scan(&scheme, &host, &port, &user); err == nil {
-			proxyURL = fmt.Sprintf("%s://%s:%d", scheme, host, port)
+			if port > 0 && port != 80 && port != 443 {
+				proxyURL = fmt.Sprintf("%s://%s:%d", scheme, host, port)
+			} else {
+				proxyURL = fmt.Sprintf("%s://%s", scheme, host)
+			}
 		}
 	}
 

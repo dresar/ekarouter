@@ -31,7 +31,6 @@ import {
   KeyRound,
   X,
 } from 'lucide-react'
-import { PageHeader } from '../../components/layout/PageHeader.tsx'
 import { Button } from '../../components/ui/Button.tsx'
 import { InlineConfirm } from '../../components/ui/InlineConfirm.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
@@ -106,6 +105,12 @@ export function ProviderDetailPage() {
   const [isSavingRowProxy, setIsSavingRowProxy] = useState(false)
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [showBulkAddSheet, setShowBulkAddSheet] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+  const [bulkPrefix, setBulkPrefix] = useState('Key')
+  const [bulkProxyId, setBulkProxyId] = useState('')
+  const [isBulkAdding, setIsBulkAdding] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
 
   const [addForm, setAddForm] = useState({
     name: '',
@@ -552,6 +557,85 @@ export function ProviderDetailPage() {
     }
   }
 
+  const handleBulkAddSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!provider) return
+
+    const lines = bulkText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+
+    if (lines.length === 0) {
+      setBulkError('Masukkan minimal 1 API key')
+      return
+    }
+
+    setIsBulkAdding(true)
+    setBulkError(null)
+
+    try {
+      const payloads = lines.map((line, idx) => {
+        let name = ''
+        let key = line
+
+        if (line.includes(':') && !line.startsWith('http')) {
+          const parts = line.split(':')
+          name = parts[0].trim()
+          key = parts.slice(1).join(':').trim()
+        }
+
+        if (!name) {
+          name = `${bulkPrefix.trim() || 'Key'} ${accounts.length + idx + 1}`
+        }
+
+        return {
+          provider_id: provider.id,
+          name,
+          auth_type: 'apikey',
+          priority: accounts.length + idx + 1,
+          api_key: key,
+          proxy_pool_id: bulkProxyId || undefined,
+        }
+      })
+
+      const results = await Promise.allSettled(
+        payloads.map((p) => api.post('/api/accounts', p))
+      )
+
+      const successCount = results.filter((r) => r.status === 'fulfilled').length
+      setShowBulkAddSheet(false)
+      setBulkText('')
+      setActionSuccess(`Berhasil menambahkan ${successCount} key secara massal!`)
+      setTimeout(() => setActionSuccess(null), 4000)
+      await loadData()
+    } catch (err: unknown) {
+      setBulkError(err instanceof Error ? err.message : 'Gagal menambahkan key massal')
+    } finally {
+      setIsBulkAdding(false)
+    }
+  }
+
+  const handleResetAllActive = async () => {
+    const inactiveAccounts = accounts.filter(
+      (a) => !a.enabled || a.state === 'cooling_down' || !!a.last_error
+    )
+    if (inactiveAccounts.length === 0) return
+
+    try {
+      await Promise.allSettled(
+        inactiveAccounts.map((a) =>
+          api.put(`/api/accounts/${a.id}`, { state: 'active', enabled: true })
+        )
+      )
+      setActionSuccess(`Semua ${inactiveAccounts.length} koneksi berhasil diaktifkan kembali ke status active!`)
+      setTimeout(() => setActionSuccess(null), 3500)
+      await loadData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal me-reset status active')
+    }
+  }
+
   const openEdit = (acc: Account) => {
     setEditingAccount(acc)
     setEditForm({
@@ -678,27 +762,23 @@ export function ProviderDetailPage() {
   const disabledModels = models.filter((m) => !m.enabled)
 
   return (
-    <div className="space-y-5 pb-28">
-      <PageHeader
-        title={provider ? provider.name : 'Provider Details'}
-        description={`Provider ID: ${id || ''}`}
-        breadcrumbs={[
-          { label: 'Providers', to: '/providers' },
-          { label: provider?.name || 'Details' },
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="compact"
-              onClick={() => navigate('/providers')}
-              leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-            >
-              Back
-            </Button>
-          </div>
-        }
-      />
+    <div className="space-y-4 pb-28">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/providers')}
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#9ca3af] hover:text-white transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Providers</span>
+        </button>
+
+        {provider && (
+          <span className="text-[11px] font-mono text-[#717686] bg-[#1a1b20] border border-[#2b2f3a] px-2 py-0.5 rounded-[4px]">
+            Provider ID: {id || provider.id}
+          </span>
+        )}
+      </div>
 
       {error && <ErrorBanner message={error} onRetry={loadData} />}
 
@@ -715,7 +795,7 @@ export function ProviderDetailPage() {
             <ProviderLogo providerId={provider.id} name={provider.name} size="xl" />
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-[17px] font-bold text-[var(--text-primary)]">{provider.name}</h2>
+                <h2 className="text-[18px] font-bold text-[var(--text-primary)]">{provider.name}</h2>
                 {platProvider?.doc_url && (
                   <a
                     href={platProvider.doc_url}
@@ -816,7 +896,34 @@ export function ProviderDetailPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setAddForm({ name: '', auth_type: 'apikey', priority: accounts.length + 1, api_key: '', proxy_pool_id: '' })
+                setFormError(null)
+                setShowAddSheet(true)
+              }}
+              className="h-8 px-3 text-[12px] font-semibold rounded-[6px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Key</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setBulkText('')
+                setBulkProxyId('')
+                setBulkError(null)
+                setShowBulkAddSheet(true)
+              }}
+              className="h-8 px-3 text-[12px] font-medium rounded-[6px] bg-[#202227] hover:bg-[#2a2d35] border border-[#363a45] text-[#e0e2eb] flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#9fa3b4]" />
+              <span>Bulk Add</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowApplyProxySheet(true)}
@@ -836,7 +943,7 @@ export function ProviderDetailPage() {
               }`}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-[#9fa3b4] ${isTestingOneByOne ? 'animate-spin' : ''}`} />
-              <span>{isTestingOneByOne ? 'Stop Testing' : 'Test Connection One-by-One'}</span>
+              <span>{isTestingOneByOne ? 'Stop Testing' : 'Test One-by-One'}</span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -870,7 +977,7 @@ export function ProviderDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-2 bg-[#121318] border-b border-[#232630] text-[12px]">
+        <div className="flex items-center justify-between px-4 py-2 bg-[#121318] border-b border-[#232630] text-[12px] flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 cursor-pointer select-none text-[#9ca3af] hover:text-[#e0e2eb]">
               <input
@@ -889,7 +996,7 @@ export function ProviderDetailPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {selectedAccountIds.size > 0 && (
               <button
                 type="button"
@@ -903,15 +1010,26 @@ export function ProviderDetailPage() {
             )}
 
             {accounts.some((a) => !a.enabled || a.state === 'cooling_down' || !!a.last_error) && (
-              <button
-                type="button"
-                disabled={isBulkDeleting}
-                onClick={handleBulkDeleteUnavailable}
-                className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-[#221c21] border border-rose-500/30 text-rose-300 hover:bg-rose-950/50 flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Hapus Unavailable</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleResetAllActive}
+                  className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-emerald-950/40 border border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Aktifkan Semua (Reset Active)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isBulkDeleting}
+                  onClick={handleBulkDeleteUnavailable}
+                  className="h-7 px-2.5 text-[11px] font-medium rounded-[5px] bg-[#221c21] border border-rose-500/30 text-rose-300 hover:bg-rose-950/50 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Hapus Unavailable</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1003,10 +1121,6 @@ export function ProviderDetailPage() {
                             }`}
                           />
                           {getStateLabel(acc)}
-                        </span>
-
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[4px] bg-[#1e2027] border border-[#323644] text-[#8e93a6]">
-                          API Key
                         </span>
 
                         {hasProxy && (
@@ -1140,23 +1254,9 @@ export function ProviderDetailPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[#232630] bg-[#14151b]">
-          <button
-            type="button"
-            onClick={() => {
-              setAddForm({ name: '', auth_type: 'apikey', priority: accounts.length + 1, api_key: '', proxy_pool_id: '' })
-              setFormError(null)
-              setShowAddSheet(true)
-            }}
-            className="h-8 px-4 text-[12.5px] font-semibold rounded-[6px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add</span>
-          </button>
-
-          <span className="text-[11px] font-mono text-[#717686]">
-            {accounts.length} total connections
-          </span>
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#232630] bg-[#14151b] text-[11.5px] text-[#717686]">
+          <span>{accounts.length} total connections</span>
+          <span>Max 6 visible before internal scroll</span>
         </div>
       </div>
 
@@ -1420,6 +1520,104 @@ export function ProviderDetailPage() {
             ))}
           </div>
         </div>
+      </BottomSheet>
+
+      <BottomSheet
+        isOpen={showBulkAddSheet}
+        onClose={() => setShowBulkAddSheet(false)}
+        title={`Bulk Add Connections — ${provider?.name || ''}`}
+        description="Tambahkan banyak API key sekaligus secara massal (satu key per baris)"
+        maxWidth="max-w-2xl"
+      >
+        <form onSubmit={handleBulkAddSubmit} className="space-y-4">
+          {bulkError && (
+            <div className="flex items-center gap-2 p-3 rounded-[6px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[12px]">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {bulkError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
+                Prefix Nama Otomatis
+              </label>
+              <input
+                type="text"
+                value={bulkPrefix}
+                onChange={(e) => setBulkPrefix(e.target.value)}
+                placeholder="Contoh: Key atau Gemini"
+                className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
+                Pasangkan Proxy Relay (Opsional)
+              </label>
+              <select
+                value={bulkProxyId}
+                onChange={(e) => setBulkProxyId(e.target.value)}
+                className="w-full h-9 px-3 text-[13px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
+              >
+                <option value="">Direct (Tanpa Proxy)</option>
+                {proxies.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {p.scheme}://{p.host}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+                Daftar API Keys (1 per baris) *
+              </label>
+              <span className="text-[11px] font-mono text-[#ea580c]">
+                {
+                  bulkText
+                    .split('\n')
+                    .map((l) => l.trim())
+                    .filter((l) => l.length > 0).length
+                }{' '}
+                key terdeteksi
+              </span>
+            </div>
+            <textarea
+              required
+              rows={8}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={`AIzaSyD-contohKey1...\nAIzaSyD-contohKey2...\nAIzaSyD-contohKey3...\n\nAtau dengan format nama kustom:\nAkun Utama: AIzaSyD-xxx...\nAkun Cadangan: AIzaSyD-yyy...`}
+              className="w-full p-3 text-[12.5px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors leading-relaxed"
+            />
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+              Sistem akan otomatis memberi nama berurutan dan mendaftarkan seluruh key ke database dengan enkripsi AES-256.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setShowBulkAddSheet(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="compact"
+              isLoading={isBulkAdding}
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              Tambah Massal Sekarang
+            </Button>
+          </div>
+        </form>
       </BottomSheet>
 
       <BottomSheet
