@@ -309,9 +309,14 @@ export interface AccountQuota {
   auth_type: string
   email?: string
   state: string
+  is_enabled?: boolean
   plan?: string
   overall_remaining: number
   reset_at?: string
   quotas: ModelQuota[]
+  message?: string
+  error?: string
   last_checked: string
+  last_validated?: string
+  is_valid?: boolean
 }

@@ -101,7 +101,7 @@ func TestAntigravityQuotaParsing(t *testing.T) {
 		AccountName: "AG Account",
 	}
 
-	parsed := tracker.fetchAntigravityQuota(context.Background(), base, "mock_token")
+	parsed := tracker.fetchAntigravityQuota(context.Background(), base, "acc_ag", "mock_token", "")
 	if parsed.Plan != "Pro Tier" {
 		t.Errorf("expected Pro Tier, got %s", parsed.Plan)
 	}

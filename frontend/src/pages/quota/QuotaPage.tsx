@@ -1,36 +1,89 @@
-import { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, useMemo } from 'react'
 import {
   RefreshCw,
-  Search,
-  Clock,
-  ExternalLink,
-  ShieldCheck,
-  AlertTriangle,
-  Layers,
-  Sparkles,
+  Hourglass,
+  Ban,
+  CheckCircle2,
+  ToggleLeft,
+  ToggleRight,
+  EyeOff,
+  Pencil,
+  Trash2,
+  AlertCircle,
   ChevronDown,
-  ChevronUp,
+  LayoutGrid,
+  X,
 } from 'lucide-react'
-import { PageHeader } from '../../components/layout/PageHeader.tsx'
-import { Button } from '../../components/ui/Button.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 import { ErrorBanner } from '../../components/ui/ErrorBanner.tsx'
 import { api } from '../../api/client.ts'
 import { AccountQuota } from '../../types/api.ts'
 
+function formatResetCountdown(resetAt?: string): string {
+  if (!resetAt) return '-'
+  try {
+    const target = new Date(resetAt).getTime()
+    const now = Date.now()
+    const diffMs = target - now
+    if (diffMs <= 0) return 'in 0m'
+    const totalMinutes = Math.floor(diffMs / 60000)
+    const days = Math.floor(totalMinutes / (24 * 60))
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60)
+    const minutes = totalMinutes % 60
+    if (days > 0) {
+      return `in ${days}d ${hours}h ${minutes}m`
+    }
+    if (hours > 0) {
+      return `in ${hours}h ${minutes}m`
+    }
+    return `in ${minutes}m`
+  } catch {
+    return '-'
+  }
+}
+
+function getQuotaColor(pct: number) {
+  if (pct > 70) {
+    return {
+      dot: 'bg-emerald-500',
+      text: 'text-emerald-500 dark:text-emerald-400',
+      bar: 'bg-emerald-500',
+    }
+  }
+  if (pct >= 30) {
+    return {
+      dot: 'bg-amber-500',
+      text: 'text-amber-500 dark:text-amber-400',
+      bar: 'bg-amber-500',
+    }
+  }
+  return {
+    dot: 'bg-rose-500',
+    text: 'text-rose-500 dark:text-rose-400',
+    bar: 'bg-rose-500',
+  }
+}
+
 export function QuotaPage() {
-  const navigate = useNavigate()
   const [quotas, setQuotas] = useState<AccountQuota[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshingIds, setRefreshingIds] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [selectedProvider, setSelectedProvider] = useState('all')
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
 
-  const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [providerFilter, setProviderFilter] = useState('all')
+  const [accountFilter, setAccountFilter] = useState('all')
+  const [expiringFirst, setExpiringFirst] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [countdown, setCountdown] = useState(30)
+  const [hiddenRows, setHiddenRows] = useState<Record<string, boolean>>({})
+
+  const [editingAccount, setEditingAccount] = useState<AccountQuota | null>(null)
+  const [editName, setEditName] = useState('')
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
+
+  const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
+  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
 
   const fetchQuotas = async (force = false) => {
     if (force) {
@@ -56,372 +109,521 @@ export function QuotaPage() {
   }, [])
 
   useEffect(() => {
-    if (autoRefreshTimerRef.current) {
-      clearInterval(autoRefreshTimerRef.current)
-    }
-    if (autoRefresh) {
-      autoRefreshTimerRef.current = setInterval(() => {
-        fetchQuotas(false)
-      }, 30000)
-    }
-    return () => {
-      if (autoRefreshTimerRef.current) {
-        clearInterval(autoRefreshTimerRef.current)
-      }
-    }
+    if (!autoRefresh) return
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          fetchQuotas(false)
+          return 30
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(interval)
   }, [autoRefresh])
 
-  const toggleExpand = (accountId: string) => {
-    setExpandedCards((prev) => ({
-      ...prev,
-      [accountId]: !prev[accountId],
-    }))
-  }
-
   const handleRefreshSingle = async (accountId: string) => {
+    setRefreshingIds((prev) => ({ ...prev, [accountId]: true }))
     try {
       const updated = await api.post<AccountQuota>(`/api/quota/${accountId}/refresh`, {})
-      if (updated) {
+      if (updated && updated.account_id) {
         setQuotas((prev) => prev.map((q) => (q.account_id === accountId ? updated : q)))
       }
     } catch {
       await fetchQuotas(true)
+    } finally {
+      setRefreshingIds((prev) => ({ ...prev, [accountId]: false }))
     }
   }
 
-  const formatResetTime = (resetAt?: string) => {
-    if (!resetAt) return null
-    try {
-      const target = new Date(resetAt).getTime()
-      const now = Date.now()
-      const diffMs = target - now
-      if (diffMs <= 0) return 'Resetting soon'
-      const diffMins = Math.floor(diffMs / 60000)
-      const hours = Math.floor(diffMins / 60)
-      const mins = diffMins % 60
-      if (hours > 24) {
-        const days = Math.floor(hours / 24)
-        return `Resets in ${days}d ${hours % 24}h`
-      }
-      if (hours > 0) {
-        return `Resets in ${hours}h ${mins}m`
-      }
-      return `Resets in ${mins}m`
-    } catch {
-      return null
-    }
-  }
-
-  const getProgressColor = (pct: number) => {
-    if (pct > 40) return 'bg-[var(--status-success)]'
-    if (pct > 15) return 'bg-amber-400'
-    return 'bg-[var(--status-error)]'
-  }
-
-  const getProgressBg = (pct: number) => {
-    if (pct > 40) return 'text-[var(--status-success)]'
-    if (pct > 15) return 'text-amber-400'
-    return 'text-[var(--status-error)]'
-  }
-
-  const providersList = Array.from(new Set(quotas.map((q) => q.provider_id))).sort()
-
-  const filteredQuotas = quotas.filter((q) => {
-    const matchesProv = selectedProvider === 'all' || q.provider_id === selectedProvider
-    if (!matchesProv) return false
-    if (!search.trim()) return true
-    const term = search.toLowerCase()
-    return (
-      q.account_name.toLowerCase().includes(term) ||
-      q.provider_id.toLowerCase().includes(term) ||
-      (q.email && q.email.toLowerCase().includes(term)) ||
-      q.quotas.some((m) => m.name.toLowerCase().includes(term))
+  const handleToggleAccount = async (accountId: string, currentEnabled: boolean) => {
+    const next = !currentEnabled
+    setQuotas((prev) =>
+      prev.map((q) => (q.account_id === accountId ? { ...q, is_enabled: next } : q))
     )
-  })
+    try {
+      await api.patch(`/api/accounts/${accountId}`, { enabled: next })
+    } catch {
+      setQuotas((prev) =>
+        prev.map((q) => (q.account_id === accountId ? { ...q, is_enabled: currentEnabled } : q))
+      )
+    }
+  }
 
-  const totalTracked = quotas.length
-  const healthyCount = quotas.filter((q) => q.overall_remaining > 20).length
-  const depletedCount = quotas.filter((q) => q.overall_remaining <= 5).length
-  const avgRemaining =
-    totalTracked > 0
-      ? Math.round(quotas.reduce((acc, q) => acc + q.overall_remaining, 0) / totalTracked)
-      : 100
+  const handleDeleteAccount = async (accountId: string, accountName: string) => {
+    if (!window.confirm(`Delete account "${accountName}"?`)) return
+    try {
+      await api.delete(`/api/accounts/${accountId}`)
+      setQuotas((prev) => prev.filter((q) => q.account_id !== accountId))
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete account')
+    }
+  }
+
+  const handleTurnOffEmpty = async () => {
+    const emptyAccounts = quotas.filter(
+      (q) => (q.is_enabled ?? true) && (q.overall_remaining <= 0 || !!q.error)
+    )
+    for (const acc of emptyAccounts) {
+      try {
+        await api.patch(`/api/accounts/${acc.account_id}`, { enabled: false })
+      } catch {}
+    }
+    setQuotas((prev) =>
+      prev.map((q) =>
+        q.overall_remaining <= 0 || q.error ? { ...q, is_enabled: false } : q
+      )
+    )
+  }
+
+  const handleTurnOnAvailable = async () => {
+    const availableAccounts = quotas.filter(
+      (q) => !(q.is_enabled ?? true) && q.overall_remaining > 0 && !q.error
+    )
+    for (const acc of availableAccounts) {
+      try {
+        await api.patch(`/api/accounts/${acc.account_id}`, { enabled: true })
+      } catch {}
+    }
+    setQuotas((prev) =>
+      prev.map((q) =>
+        q.overall_remaining > 0 && !q.error ? { ...q, is_enabled: true } : q
+      )
+    )
+  }
+
+  const toggleHideRow = (accountId: string, modelId: string) => {
+    const key = `${accountId}:${modelId}`
+    setHiddenRows((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleOpenEdit = (acc: AccountQuota) => {
+    setEditingAccount(acc)
+    setEditName(acc.account_name)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingAccount) return
+    setIsSubmittingEdit(true)
+    try {
+      await api.patch(`/api/accounts/${editingAccount.account_id}`, {
+        name: editName,
+      })
+      setQuotas((prev) =>
+        prev.map((q) =>
+          q.account_id === editingAccount.account_id
+            ? { ...q, account_name: editName }
+            : q
+        )
+      )
+      setEditingAccount(null)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update account')
+    } finally {
+      setIsSubmittingEdit(false)
+    }
+  }
+
+  const uniqueProviders = useMemo(() => {
+    const set = new Set<string>()
+    quotas.forEach((q) => {
+      if (q.provider_name) set.add(q.provider_name)
+      else if (q.provider_id) set.add(q.provider_id)
+    })
+    return Array.from(set).sort()
+  }, [quotas])
+
+  const uniqueAccounts = useMemo(() => {
+    return quotas.map((q) => ({
+      id: q.account_id,
+      name: q.account_name,
+      email: q.email,
+    }))
+  }, [quotas])
+
+  const displayedQuotas = useMemo(() => {
+    let result = quotas.filter((q) => {
+      if (providerFilter !== 'all') {
+        const prov = (q.provider_name || q.provider_id).toLowerCase()
+        if (prov !== providerFilter.toLowerCase()) return false
+      }
+      if (accountFilter !== 'all') {
+        if (q.account_id !== accountFilter) return false
+      }
+      return true
+    })
+
+    if (expiringFirst) {
+      result = [...result].sort((a, b) => {
+        const timeA = a.reset_at ? new Date(a.reset_at).getTime() : Infinity
+        const timeB = b.reset_at ? new Date(b.reset_at).getTime() : Infinity
+        return timeA - timeB
+      })
+    }
+
+    return result
+  }, [quotas, providerFilter, accountFilter, expiringFirst])
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Quota Tracker"
-        description="Track and manage your API quota limits"
-        breadcrumbs={[
-          { label: 'Home', to: '/overview' },
-          { label: 'Quota Tracker' },
-        ]}
-        metadata={
-          <span>
-            {healthyCount} healthy &bull; {depletedCount} depleted &bull; avg {avgRemaining}% remaining
-          </span>
-        }
-        actions={
-          <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
             <button
               type="button"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`h-8 px-3 text-[11.5px] font-medium rounded-[6px] border flex items-center gap-1.5 transition-colors cursor-pointer ${
-                autoRefresh
-                  ? 'bg-[var(--status-success-bg)] border-[var(--status-success)] text-[var(--status-success)]'
-                  : 'bg-[var(--bg-panel)] border-[var(--border-subtle)] text-[var(--text-muted)]'
-              }`}
+              onClick={() => {
+                setProviderDropdownOpen(!providerDropdownOpen)
+                setAccountDropdownOpen(false)
+              }}
+              className="h-8 px-3 text-[12px] font-medium rounded-[6px] border border-[#2e3344] bg-[#1a1c24] text-[#d1d5db] hover:border-[#3e4354] hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  autoRefresh ? 'bg-[var(--status-success)] animate-pulse' : 'bg-slate-500'
-                }`}
-              />
-              Auto-refresh 30s
+              <LayoutGrid className="w-3.5 h-3.5 text-[#9ca3af]" />
+              <span>
+                {providerFilter === 'all' ? 'All Providers' : providerFilter}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-[#9ca3af]" />
             </button>
-            <Button
-              variant="secondary"
-              size="compact"
-              onClick={() => fetchQuotas(true)}
-              isLoading={isRefreshing || isLoading}
-              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-            >
-              Refresh All
-            </Button>
+            {providerDropdownOpen && (
+              <div className="absolute left-0 mt-1 w-48 rounded-[8px] bg-[#1a1c24] border border-[#2e3344] shadow-xl py-1 z-30">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProviderFilter('all')
+                    setProviderDropdownOpen(false)
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors ${
+                    providerFilter === 'all'
+                      ? 'bg-orange-500/10 text-orange-400 font-semibold'
+                      : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
+                  }`}
+                >
+                  All Providers
+                </button>
+                {uniqueProviders.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setProviderFilter(p)
+                      setProviderDropdownOpen(false)
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors capitalize ${
+                      providerFilter === p
+                        ? 'bg-orange-500/10 text-orange-400 font-semibold'
+                        : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        }
-      />
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setAccountDropdownOpen(!accountDropdownOpen)
+                setProviderDropdownOpen(false)
+              }}
+              className="h-8 px-3 text-[12px] font-medium rounded-[6px] border border-[#2e3344] bg-[#1a1c24] text-[#d1d5db] hover:border-[#3e4354] hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+            >
+              <span className="truncate max-w-[130px]">
+                {accountFilter === 'all'
+                  ? 'All accounts'
+                  : uniqueAccounts.find((a) => a.id === accountFilter)?.name ||
+                    'Selected account'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-[#9ca3af]" />
+            </button>
+            {accountDropdownOpen && (
+              <div className="absolute left-0 mt-1 w-56 max-h-60 overflow-y-auto rounded-[8px] bg-[#1a1c24] border border-[#2e3344] shadow-xl py-1 z-30">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountFilter('all')
+                    setAccountDropdownOpen(false)
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors ${
+                    accountFilter === 'all'
+                      ? 'bg-orange-500/10 text-orange-400 font-semibold'
+                      : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
+                  }`}
+                >
+                  All accounts
+                </button>
+                {uniqueAccounts.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => {
+                      setAccountFilter(a.id)
+                      setAccountDropdownOpen(false)
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-[12px] cursor-pointer transition-colors truncate ${
+                      accountFilter === a.id
+                        ? 'bg-orange-500/10 text-orange-400 font-semibold'
+                        : 'text-[#d1d5db] hover:bg-[#282b3a] hover:text-white'
+                    }`}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setExpiringFirst(!expiringFirst)}
+            className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border flex items-center gap-1.5 cursor-pointer transition-colors ${
+              expiringFirst
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                : 'border-[#2e3344] bg-[#1a1c24] text-[#d1d5db] hover:border-[#3e4354] hover:text-white'
+            }`}
+          >
+            <Hourglass className="w-3.5 h-3.5 text-amber-400" />
+            <span>Expiring first</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTurnOffEmpty}
+            className="h-8 px-3 text-[12px] font-medium rounded-[6px] border border-rose-500/40 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <Ban className="w-3.5 h-3.5 text-rose-400" />
+            <span>Turn off Empty</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTurnOnAvailable}
+            className="h-8 px-3 text-[12px] font-medium rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Turn on Available</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`h-8 px-3 text-[12px] font-medium rounded-[6px] border flex items-center gap-1.5 cursor-pointer transition-colors ${
+              autoRefresh
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                : 'border-[#2e3344] bg-[#1a1c24] text-[#9ca3af] hover:text-white'
+            }`}
+          >
+            {autoRefresh ? (
+              <ToggleRight className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <ToggleLeft className="w-4 h-4 text-[#9ca3af]" />
+            )}
+            <span>Auto-refresh</span>
+            {autoRefresh && (
+              <span className="text-[11px] font-mono tabular-nums opacity-80">
+                ({countdown}s)
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fetchQuotas(true)}
+            disabled={isRefreshing || isLoading}
+            className="h-8 w-8 rounded-[6px] border border-[#2e3344] bg-[#1a1c24] text-[#d1d5db] hover:border-[#3e4354] hover:text-white flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50"
+            title="Refresh all"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${
+                isRefreshing || isLoading ? 'animate-spin' : ''
+              }`}
+            />
+          </button>
+        </div>
+      </div>
 
       {error && <ErrorBanner message={error} onRetry={() => fetchQuotas(true)} />}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs flex flex-col">
-          <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wide">
-            Tracked Accounts
-          </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-[20px] font-bold text-[var(--text-primary)] font-mono">
-              {totalTracked}
-            </span>
-            <span className="text-[11px] text-[var(--text-muted)]">connected</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs flex flex-col">
-          <span className="text-[11px] font-medium text-[var(--status-success)] uppercase tracking-wide flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3" />
-            Healthy Quota
-          </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-[20px] font-bold text-[var(--status-success)] font-mono">
-              {healthyCount}
-            </span>
-            <span className="text-[11px] text-[var(--text-muted)]">&gt; 20% left</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs flex flex-col">
-          <span className="text-[11px] font-medium text-[var(--status-error)] uppercase tracking-wide flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
-            Depleted / Low
-          </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-[20px] font-bold text-[var(--status-error)] font-mono">
-              {depletedCount}
-            </span>
-            <span className="text-[11px] text-[var(--text-muted)]">&le; 5% left</span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-[10px] bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs flex flex-col">
-          <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wide">
-            Avg Headroom
-          </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className={`text-[20px] font-bold font-mono ${getProgressBg(avgRemaining)}`}>
-              {avgRemaining}%
-            </span>
-            <span className="text-[11px] text-[var(--text-muted)]">remaining</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="relative flex-1 min-w-0 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
-          <input
-            type="search"
-            placeholder="Cari akun atau model..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-8 pl-8 pr-3 text-[12.5px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setSelectedProvider('all')}
-            className={`h-7 px-3 text-[11.5px] font-medium rounded-[5px] transition-colors cursor-pointer ${
-              selectedProvider === 'all'
-                ? 'bg-[#282a34] text-[#f3f4f6] border border-[#3e4354]'
-                : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            All
-          </button>
-          {providersList.map((pId) => (
-            <button
-              key={pId}
-              type="button"
-              onClick={() => setSelectedProvider(pId)}
-              className={`h-7 px-3 text-[11.5px] font-medium rounded-[5px] transition-colors cursor-pointer ${
-                selectedProvider === pId
-                  ? 'bg-[#282a34] text-[#f3f4f6] border border-[#3e4354]'
-                  : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {pId}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredQuotas.map((item) => {
-          const resetText = formatResetTime(item.reset_at)
-          const isExpanded = expandedCards[item.account_id] ?? (item.quotas.length > 0 && item.quotas.length <= 4)
-          const roundedPct = Math.round(item.overall_remaining)
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+        {displayedQuotas.map((item) => {
+          const isEnabled = item.is_enabled ?? true
+          const isBusy = refreshingIds[item.account_id] || false
+          const visibleQuotas = item.quotas.filter(
+            (q) => !hiddenRows[`${item.account_id}:${q.id}`]
+          )
 
           return (
             <div
               key={item.account_id}
-              className="p-4 rounded-[12px] bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-all flex flex-col justify-between shadow-xs"
+              className={`rounded-[10px] border border-[#282b3a] bg-[#171922] transition-colors overflow-hidden ${
+                !isEnabled ? 'opacity-60' : ''
+              }`}
             >
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ProviderLogo providerId={item.provider_id} name={item.provider_name} size="md" />
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
-                          {item.account_name}
-                        </span>
-                        {item.plan && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-mono rounded-[4px] bg-[var(--brand-primary)]/10 text-[var(--brand-text)] border border-[var(--brand-primary)]/20">
-                            {item.plan}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-muted)]">
-                        <span className="font-mono">{item.provider_name || item.provider_id}</span>
-                        {item.email && (
-                          <>
-                            <span>&bull;</span>
-                            <span className="truncate">{item.email}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleRefreshSingle(item.account_id)}
-                      title="Refresh single quota"
-                      className="p-1.5 rounded-[5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] transition-colors cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/providers/${item.provider_id}`)}
-                      title="View provider"
-                      className="p-1.5 rounded-[5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] transition-colors cursor-pointer"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-1.5">
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="font-medium text-[var(--text-secondary)]">Remaining Quota</span>
-                    <span className={`font-mono font-bold ${getProgressBg(roundedPct)}`}>
-                      {roundedPct}%
-                    </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-[var(--bg-panel)] overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${getProgressColor(roundedPct)}`}
-                      style={{ width: `${Math.max(2, Math.min(100, roundedPct))}%` }}
+              <div className="px-3.5 py-2.5 border-b border-[#232635] flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[6px] shrink-0 flex items-center justify-center bg-[#202330] overflow-hidden">
+                    <ProviderLogo
+                      providerId={item.provider_id}
+                      name={item.provider_name}
+                      size="sm"
                     />
                   </div>
+                  <div className="min-w-0">
+                    <h3 className="text-[13px] font-semibold text-white truncate capitalize leading-tight">
+                      {item.provider_name || item.provider_id}
+                    </h3>
+                    <p className="text-[11px] text-[#9ca3af] truncate leading-tight mt-0.5">
+                      {item.email || item.account_name}
+                    </p>
+                  </div>
                 </div>
 
-                {resetText && (
-                  <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-mono text-[var(--text-muted)]">
-                    <Clock className="w-3 h-3 text-[var(--brand-text)]" />
-                    <span>{resetText}</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleRefreshSingle(item.account_id)}
+                    disabled={isBusy}
+                    title="Refresh quota"
+                    className="w-7 h-7 rounded-[5px] flex items-center justify-center text-[#9ca3af] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${isBusy ? 'animate-spin' : ''}`}
+                    />
+                  </button>
 
-                {item.quotas && item.quotas.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-[var(--border-subtle)]">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(item)}
+                    title="Edit account"
+                    className="w-7 h-7 rounded-[5px] flex items-center justify-center text-[#9ca3af] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDeleteAccount(item.account_id, item.account_name)
+                    }
+                    title="Delete account"
+                    className="w-7 h-7 rounded-[5px] flex items-center justify-center text-rose-500/80 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="pl-1">
                     <button
                       type="button"
-                      onClick={() => toggleExpand(item.account_id)}
-                      className="w-full flex items-center justify-between text-[11.5px] font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer py-1"
+                      role="switch"
+                      aria-checked={isEnabled}
+                      onClick={() =>
+                        handleToggleAccount(item.account_id, isEnabled)
+                      }
+                      className={`w-8 h-4.5 rounded-full transition-colors relative cursor-pointer flex items-center p-0.5 ${
+                        isEnabled ? 'bg-orange-500' : 'bg-[#374151]'
+                      }`}
                     >
-                      <span className="flex items-center gap-1.5">
-                        <Layers className="w-3.5 h-3.5" />
-                        Model Limit Breakdown ({item.quotas.length})
-                      </span>
-                      {isExpanded ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      )}
+                      <span
+                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                          isEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                        }`}
+                      />
                     </button>
+                  </div>
+                </div>
+              </div>
 
-                    {isExpanded && (
-                      <div className="mt-2 space-y-2 pt-1">
-                        {item.quotas.map((mq) => {
-                          const mPct = Math.round(mq.remaining_percentage)
-                          const mReset = formatResetTime(mq.reset_at)
-
-                          return (
-                            <div
-                              key={mq.id}
-                              className="p-2 rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[11.5px] space-y-1.5"
+              <div className="px-3.5 py-3">
+                {item.error ? (
+                  <div className="py-7 px-4 text-center">
+                    <AlertCircle className="w-6 h-6 text-rose-500 mx-auto mb-2" />
+                    <p className="text-[12px] text-rose-300 font-mono break-all leading-relaxed">
+                      {item.error}
+                    </p>
+                  </div>
+                ) : item.quotas && item.quotas.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] text-[#9ca3af] font-medium mb-1">
+                      {item.quotas.length} quota
+                      {item.quotas.length > 1 ? 's' : ''}
+                    </div>
+                    {visibleQuotas.map((q) => {
+                      const colors = getQuotaColor(q.remaining_percentage)
+                      const countdownStr = formatResetCountdown(q.reset_at)
+                      return (
+                        <div
+                          key={q.id}
+                          className="flex items-center gap-2.5 py-1 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] px-1 rounded-[4px] transition-colors"
+                        >
+                          <div className="flex items-center gap-1.5 w-36 sm:w-44 shrink-0 min-w-0">
+                            <span
+                              className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`}
+                            />
+                            <span
+                              className="text-[11.5px] font-medium text-[#e5e7eb] truncate"
+                              title={q.name}
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-[var(--text-primary)] truncate max-w-[200px]">
-                                  {mq.display_name || mq.name}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  {mReset && (
-                                    <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                                      {mReset}
-                                    </span>
-                                  )}
-                                  <span className={`font-mono font-semibold ${getProgressBg(mPct)}`}>
-                                    {mPct}%
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-[var(--bg-card)] overflow-hidden">
-                                <div
-                                  className={`h-full transition-all duration-300 ${getProgressColor(mPct)}`}
-                                  style={{ width: `${Math.max(1, Math.min(100, mPct))}%` }}
-                                />
-                              </div>
+                              {q.name}
+                            </span>
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="h-1 rounded-full bg-[#272a39] overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${colors.bar}`}
+                                style={{
+                                  width: `${Math.min(
+                                    q.remaining_percentage,
+                                    100
+                                  )}%`,
+                                }}
+                              />
                             </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                            <div className="flex items-center justify-between text-[10px] leading-tight">
+                              <span className="text-[#9ca3af] font-mono">
+                                {q.used.toLocaleString()} /{' '}
+                                {q.total.toLocaleString()}
+                              </span>
+                              <span
+                                className={`font-medium font-mono ${colors.text}`}
+                              >
+                                {Math.round(q.remaining_percentage)}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 min-w-[72px] text-right">
+                            <span className="text-[11px] font-medium text-[#e5e7eb] font-mono">
+                              {countdownStr}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleHideRow(item.account_id, q.id)}
+                            className="p-1 text-[#6b7280] hover:text-[#d1d5db] transition-colors cursor-pointer shrink-0"
+                            title="Hide row"
+                          >
+                            <EyeOff className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : item.message ? (
+                  <div className="py-7 px-4 text-center">
+                    <p className="text-[11.5px] text-[#9ca3af] leading-relaxed max-w-sm mx-auto">
+                      {item.message}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="py-7 px-4 text-center">
+                    <p className="text-[11.5px] text-[#9ca3af]">
+                      Quota tracking not supported for this provider
+                    </p>
                   </div>
                 )}
               </div>
@@ -430,24 +632,68 @@ export function QuotaPage() {
         })}
       </div>
 
-      {filteredQuotas.length === 0 && !isLoading && (
-        <div className="py-16 text-center rounded-[8px] bg-[var(--bg-card)] border border-[var(--border-subtle)]">
-          <Sparkles className="w-8 h-8 mx-auto text-[var(--brand-text)] opacity-80" />
-          <p className="text-[13.5px] font-semibold text-[var(--text-primary)] mt-3">
-            No quota limits recorded yet
-          </p>
-          <p className="text-[12px] text-[var(--text-muted)] mt-1 max-w-md mx-auto">
-            Connect Antigravity, Gemini CLI, or AI providers to automatically track real-time quota
-            limits, 5h reset windows, and rate headroom.
-          </p>
-          <Button
-            variant="primary"
-            size="compact"
-            onClick={() => navigate('/providers')}
-            className="mt-4"
-          >
-            Go to Providers
-          </Button>
+      {editingAccount && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md rounded-[10px] border border-[#2e3344] bg-[#1a1c24] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#2e3344] pb-3">
+              <h3 className="text-[14px] font-semibold text-white">
+                Edit Connection
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingAccount(null)}
+                className="text-[#9ca3af] hover:text-white cursor-pointer p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-medium text-[#9ca3af] uppercase tracking-wide mb-1">
+                  Account Name
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full h-8 px-3 text-[12.5px] rounded-[6px] bg-[#12141a] border border-[#2e3344] text-white focus:outline-none focus:border-orange-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-[#9ca3af] uppercase tracking-wide mb-1">
+                  Provider
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={
+                    editingAccount.provider_name || editingAccount.provider_id
+                  }
+                  className="w-full h-8 px-3 text-[12.5px] rounded-[6px] bg-[#12141a]/50 border border-[#2e3344] text-[#6b7280] cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2e3344]">
+              <button
+                type="button"
+                onClick={() => setEditingAccount(null)}
+                className="h-7 px-3 text-[11.5px] font-medium rounded-[5px] border border-[#2e3344] text-[#d1d5db] hover:text-white hover:border-[#3e4354] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={isSubmittingEdit}
+                className="h-7 px-3 text-[11.5px] font-medium rounded-[5px] bg-orange-500 hover:bg-orange-600 text-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
