@@ -600,8 +600,6 @@ func TestUnimplementedEndpointGroups(t *testing.T) {
 		{http.MethodPost, "/api/v1/model-aliases/alias-1/resolve", "Models"},
 		// AI Proxy
 		{http.MethodPost, "/v1/completions", "AI Proxy"},
-		{http.MethodPost, "/v1/images/generations", "AI Proxy"},
-		{http.MethodPost, "/v1/audio/transcriptions", "AI Proxy"},
 		{http.MethodPost, "/api/v1/proxy/test", "AI Proxy"},
 		// Projects
 		{http.MethodGet, "/api/v1/projects/proj-1/usage", "Projects"},

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 
 	"github.com/dresar/ekarouter/internal/audit"
@@ -9,6 +10,7 @@ import (
 	"github.com/dresar/ekarouter/internal/config"
 	"github.com/dresar/ekarouter/internal/executor"
 	"github.com/dresar/ekarouter/internal/gateway"
+	"github.com/dresar/ekarouter/internal/headroom"
 	"github.com/dresar/ekarouter/internal/health"
 	"github.com/dresar/ekarouter/internal/limits"
 	"github.com/dresar/ekarouter/internal/oauth"
@@ -22,6 +24,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
+
+func headroomCollect() any {
+	return headroom.Collect()
+}
 
 type Server struct {
 	router chi.Router
@@ -112,6 +118,19 @@ func NewServer(
 		v1.Post("/chat/completions", gwHandler.ChatCompletions)
 		v1.Post("/responses", gwHandler.Responses)
 		v1.Post("/embeddings", gwHandler.Embeddings)
+		v1.Post("/messages", gwHandler.Messages)
+		v1.Post("/audio/speech", gwHandler.AudioSpeech)
+		v1.Post("/audio/transcriptions", gwHandler.AudioTranscriptions)
+		v1.Get("/audio/voices", gwHandler.AudioVoices)
+		v1.Post("/images/generations", gwHandler.ImageGenerations)
+		v1.Post("/search", gwHandler.Search)
+		v1.Post("/videos/generations", gwHandler.VideoGenerations)
+		v1.Get("/videos/{id}", gwHandler.VideoGet)
+	})
+
+	r.Route("/v1beta", func(v1beta chi.Router) {
+		v1beta.Use(GatewayAuthMiddleware(db))
+		v1beta.Get("/models", gwHandler.ListModels)
 	})
 
 	r.Route("/api/v1", func(apiV1 chi.Router) {
@@ -308,6 +327,25 @@ func NewServer(
 				dt.Post("/import-openapi", adminHandler.ImportOpenAPI)
 				dt.Post("/confirm-openapi", adminHandler.ConfirmOpenAPIImport)
 				dt.Post("/generate-curl", adminHandler.GenerateCurl)
+			})
+
+			authApi.Get("/pricing", adminHandler.ListPricing)
+			authApi.Post("/pricing", adminHandler.UpsertPricing)
+			authApi.Delete("/pricing/{id}", adminHandler.DeletePricing)
+			authApi.Post("/pricing/estimate", adminHandler.EstimatePricing)
+
+			authApi.Get("/tags", adminHandler.ListTags)
+			authApi.Post("/tags", adminHandler.CreateTag)
+			authApi.Delete("/tags/{id}", adminHandler.DeleteTag)
+
+			authApi.Get("/combos", adminHandler.ListCombos)
+			authApi.Post("/combos", adminHandler.CreateCombo)
+			authApi.Get("/combos/{id}", adminHandler.GetCombo)
+			authApi.Delete("/combos/{id}", adminHandler.DeleteCombo)
+
+			authApi.Get("/headroom", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(headroomCollect())
 			})
 		})
 	})
