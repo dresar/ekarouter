@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from 'react'
+import { useState, useEffect, useRef, useMemo, FormEvent } from 'react'
 import {
   Sparkles,
   Send,
@@ -16,20 +16,26 @@ import {
   StopCircle,
 } from 'lucide-react'
 import { api } from '../../api/client.ts'
-import { Account } from '../../types/api.ts'
+import { Account, PlatformProvider, Provider } from '../../types/api.ts'
+import { SearchableSelect, SearchableOption } from '../../components/ui/SearchableSelect.tsx'
+import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 
 interface ProviderPreset {
   id: string
   name: string
+  category: string
   defaultEndpoint: string
   defaultModels: string[]
-  format: 'gemini' | 'openai'
+  format: 'gemini' | 'openai' | 'anthropic'
+  keyPlaceholder: string
+  description?: string
 }
 
-const PROVIDER_PRESETS: ProviderPreset[] = [
+const STATIC_PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'gemini',
     name: 'Google Gemini',
+    category: 'Provider Populer & Utama',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
     defaultModels: [
       'gemini-2.5-flash',
@@ -39,34 +45,251 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
       'gemini-2.0-flash',
     ],
     format: 'gemini',
+    keyPlaceholder: 'AIzaSy...',
+    description: 'Direct Google GenAI v1beta API',
+  },
+  {
+    id: 'gemini-cli',
+    name: 'Google Gemini CLI / Antigravity',
+    category: 'Provider Populer & Utama',
+    defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+    defaultModels: [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-3.6-flash',
+    ],
+    format: 'gemini',
+    keyPlaceholder: 'AIzaSy... / OAuth Token',
+    description: 'Gemini CLI Antigravity Client',
   },
   {
     id: 'openai',
     name: 'OpenAI',
+    category: 'Provider Populer & Utama',
     defaultEndpoint: 'https://api.openai.com/v1/chat/completions',
-    defaultModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o3-mini'],
+    defaultModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o3-mini', 'o1'],
     format: 'openai',
+    keyPlaceholder: 'sk-proj-...',
+    description: 'Official OpenAI Chat Completions',
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic Claude',
+    category: 'Provider Populer & Utama',
+    defaultEndpoint: 'https://api.anthropic.com/v1/messages',
+    defaultModels: [
+      'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+    ],
+    format: 'anthropic',
+    keyPlaceholder: 'sk-ant-...',
+    description: 'Anthropic Messages API',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek Official',
+    category: 'Provider Populer & Utama',
+    defaultEndpoint: 'https://api.deepseek.com/chat/completions',
+    defaultModels: ['deepseek-chat', 'deepseek-reasoner'],
+    format: 'openai',
+    keyPlaceholder: 'sk-...',
+    description: 'DeepSeek V3 & DeepSeek R1 API',
   },
   {
     id: 'groq',
-    name: 'Groq',
+    name: 'Groq Cloud',
+    category: 'Ultra-Fast Inference (LPU)',
     defaultEndpoint: 'https://api.groq.com/openai/v1/chat/completions',
-    defaultModels: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+    defaultModels: [
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+      'mixtral-8x7b-32768',
+      'gemma2-9b-it',
+    ],
     format: 'openai',
+    keyPlaceholder: 'gsk_...',
+    description: 'Groq Tensor Streaming Processor',
+  },
+  {
+    id: 'cerebras',
+    name: 'Cerebras Inference',
+    category: 'Ultra-Fast Inference (LPU)',
+    defaultEndpoint: 'https://api.cerebras.ai/v1/chat/completions',
+    defaultModels: ['llama3.1-8b', 'llama3.1-70b', 'llama-3.3-70b'],
+    format: 'openai',
+    keyPlaceholder: 'csk-...',
+    description: 'Wafer-scale ultrafast token generation',
+  },
+  {
+    id: 'chutes',
+    name: 'Chutes AI',
+    category: 'Ultra-Fast Inference (LPU)',
+    defaultEndpoint: 'https://chutes.ai/api/v1/chat/completions',
+    defaultModels: ['deepseek-ai/DeepSeek-V3', 'deepseek-ai/DeepSeek-R1', 'chutes-llama-3.3-70b'],
+    format: 'openai',
+    keyPlaceholder: 'cpk_...',
+    description: 'Decentralized serverless GPU compute',
   },
   {
     id: 'openrouter',
-    name: 'OpenRouter',
+    name: 'OpenRouter Aggregator',
+    category: 'Aggregators & Router',
     defaultEndpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    defaultModels: ['google/gemini-2.5-flash', 'deepseek/deepseek-chat', 'meta-llama/llama-3.3-70b-instruct'],
+    defaultModels: [
+      'google/gemini-2.5-flash',
+      'deepseek/deepseek-chat',
+      'deepseek/deepseek-r1',
+      'meta-llama/llama-3.3-70b-instruct',
+      'anthropic/claude-3.5-sonnet',
+    ],
     format: 'openai',
+    keyPlaceholder: 'sk-or-v1-...',
+    description: 'Unified gateway ke 200+ models',
+  },
+  {
+    id: 'together',
+    name: 'Together AI',
+    category: 'Aggregators & Router',
+    defaultEndpoint: 'https://api.together.xyz/v1/chat/completions',
+    defaultModels: [
+      'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      'deepseek-ai/DeepSeek-V3',
+      'mistralai/Mixtral-8x7B-Instruct-v0.1',
+    ],
+    format: 'openai',
+    keyPlaceholder: '...',
+    description: 'Together AI Cloud inference',
+  },
+  {
+    id: 'huggingface',
+    name: 'Hugging Face Inference',
+    category: 'Aggregators & Router',
+    defaultEndpoint: 'https://api-inference.huggingface.co/v1/chat/completions',
+    defaultModels: ['Qwen/Qwen2.5-72B-Instruct', 'meta-llama/Llama-3.3-70B-Instruct'],
+    format: 'openai',
+    keyPlaceholder: 'hf_...',
+    description: 'Serverless Hugging Face Inference API',
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral AI',
+    category: 'Open-Weights & Reasoning',
+    defaultEndpoint: 'https://api.mistral.ai/v1/chat/completions',
+    defaultModels: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'],
+    format: 'openai',
+    keyPlaceholder: '...',
+    description: 'La Plateforme Mistral AI',
+  },
+  {
+    id: 'nvidia',
+    name: 'NVIDIA NIM',
+    category: 'Open-Weights & Reasoning',
+    defaultEndpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    defaultModels: ['meta/llama-3.3-70b-instruct', 'deepseek-ai/deepseek-r1', 'mistralai/mistral-large-2-instruct'],
+    format: 'openai',
+    keyPlaceholder: 'nvapi-...',
+    description: 'NVIDIA API Catalog microservices',
+  },
+  {
+    id: 'qwen',
+    name: 'Qwen Alibaba Cloud',
+    category: 'Open-Weights & Reasoning',
+    defaultEndpoint: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+    defaultModels: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen2.5-coder-32b-instruct'],
+    format: 'openai',
+    keyPlaceholder: 'sk-...',
+    description: 'DashScope OpenAI-compatible API',
+  },
+  {
+    id: 'xai',
+    name: 'xAI (Grok)',
+    category: 'Provider Populer & Utama',
+    defaultEndpoint: 'https://api.x.ai/v1/chat/completions',
+    defaultModels: ['grok-2-1212', 'grok-2-vision-1212', 'grok-beta'],
+    format: 'openai',
+    keyPlaceholder: 'xai-...',
+    description: 'Elon Musk xAI Grok API',
+  },
+  {
+    id: 'moonshot',
+    name: 'Moonshot AI (Kimi)',
+    category: 'Open-Weights & Reasoning',
+    defaultEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
+    defaultModels: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+    format: 'openai',
+    keyPlaceholder: 'sk-...',
+    description: 'Kimi Moonshot AI API',
+  },
+  {
+    id: 'cloudflare',
+    name: 'Cloudflare Workers AI',
+    category: 'Edge & Local Cloud',
+    defaultEndpoint: 'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions',
+    defaultModels: ['@cf/meta/llama-3.3-70b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'],
+    format: 'openai',
+    keyPlaceholder: 'Bearer API Token',
+    description: 'Serverless inference di edge Cloudflare',
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama Local Host',
+    category: 'Edge & Local Cloud',
+    defaultEndpoint: 'http://localhost:11434/v1/chat/completions',
+    defaultModels: ['llama3.2', 'deepseek-r1', 'qwen2.5-coder', 'mistral', 'phi4'],
+    format: 'openai',
+    keyPlaceholder: 'Bisa dikosongkan (Opsional)',
+    description: 'Direct local LLM server di localhost:11434',
+  },
+  {
+    id: 'github',
+    name: 'GitHub Models',
+    category: 'Developer & Free Tiers',
+    defaultEndpoint: 'https://models.inference.ai.azure.com/chat/completions',
+    defaultModels: ['gpt-4o', 'gpt-4o-mini', 'Phi-3.5-mini-instruct'],
+    format: 'openai',
+    keyPlaceholder: 'ghp_... (GitHub Token)',
+    description: 'Azure AI backed GitHub Models catalog',
+  },
+  {
+    id: 'airforce',
+    name: 'Airforce AI',
+    category: 'Developer & Free Tiers',
+    defaultEndpoint: 'https://api.airforce/v1/chat/completions',
+    defaultModels: ['llama-3.3-70b', 'deepseek-r1', 'chatgpt-4o-latest'],
+    format: 'openai',
+    keyPlaceholder: 'sk-... / Token',
+    description: 'Community AI model proxy',
+  },
+  {
+    id: 'mimofree',
+    name: 'MiMo Free',
+    category: 'Developer & Free Tiers',
+    defaultEndpoint: 'https://api.mimofree.com/v1/chat/completions',
+    defaultModels: ['mimo-free-v1'],
+    format: 'openai',
+    keyPlaceholder: 'Token / Key',
+    description: 'Xiaomi MiMo Free Tier Provider',
+  },
+  {
+    id: 'devin',
+    name: 'Devin AI',
+    category: 'Developer & Free Tiers',
+    defaultEndpoint: 'https://api.devin.ai/v1/chat/completions',
+    defaultModels: ['devin-default'],
+    format: 'openai',
+    keyPlaceholder: 'devin_...',
+    description: 'Devin AI Coding Agent proxy endpoint',
   },
   {
     id: 'custom',
     name: 'Custom / Proxy Relay',
+    category: 'Custom & Self-Hosted',
     defaultEndpoint: 'https://api.openai.com/v1/chat/completions',
     defaultModels: ['custom-model'],
     format: 'openai',
+    keyPlaceholder: 'sk-... (Opsional)',
+    description: 'Custom proxy, Deno relay, atau server pribadi',
   },
 ]
 
@@ -79,7 +302,9 @@ const PROMPT_PRESETS = [
 export function PlaygroundPage() {
   const [testMode, setTestMode] = useState<'browser' | 'gateway'>('browser')
 
+  const [dynamicPresets, setDynamicPresets] = useState<ProviderPreset[]>([])
   const [selectedPresetId, setSelectedPresetId] = useState('gemini')
+  const [selectedAccountId, setSelectedAccountId] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash')
@@ -107,11 +332,71 @@ export function PlaygroundPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  const activePreset = PROVIDER_PRESETS.find((p) => p.id === selectedPresetId) || PROVIDER_PRESETS[0]
+  const allProviders = useMemo(() => {
+    const list = [...STATIC_PROVIDER_PRESETS]
+    const existingIds = new Set(list.map((p) => p.id.toLowerCase()))
+
+    dynamicPresets.forEach((p) => {
+      if (!existingIds.has(p.id.toLowerCase())) {
+        list.push(p)
+        existingIds.add(p.id.toLowerCase())
+      }
+    })
+
+    return list
+  }, [dynamicPresets])
+
+  const activePreset = useMemo(() => {
+    return allProviders.find((p) => p.id === selectedPresetId) || allProviders[0] || STATIC_PROVIDER_PRESETS[0]
+  }, [allProviders, selectedPresetId])
+
   const effectiveModel = customModel.trim() || selectedModel
+
+  const providerOptions: SearchableOption[] = useMemo(() => {
+    return allProviders.map((p) => ({
+      value: p.id,
+      label: p.name,
+      sublabel: p.id,
+      category: p.category,
+      icon: <ProviderLogo providerId={p.id} name={p.name} size="sm" />,
+    }))
+  }, [allProviders])
+
+  const accountOptions: SearchableOption[] = useMemo(() => {
+    return savedAccounts.map((a) => {
+      const isCooling = a.state === 'cooling_down'
+      const isDown = a.state === 'disabled' || a.state === 'unavailable'
+      const stateLabel = isCooling ? 'Sedang Cooldown' : isDown ? 'Non-Aktif' : 'Profil Aktif'
+      return {
+        value: a.id,
+        label: a.name,
+        sublabel: `${a.provider_id}${a.masked_secret ? ` · ${a.masked_secret}` : ''}`,
+        category: stateLabel,
+        icon: <ProviderLogo providerId={a.provider_id} name={a.name} size="sm" />,
+      }
+    })
+  }, [savedAccounts])
+
+  const modelOptions: SearchableOption[] = useMemo(() => {
+    const models = activePreset.defaultModels || []
+    return models.map((m) => ({
+      value: m,
+      label: m,
+      sublabel: activePreset.id,
+    }))
+  }, [activePreset])
+
+  const gatewayOptions: SearchableOption[] = useMemo(() => {
+    return availableGatewayModels.map((m) => ({
+      value: m,
+      label: m,
+      sublabel: 'Gateway Route / Model',
+    }))
+  }, [availableGatewayModels])
 
   useEffect(() => {
     loadSavedAccounts()
+    loadPlatformProviders()
     loadGatewayModels()
   }, [])
 
@@ -119,7 +404,58 @@ export function PlaygroundPage() {
     if (activePreset.defaultModels.length > 0 && !activePreset.defaultModels.includes(selectedModel)) {
       setSelectedModel(activePreset.defaultModels[0])
     }
-  }, [selectedPresetId])
+  }, [selectedPresetId, activePreset])
+
+  const loadPlatformProviders = async () => {
+    try {
+      const [platformRes, adminRes] = await Promise.allSettled([
+        api.get<PlatformProvider[]>('/api/v1/providers'),
+        api.get<Provider[]>('/api/providers'),
+      ])
+
+      const additional: ProviderPreset[] = []
+      const knownIds = new Set(STATIC_PROVIDER_PRESETS.map((p) => p.id.toLowerCase()))
+
+      if (platformRes.status === 'fulfilled' && Array.isArray(platformRes.value)) {
+        platformRes.value.forEach((p) => {
+          if (!knownIds.has(p.id.toLowerCase())) {
+            additional.push({
+              id: p.id,
+              name: p.name,
+              category: p.category ? `Kategori ${p.category.toUpperCase()}` : 'Terkonfigurasi di EkaRouter',
+              defaultEndpoint: p.base_url || 'https://api.openai.com/v1/chat/completions',
+              defaultModels: [p.id, 'default'],
+              format: p.id.includes('gemini') ? 'gemini' : p.id.includes('claude') || p.id.includes('anthropic') ? 'anthropic' : 'openai',
+              keyPlaceholder: 'Masukkan API Key...',
+              description: p.description || p.base_url,
+            })
+            knownIds.add(p.id.toLowerCase())
+          }
+        })
+      }
+
+      if (adminRes.status === 'fulfilled' && Array.isArray(adminRes.value)) {
+        adminRes.value.forEach((p) => {
+          if (!knownIds.has(p.id.toLowerCase())) {
+            additional.push({
+              id: p.id,
+              name: p.name,
+              category: 'Provider Kustom EkaRouter',
+              defaultEndpoint: p.base_url || 'https://api.openai.com/v1/chat/completions',
+              defaultModels: [p.id, 'default'],
+              format: p.id.includes('gemini') ? 'gemini' : p.id.includes('claude') || p.id.includes('anthropic') ? 'anthropic' : 'openai',
+              keyPlaceholder: 'Masukkan API Key...',
+            })
+            knownIds.add(p.id.toLowerCase())
+          }
+        })
+      }
+
+      if (additional.length > 0) {
+        setDynamicPresets(additional)
+      }
+    } catch {}
+  }
 
   const loadSavedAccounts = async () => {
     try {
@@ -171,17 +507,21 @@ export function PlaygroundPage() {
   }
 
   const handleSelectSavedAccount = (accId: string) => {
+    setSelectedAccountId(accId)
+    if (!accId) return
+
     const found = savedAccounts.find((a) => a.id === accId)
     if (!found) return
-    if (found.provider_id.includes('gemini')) {
-      setSelectedPresetId('gemini')
-    } else if (found.provider_id.includes('groq')) {
-      setSelectedPresetId('groq')
-    } else if (found.provider_id.includes('openrouter')) {
-      setSelectedPresetId('openrouter')
-    } else if (found.provider_id.includes('openai')) {
-      setSelectedPresetId('openai')
+
+    const matched = allProviders.find(
+      (p) =>
+        p.id.toLowerCase() === found.provider_id.toLowerCase() ||
+        found.provider_id.toLowerCase().includes(p.id.toLowerCase())
+    )
+    if (matched) {
+      setSelectedPresetId(matched.id)
     }
+
     if (found.proxy_url) {
       setCustomEndpoint(found.proxy_url)
     }
@@ -213,7 +553,7 @@ export function PlaygroundPage() {
 
     try {
       if (testMode === 'browser') {
-        if (!apiKey.trim() && selectedPresetId !== 'custom') {
+        if (!apiKey.trim() && selectedPresetId !== 'custom' && selectedPresetId !== 'ollama') {
           throw new Error('Masukkan API Key untuk pengujian langsung dari browser Chrome')
         }
 
@@ -256,6 +596,46 @@ export function PlaygroundPage() {
           }
 
           const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data, null, 2)
+          setResponseText(reply)
+        } else if (activePreset.format === 'anthropic') {
+          const url = customEndpoint.trim() || activePreset.defaultEndpoint
+          const reqHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey.trim(),
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+            'dangerously-allow-browser': 'true',
+          }
+
+          const reqBody = {
+            model: effectiveModel,
+            max_tokens: maxTokens,
+            messages: [{ role: 'user', content: prompt }],
+            temperature,
+          }
+
+          setRawRequest({ url, method: 'POST', headers: reqHeaders, body: reqBody })
+
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: reqHeaders,
+            body: JSON.stringify(reqBody),
+            signal: controller.signal,
+          })
+
+          const elapsed = Math.round(performance.now() - startTime)
+          setLatency(elapsed)
+          setResponseStatus(res.status)
+
+          const data = await res.json()
+          setRawResponse(data)
+
+          if (!res.ok) {
+            const errMessage = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`
+            throw new Error(errMessage)
+          }
+
+          const reply = data?.content?.[0]?.text || JSON.stringify(data, null, 2)
           setResponseText(reply)
         } else {
           const url = customEndpoint.trim() || activePreset.defaultEndpoint
@@ -415,57 +795,69 @@ export function PlaygroundPage() {
             {testMode === 'browser' ? (
               <div className="space-y-3.5">
                 <div>
-                  <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                    Target AI Provider
-                  </label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {PROVIDER_PRESETS.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setSelectedPresetId(p.id)}
-                        className={`px-2.5 py-2 text-[12px] font-medium rounded-[6px] border text-left transition-colors cursor-pointer ${
-                          selectedPresetId === p.id
-                            ? 'bg-[#2a1d17] border-[#ea580c]/50 text-[#f97316]'
-                            : 'bg-[#181920] border-[#2c303d] text-[#a0a4b5] hover:bg-[#20222a] hover:text-white'
-                        }`}
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)]">
-                      API Key (Diuji langsung dari Chrome) *
+                      Target AI Provider ({allProviders.length} Tersedia)
                     </label>
-                    {savedAccounts.length > 0 && (
-                      <div className="relative inline-block">
-                        <select
-                          onChange={(e) => handleSelectSavedAccount(e.target.value)}
-                          defaultValue=""
-                          className="text-[10.5px] font-medium text-[#ea580c] bg-transparent hover:underline focus:outline-none cursor-pointer"
-                        >
-                          <option value="" disabled>
-                            Pilih Profil Tersimpan
-                          </option>
-                          {savedAccounts.map((a) => (
-                            <option key={a.id} value={a.id} className="bg-[#181920] text-white">
-                              {a.name} ({a.provider_id})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <span className="text-[10px] font-mono font-semibold text-[#f97316] bg-[#2a1d17] px-1.5 py-0.5 rounded border border-[#ea580c]/30">
+                      {activePreset.format.toUpperCase()}
+                    </span>
                   </div>
+                  <SearchableSelect
+                    options={providerOptions}
+                    value={selectedPresetId}
+                    onChange={(val) => {
+                      setSelectedPresetId(val)
+                      setCustomModel('')
+                    }}
+                    placeholder="Pilih AI Provider..."
+                    searchPlaceholder="Cari provider (gemini, claude, deepseek, groq, openai)..."
+                  />
+                  <p className="text-[10.5px] text-[#787d90] mt-1 truncate">
+                    {activePreset.description || activePreset.defaultEndpoint}
+                  </p>
+                </div>
+
+                {savedAccounts.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+                        Gunakan Profil Akun Tersimpan (Opsional)
+                      </label>
+                      {selectedAccountId && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAccountId('')}
+                          className="text-[10.5px] text-[#ea580c] hover:underline cursor-pointer"
+                        >
+                          Batalkan Pilihan
+                        </button>
+                      )}
+                    </div>
+                    <SearchableSelect
+                      options={accountOptions}
+                      value={selectedAccountId}
+                      onChange={handleSelectSavedAccount}
+                      placeholder="Pilih profil tersimpan dari EkaRouter..."
+                      searchPlaceholder="Cari profil nama atau provider..."
+                      allowClear
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
+                    API Key (Diuji langsung dari Chrome) *
+                  </label>
                   <div className="relative">
                     <input
                       type={showApiKey ? 'text' : 'password'}
                       value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={selectedPresetId === 'gemini' ? 'AIzaSy...' : 'sk-...'}
+                      onChange={(e) => {
+                        setApiKey(e.target.value)
+                        setSelectedAccountId('')
+                      }}
+                      placeholder={activePreset.keyPlaceholder || 'sk-...'}
                       className="w-full h-9 pl-3 pr-9 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
                     />
                     <button
@@ -485,20 +877,16 @@ export function PlaygroundPage() {
                   <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
                     Pilih Model
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={modelOptions}
                     value={selectedModel}
-                    onChange={(e) => {
-                      setSelectedModel(e.target.value)
+                    onChange={(val) => {
+                      setSelectedModel(val)
                       setCustomModel('')
                     }}
-                    className="w-full h-9 px-3 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
-                  >
-                    {activePreset.defaultModels.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Pilih model..."
+                    searchPlaceholder="Cari model..."
+                  />
                 </div>
 
                 <div>
@@ -512,6 +900,11 @@ export function PlaygroundPage() {
                     placeholder="Contoh: gemini-3.6-flash atau gpt-4o"
                     className="w-full h-9 px-3 text-[12.5px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
                   />
+                  {customModel.trim() && (
+                    <p className="text-[10.5px] text-[#ea580c] mt-1">
+                      Model kustom aktif: <span className="font-mono">{customModel.trim()}</span> (menggantikan {selectedModel})
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -522,7 +915,7 @@ export function PlaygroundPage() {
                     type="text"
                     value={customEndpoint}
                     onChange={(e) => setCustomEndpoint(e.target.value)}
-                    placeholder="Contoh: https://sour-mussel-7365.deno.net"
+                    placeholder={activePreset.defaultEndpoint}
                     className="w-full h-9 px-3 text-[12px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
                   />
                 </div>
@@ -533,17 +926,13 @@ export function PlaygroundPage() {
                   <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
                     Pilih Gateway Route / Model
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={gatewayOptions}
                     value={gatewayModel}
-                    onChange={(e) => setGatewayModel(e.target.value)}
-                    className="w-full h-9 px-3 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
-                  >
-                    {availableGatewayModels.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setGatewayModel(val)}
+                    placeholder="Pilih gateway route / model..."
+                    searchPlaceholder="Cari route atau model gateway..."
+                  />
                   <p className="text-[11px] text-[var(--text-muted)] mt-1">
                     Permintaan akan melewati load balancer EkaRouter dengan failover otomatis ke akun cadangan.
                   </p>
