@@ -1603,3 +1603,223 @@ func (a *AdminHandler) RefreshQuota(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(q)
 }
+
+func (a *AdminHandler) OAuthAuthorize(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	if providerID == "" {
+		providerID = r.URL.Query().Get("provider")
+	}
+	if providerID == "" {
+		http.Error(w, `{"error":"provider required"}`, http.StatusBadRequest)
+		return
+	}
+
+	redirectURI := r.URL.Query().Get("redirect_uri")
+	if redirectURI == "" {
+		redirectURI = "http://localhost:8080/api/accounts/oauth/callback"
+	}
+
+	rawState, codeChallenge, err := a.oauthMgr.GenerateState(providerID, 15*time.Minute)
+	if err != nil {
+		http.Error(w, `{"error":"failed to generate state"}`, http.StatusInternalServerError)
+		return
+	}
+
+	authURL, err := a.oauthMgr.BuildAuthURL(providerID, redirectURI, rawState, codeChallenge)
+	if err != nil {
+		authURL = "/oauth/authorize?provider=" + providerID + "&state=" + rawState + "&code_challenge=" + codeChallenge
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"auth_url":       authURL,
+		"state":          rawState,
+		"code_challenge": codeChallenge,
+		"redirect_uri":   redirectURI,
+	})
+}
+
+func (a *AdminHandler) OAuthDeviceCode(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	if providerID == "" {
+		providerID = r.URL.Query().Get("provider")
+	}
+	if providerID == "" {
+		http.Error(w, `{"error":"provider required"}`, http.StatusBadRequest)
+		return
+	}
+
+	dcr, err := a.oauthMgr.RequestDeviceCode(r.Context(), providerID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"device code request failed: %s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(dcr)
+}
+
+func (a *AdminHandler) OAuthDevicePoll(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	if providerID == "" {
+		providerID = r.URL.Query().Get("provider")
+	}
+
+	var body struct {
+		DeviceCode  string `json:"device_code"`
+		AccountName string `json:"account_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.DeviceCode == "" {
+		http.Error(w, `{"error":"device_code required"}`, http.StatusBadRequest)
+		return
+	}
+
+	tok, err := a.oauthMgr.PollDeviceToken(r.Context(), providerID, body.DeviceCode)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	var provExists int
+	_ = a.db.QueryRowContext(r.Context(), "SELECT COUNT(1) FROM providers WHERE id = ?", providerID).Scan(&provExists)
+	if provExists == 0 {
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO providers (id, key, name, kind, base_url, enabled)
+			VALUES (?, ?, ?, ?, ?, 1)
+		`, providerID, "key_"+providerID, strings.Title(providerID), providerID, "https://api."+providerID+".com/v1")
+	}
+
+	accID := fmt.Sprintf("acc_dev_%d", time.Now().UnixNano()%1000000)
+	accName := body.AccountName
+	if accName == "" {
+		if tok.Email != "" {
+			accName = tok.Email
+		} else {
+			accName = providerID + "-device"
+		}
+	}
+
+	tx, err := a.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		http.Error(w, `{"error":"tx error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(r.Context(),
+		"INSERT INTO accounts (id, provider_id, name, auth_type, priority, state, enabled, expires_at) VALUES (?, ?, ?, 'oauth', 10, 'active', 1, ?)",
+		accID, providerID, accName, tok.ExpiresAt)
+	if err != nil {
+		http.Error(w, `{"error":"failed to insert account"}`, http.StatusInternalServerError)
+		return
+	}
+
+	encAccess, _ := a.crypto.Encrypt(tok.AccessToken)
+	encRefresh := ""
+	if tok.RefreshToken != "" {
+		encRefresh, _ = a.crypto.Encrypt(tok.RefreshToken)
+	}
+
+	_, err = tx.ExecContext(r.Context(),
+		"INSERT INTO credentials (id, account_id, encrypted_access, encrypted_refresh) VALUES (?, ?, ?, ?)",
+		"cred_"+accID, accID, encAccess, encRefresh)
+	if err != nil {
+		http.Error(w, `{"error":"failed to insert credentials"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":     "connected",
+		"account_id": accID,
+		"name":       accName,
+		"token":      tok,
+	})
+}
+
+func (a *AdminHandler) OAuthImport(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	if providerID == "" {
+		providerID = r.URL.Query().Get("provider")
+	}
+
+	var body struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		AccountName  string `json:"account_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AccessToken == "" {
+		http.Error(w, `{"error":"access_token required"}`, http.StatusBadRequest)
+		return
+	}
+
+	var provExists int
+	_ = a.db.QueryRowContext(r.Context(), "SELECT COUNT(1) FROM providers WHERE id = ?", providerID).Scan(&provExists)
+	if provExists == 0 {
+		_, _ = a.db.ExecContext(r.Context(), `
+			INSERT INTO providers (id, key, name, kind, base_url, enabled)
+			VALUES (?, ?, ?, ?, ?, 1)
+		`, providerID, "key_"+providerID, strings.Title(providerID), providerID, "https://api."+providerID+".com/v1")
+	}
+
+	accID := fmt.Sprintf("acc_imp_%d", time.Now().UnixNano()%1000000)
+	accName := body.AccountName
+	if accName == "" {
+		accName = providerID + "-import"
+	}
+
+	tx, err := a.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		http.Error(w, `{"error":"tx error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	expiresAt := time.Now().Add(365 * 24 * time.Hour)
+	_, err = tx.ExecContext(r.Context(),
+		"INSERT INTO accounts (id, provider_id, name, auth_type, priority, state, enabled, expires_at) VALUES (?, ?, ?, 'oauth', 10, 'active', 1, ?)",
+		accID, providerID, accName, expiresAt)
+	if err != nil {
+		http.Error(w, `{"error":"failed to insert account"}`, http.StatusInternalServerError)
+		return
+	}
+
+	encAccess, _ := a.crypto.Encrypt(body.AccessToken)
+	encRefresh := ""
+	if body.RefreshToken != "" {
+		encRefresh, _ = a.crypto.Encrypt(body.RefreshToken)
+	}
+
+	_, err = tx.ExecContext(r.Context(),
+		"INSERT INTO credentials (id, account_id, encrypted_access, encrypted_refresh) VALUES (?, ?, ?, ?)",
+		"cred_"+accID, accID, encAccess, encRefresh)
+	if err != nil {
+		http.Error(w, `{"error":"failed to insert credentials"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if a.router != nil {
+		_ = a.router.LoadFromDB(r.Context(), a.db)
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":     "imported",
+		"account_id": accID,
+		"name":       accName,
+	})
+}

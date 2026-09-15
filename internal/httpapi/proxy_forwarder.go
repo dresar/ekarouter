@@ -18,7 +18,6 @@ func readJSON(r *http.Request, dst any) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
-
 type ProxyForwarder struct {
 	gw *gateway.Gateway
 	db *sql.DB
@@ -49,13 +48,32 @@ func (p *ProxyForwarder) resolveTarget(ctx context.Context, modelStr string) (*u
 		WHERE r.name = ? AND r.enabled = 1 AND ri.enabled = 1
 		ORDER BY ri.priority DESC
 		LIMIT 1`, modelStr, modelStr).Scan(&baseURL, &apiKeyEnc, &externalName)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("no route found for model: %s", modelStr)
+	if err == nil && baseURL != "" {
+		return &upstreamTarget{baseURL: baseURL, apiKey: apiKeyEnc, model: externalName}, nil
 	}
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
-	return &upstreamTarget{baseURL: baseURL, apiKey: apiKeyEnc, model: externalName}, nil
+
+	parts := strings.SplitN(modelStr, "/", 2)
+	provID := modelStr
+	if len(parts) == 2 {
+		provID = parts[0]
+	}
+	var prBaseURL string
+	var encAccess sql.NullString
+	err2 := p.db.QueryRowContext(ctx, `
+		SELECT COALESCE(pr.base_url,''), c.encrypted_access
+		FROM providers pr
+		LEFT JOIN accounts a ON a.provider_id = pr.id AND a.enabled = 1
+		LEFT JOIN credentials c ON c.account_id = a.id
+		WHERE pr.id = ? OR pr.kind = ?
+		LIMIT 1`, provID, provID).Scan(&prBaseURL, &encAccess)
+	if err2 == nil && prBaseURL != "" {
+		return &upstreamTarget{baseURL: prBaseURL, apiKey: encAccess.String, model: modelStr}, nil
+	}
+
+	return nil, fmt.Errorf("no route found for model: %s", modelStr)
 }
 
 func (p *ProxyForwarder) ForwardJSON(ctx context.Context, method, path string, body any, modelStr string) (*http.Response, error) {

@@ -61,6 +61,7 @@ func NewServer(
 	adminHandler := NewAdminHandler(db, cfg, crypto, usageRec, ts, router, oauthMgr, extra...)
 	aiDocsHandler := NewAIDocsHandler(db, cfg, router)
 	mcpHandler := NewMCPHandler(db, gw, ts, router, cfg)
+	coworkMcpHandler := NewCoworkMCPHandler()
 
 	r.Get("/docs", aiDocsHandler.ServeHTMLDocs)
 	r.Get("/docs/raw", aiDocsHandler.GetDocs)
@@ -80,6 +81,17 @@ func NewServer(
 	r.Post("/api/mcp", mcpHandler.HandleJSONRPC)
 	r.Get("/api/mcp/sse", mcpHandler.HandleSSE)
 	r.Post("/api/mcp/messages", mcpHandler.HandleMessages)
+	r.Get("/api/mcp/{plugin}/sse", coworkMcpHandler.HandlePluginSSE)
+	r.Post("/api/mcp/{plugin}/message", coworkMcpHandler.HandlePluginMessage)
+	r.Get("/api/cli-tools/cowork-mcp-registry", coworkMcpHandler.HandleRegistry)
+	r.Post("/api/cli-tools/cowork-mcp-tools", coworkMcpHandler.HandleTools)
+
+	r.Get("/api/oauth/{provider}/authorize", adminHandler.OAuthAuthorize)
+	r.Get("/api/oauth/{provider}/device-code", adminHandler.OAuthDeviceCode)
+	r.Post("/api/oauth/{provider}/device-code", adminHandler.OAuthDeviceCode)
+	r.Post("/api/oauth/{provider}/poll", adminHandler.OAuthDevicePoll)
+	r.Post("/api/oauth/{provider}/exchange", adminHandler.OAuthCallback)
+	r.Post("/api/oauth/{provider}/import", adminHandler.OAuthImport)
 
 	r.Route("/auth", func(authRouter chi.Router) {
 		authRouter.Post("/login", adminHandler.Login)
@@ -241,6 +253,12 @@ func NewServer(
 			authApi.Post("/accounts/oauth/start", adminHandler.OAuthStart)
 			authApi.Post("/accounts/oauth/callback", adminHandler.OAuthCallback)
 			authApi.Get("/accounts/oauth/callback", adminHandler.OAuthCallback)
+			authApi.Get("/oauth/{provider}/authorize", adminHandler.OAuthAuthorize)
+			authApi.Get("/oauth/{provider}/device-code", adminHandler.OAuthDeviceCode)
+			authApi.Post("/oauth/{provider}/device-code", adminHandler.OAuthDeviceCode)
+			authApi.Post("/oauth/{provider}/poll", adminHandler.OAuthDevicePoll)
+			authApi.Post("/oauth/{provider}/exchange", adminHandler.OAuthCallback)
+			authApi.Post("/oauth/{provider}/import", adminHandler.OAuthImport)
 
 			authApi.Get("/quota", adminHandler.GetQuotas)
 			authApi.Post("/quota/refresh", adminHandler.GetQuotas)

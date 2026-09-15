@@ -38,6 +38,15 @@ type TokenResult struct {
 	ProjectID    string    `json:"project_id,omitempty"`
 }
 
+type DeviceCodeResult struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+}
+
 func decodeCred(envKey string, rawBytes []byte) string {
 	if v := os.Getenv(envKey); v != "" {
 		return v
@@ -142,6 +151,160 @@ var providerConfigs = map[string]ProviderConfig{
 		Scopes:        []string{"openid", "profile"},
 		FlowType:      "device_code",
 	},
+	"grok-cli": {
+		ID:            "grok-cli",
+		Name:          "Grok CLI",
+		ClientID:      "b1a00492-073a-47ea-816f-4c329264a828",
+		DeviceCodeURL: "https://auth.x.ai/oauth2/device/code",
+		TokenURL:      "https://auth.x.ai/oauth2/token",
+		Scopes: []string{
+			"openid",
+			"profile",
+			"email",
+			"offline_access",
+			"grok-cli:access",
+			"api:access",
+			"conversations:read",
+			"conversations:write",
+		},
+		FlowType: "device_code",
+	},
+	"xai": {
+		ID:       "xai",
+		Name:     "xAI",
+		ClientID: "b1a00492-073a-47ea-816f-4c329264a828",
+		AuthURL:  "https://auth.x.ai/oauth2/authorize",
+		TokenURL: "https://auth.x.ai/oauth2/token",
+		Scopes: []string{
+			"openid",
+			"profile",
+			"email",
+			"offline_access",
+			"api:access",
+		},
+		FlowType: "authorization_code_pkce",
+	},
+	"kimi": {
+		ID:            "kimi",
+		Name:          "Kimi Code",
+		ClientID:      "17e5f671-d194-4dfb-9706-5516cb48c098",
+		DeviceCodeURL: "https://auth.kimi.com/api/oauth/device_authorization",
+		TokenURL:      "https://auth.kimi.com/api/oauth/token",
+		FlowType:      "device_code",
+	},
+	"kimi-coding": {
+		ID:            "kimi-coding",
+		Name:          "Kimi Coding",
+		ClientID:      "17e5f671-d194-4dfb-9706-5516cb48c098",
+		DeviceCodeURL: "https://auth.kimi.com/api/oauth/device_authorization",
+		TokenURL:      "https://auth.kimi.com/api/oauth/token",
+		FlowType:      "device_code",
+	},
+	"iflow": {
+		ID:           "iflow",
+		Name:         "iFlow",
+		ClientID:     "10009311001",
+		ClientSecret: "4Z3YjXycVsQvyGF1etiNlIBB4RsqSDtW",
+		AuthURL:      "https://iflow.cn/oauth",
+		TokenURL:     "https://iflow.cn/oauth/token",
+		UserInfoURL:  "https://iflow.cn/api/oauth/getUserInfo",
+		FlowType:     "authorization_code",
+	},
+	"gitlab": {
+		ID:       "gitlab",
+		Name:     "GitLab Duo",
+		ClientID: "gitlab-duo",
+		AuthURL:  "https://gitlab.com/oauth/authorize",
+		TokenURL: "https://gitlab.com/oauth/token",
+		Scopes:   []string{"read_user", "api"},
+		FlowType: "authorization_code_pkce",
+	},
+	"cline": {
+		ID:       "cline",
+		Name:     "Cline",
+		ClientID: "cline-cli",
+		AuthURL:  "https://app.cline.bot/oauth/authorize",
+		TokenURL: "https://api.cline.bot/api/v1/auth/token",
+		FlowType: "authorization_code",
+	},
+	"clinepass": {
+		ID:       "clinepass",
+		Name:     "ClinePass",
+		ClientID: "clinepass",
+		AuthURL:  "https://pass.cline.bot/oauth/authorize",
+		TokenURL: "https://pass.cline.bot/oauth/token",
+		FlowType: "authorization_code",
+	},
+	"codebuddy-cn": {
+		ID:       "codebuddy-cn",
+		Name:     "CodeBuddy CN",
+		ClientID: "codebuddy-cn",
+		AuthURL:  "https://copilot.tencent.com/oauth/authorize",
+		TokenURL: "https://copilot.tencent.com/v2/plugin/auth/token",
+		FlowType: "authorization_code",
+	},
+	"codebuddy-intl": {
+		ID:       "codebuddy-intl",
+		Name:     "CodeBuddy Intl",
+		ClientID: "codebuddy-intl",
+		AuthURL:  "https://www.codebuddy.ai/oauth/authorize",
+		TokenURL: "https://www.codebuddy.ai/v2/plugin/auth/token",
+		FlowType: "authorization_code",
+	},
+	"kilocode": {
+		ID:            "kilocode",
+		Name:          "KiloCode",
+		ClientID:      "kilocode",
+		DeviceCodeURL: "https://api.kilo.ai/api/device-auth/codes",
+		TokenURL:      "https://api.kilo.ai/api/device-auth/codes",
+		FlowType:      "device_code",
+	},
+	"kimchi": {
+		ID:       "kimchi",
+		Name:     "Kimchi",
+		ClientID: "kimchi",
+		AuthURL:  "https://app.kimchi.dev",
+		TokenURL: "https://app.kimchi.dev/api/v1/me",
+		FlowType: "import_token",
+	},
+	"trae": {
+		ID:           "trae",
+		Name:         "Trae",
+		ClientID:     "ono9krqynydwx5",
+		ClientSecret: "-",
+		AuthURL:      "https://www.trae.ai/authorization",
+		TokenURL:     "https://api.trae.ai/cloudide/api/v3/trae/oauth/ExchangeToken",
+		FlowType:     "authorization_code",
+	},
+	"windsurf": {
+		ID:       "windsurf",
+		Name:     "Windsurf",
+		ClientID: "3GUryQ7ldAeKEuD2obYnppsnmj58eP5u",
+		AuthURL:  "https://www.windsurf.com/windsurf/signin",
+		TokenURL: "https://register.windsurf.com/exa.seat_management_pb.SeatManagementService/RegisterUser",
+		FlowType: "import_token",
+	},
+	"cursor": {
+		ID:       "cursor",
+		Name:     "Cursor",
+		ClientID: "cursor",
+		FlowType: "import_token",
+	},
+	"zed": {
+		ID:       "zed",
+		Name:     "Zed",
+		ClientID: "zed",
+		AuthURL:  "https://zed.dev/native_app_signin",
+		TokenURL: "https://cloud.zed.dev",
+		FlowType: "native_app_signin",
+	},
+	"xiaomi-mimo": {
+		ID:       "xiaomi-mimo",
+		Name:     "Xiaomi MiMo",
+		ClientID: "mimocode",
+		AuthURL:  "https://platform.xiaomimimo.com/authorize",
+		FlowType: "custom_ecdh",
+	},
 }
 
 func GetProviderConfig(providerID string) (ProviderConfig, bool) {
@@ -181,6 +344,118 @@ func (m *Manager) BuildAuthURL(providerID, redirectURI, state, codeChallenge str
 	}
 
 	return fmt.Sprintf("%s?%s", cfg.AuthURL, params.Encode()), nil
+}
+
+func (m *Manager) RequestDeviceCode(ctx context.Context, providerID string) (*DeviceCodeResult, error) {
+	cfg, ok := GetProviderConfig(providerID)
+	if !ok || cfg.DeviceCodeURL == "" {
+		return nil, fmt.Errorf("provider %s does not support device code flow", providerID)
+	}
+
+	data := url.Values{}
+	data.Set("client_id", cfg.ClientID)
+	if len(cfg.Scopes) > 0 {
+		data.Set("scope", strings.Join(cfg.Scopes, " "))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.DeviceCodeURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	if providerID == "grok-cli" {
+		req.Header.Set("User-Agent", "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)")
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("device code request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read device code response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("device code request failed (%d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var dcr DeviceCodeResult
+	if err := json.Unmarshal(bodyBytes, &dcr); err != nil {
+		return nil, fmt.Errorf("parse device code response: %w", err)
+	}
+	return &dcr, nil
+}
+
+func (m *Manager) PollDeviceToken(ctx context.Context, providerID, deviceCode string) (*TokenResult, error) {
+	cfg, ok := GetProviderConfig(providerID)
+	if !ok || cfg.TokenURL == "" {
+		return nil, fmt.Errorf("provider %s does not have a token endpoint configured", providerID)
+	}
+
+	data := url.Values{}
+	data.Set("client_id", cfg.ClientID)
+	data.Set("device_code", deviceCode)
+	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.TokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	if providerID == "grok-cli" {
+		req.Header.Set("User-Agent", "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)")
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("poll token request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read poll token response: %w", err)
+	}
+
+	var errResp struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	_ = json.Unmarshal(bodyBytes, &errResp)
+	if errResp.Error != "" {
+		return nil, errors.New(errResp.Error)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("poll token failed (%d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var tr TokenResult
+	if err := json.Unmarshal(bodyBytes, &tr); err != nil {
+		vals, errParse := url.ParseQuery(string(bodyBytes))
+		if errParse == nil && vals.Get("access_token") != "" {
+			tr.AccessToken = vals.Get("access_token")
+			tr.RefreshToken = vals.Get("refresh_token")
+			tr.TokenType = vals.Get("token_type")
+			tr.Scope = vals.Get("scope")
+		} else {
+			return nil, fmt.Errorf("parse token response: %w", err)
+		}
+	}
+
+	if tr.ExpiresIn <= 0 {
+		tr.ExpiresIn = 3600
+	}
+	tr.ExpiresAt = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)
+
+	return &tr, nil
 }
 
 func (m *Manager) ExchangeToken(ctx context.Context, providerID, code, redirectURI, codeVerifier string) (*TokenResult, error) {

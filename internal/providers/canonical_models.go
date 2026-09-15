@@ -162,6 +162,124 @@ var CanonicalModels = map[string][]ModelInfo{
 		{ID: "qwen3-235b", Name: "Qwen3 235B (MiMo Free)", ContextLimit: 32768, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
 		{ID: "deepseek-v3", Name: "DeepSeek V3 (MiMo Free)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
 	},
+	"deepseek": {
+		{ID: "deepseek-chat", Name: "DeepSeek V3 (671B)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Vision: false, ToolCalling: true, Reasoning: false, Streaming: true, PromptCaching: true}},
+		{ID: "deepseek-reasoner", Name: "DeepSeek R1", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Vision: false, ToolCalling: true, Reasoning: true, Streaming: true, PromptCaching: true}},
+		{ID: "deepseek-v3.2", Name: "DeepSeek V3.2 Exp", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Vision: false, ToolCalling: true, Reasoning: true, Streaming: true, PromptCaching: true}},
+	},
+	"mistral": {
+		{ID: "mistral-large-2411", Name: "Mistral Large 2411", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "codestral-2501", Name: "Codestral 2501", ContextLimit: 256000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "pixtral-large-2411", Name: "Pixtral Large", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "mistral-small-2501", Name: "Mistral Small 2501", ContextLimit: 32768, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"together": {
+		{ID: "meta-llama/Llama-4-Maverick-Instruct", Name: "Llama 4 Maverick (Together)", ContextLimit: 1048576, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "meta-llama/Llama-3.3-70B-Instruct-Turbo", Name: "Llama 3.3 70B Turbo", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "deepseek-ai/DeepSeek-R1", Name: "DeepSeek R1 (Together)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "deepseek-ai/DeepSeek-V3", Name: "DeepSeek V3 (Together)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "Qwen/Qwen3-235B-A22B", Name: "Qwen3 235B A22B (Together)", ContextLimit: 40960, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+	},
+	"xai": {
+		{ID: "grok-3", Name: "Grok 3", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "grok-3-mini", Name: "Grok 3 Mini", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: false, ToolCalling: true, Reasoning: true, Streaming: true}},
+		{ID: "grok-2-1212", Name: "Grok 2", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "grok-2-vision-1212", Name: "Grok 2 Vision", ContextLimit: 32768, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+	},
+	"grok-cli": {
+		{ID: "grok-3", Name: "Grok 3 (CLI)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "grok-3-mini", Name: "Grok 3 Mini (CLI)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Vision: false, ToolCalling: true, Reasoning: true, Streaming: true}},
+	},
+	"sambanova": {
+		{ID: "Meta-Llama-3.3-70B-Instruct", Name: "Llama 3.3 70B (SambaNova)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "DeepSeek-R1", Name: "DeepSeek R1 (SambaNova)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "Qwen2.5-72B-Instruct", Name: "Qwen 2.5 72B (SambaNova)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"fireworks": {
+		{ID: "accounts/fireworks/models/deepseek-r1", Name: "DeepSeek R1 (Fireworks)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "accounts/fireworks/models/deepseek-v3", Name: "DeepSeek V3 (Fireworks)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "accounts/fireworks/models/llama-v3p3-70b-instruct", Name: "Llama 3.3 70B (Fireworks)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"siliconflow": {
+		{ID: "deepseek-ai/DeepSeek-V3", Name: "DeepSeek V3 (SiliconFlow)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "deepseek-ai/DeepSeek-R1", Name: "DeepSeek R1 (SiliconFlow)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "Pro/deepseek-ai/DeepSeek-V3", Name: "DeepSeek V3 Pro (SiliconFlow)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "Pro/deepseek-ai/DeepSeek-R1", Name: "DeepSeek R1 Pro (SiliconFlow)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+	},
+	"nebius": {
+		{ID: "deepseek-ai/DeepSeek-V3", Name: "DeepSeek V3 (Nebius)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "deepseek-ai/DeepSeek-R1", Name: "DeepSeek R1 (Nebius)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "meta-llama/Meta-Llama-3.1-70B-Instruct", Name: "Llama 3.1 70B (Nebius)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"perplexity": {
+		{ID: "sonar-deep-research", Name: "Sonar Deep Research", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "sonar-reasoning-pro", Name: "Sonar Reasoning Pro", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "sonar-pro", Name: "Sonar Pro", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+		{ID: "sonar", Name: "Sonar", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+	},
+	"venice": {
+		{ID: "llama-3.3-70b", Name: "Llama 3.3 70B (Venice)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+		{ID: "deepseek-r1-llama-70b", Name: "DeepSeek R1 70B (Venice)", ContextLimit: 131072, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+	},
+	"tencent": {
+		{ID: "hunyuan-turbo", Name: "Hunyuan Turbo", ContextLimit: 256000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "hunyuan-standard", Name: "Hunyuan Standard", ContextLimit: 32768, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+	},
+	"minimax": {
+		{ID: "MiniMax-Text-01", Name: "MiniMax Text 01", ContextLimit: 1000000, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+		{ID: "abab6.5s-chat", Name: "abab 6.5s Chat", ContextLimit: 245760, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+	},
+	"glm": {
+		{ID: "glm-4-plus", Name: "GLM 4 Plus", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "glm-4-air", Name: "GLM 4 Air", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+		{ID: "glm-4-flash", Name: "GLM 4 Flash", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+	},
+	"cohere": {
+		{ID: "command-r-plus-08-2024", Name: "Command R+ (Aug 2024)", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "command-r-08-2024", Name: "Command R (Aug 2024)", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"cursor": {
+		{ID: "claude-3-7-sonnet", Name: "Claude 3.7 Sonnet (Cursor)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Reasoning: true, Streaming: true}},
+		{ID: "claude-3-5-sonnet", Name: "Claude 3.5 Sonnet (Cursor)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "gpt-4.1", Name: "GPT-4.1 (Cursor)", ContextLimit: 1047576, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "cursor-fast", Name: "Cursor Fast", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{Streaming: true}},
+	},
+	"windsurf": {
+		{ID: "claude-3-7-sonnet", Name: "Claude 3.7 Sonnet (Windsurf)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Reasoning: true, Streaming: true}},
+		{ID: "claude-3-5-sonnet", Name: "Claude 3.5 Sonnet (Windsurf)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "gpt-4.1", Name: "GPT-4.1 (Windsurf)", ContextLimit: 1047576, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+	},
+	"trae": {
+		{ID: "claude-3-7-sonnet", Name: "Claude 3.7 Sonnet (Trae)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Reasoning: true, Streaming: true}},
+		{ID: "gpt-4.1", Name: "GPT-4.1 (Trae)", ContextLimit: 1047576, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+		{ID: "deepseek-v3", Name: "DeepSeek V3 (Trae)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"zed": {
+		{ID: "claude-3-7-sonnet", Name: "Claude 3.7 Sonnet (Zed)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Reasoning: true, Streaming: true}},
+		{ID: "gpt-4.1", Name: "GPT-4.1 (Zed)", ContextLimit: 1047576, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+	},
+	"cline": {
+		{ID: "claude-3-7-sonnet", Name: "Claude 3.7 Sonnet (Cline)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Reasoning: true, Streaming: true}},
+		{ID: "gpt-4.1", Name: "GPT-4.1 (Cline)", ContextLimit: 1047576, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Streaming: true}},
+	},
+	"qoder": {
+		{ID: "qoder-1", Name: "Qoder 1", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "deepseek-v3", Name: "DeepSeek V3 (Qoder)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"iflow": {
+		{ID: "qwen3-235b-a22b-thinking-2507", Name: "Qwen3 235B A22B Thinking (iFlow)", ContextLimit: 40960, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "deepseek-v3", Name: "DeepSeek V3 (iFlow)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "deepseek-r1", Name: "DeepSeek R1 (iFlow)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+	},
+	"kimi": {
+		{ID: "kimi-k2", Name: "Kimi K2", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "kimi-k1.5", Name: "Kimi K1.5", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+		{ID: "moonshot-v1-128k", Name: "Moonshot v1 128K", ContextLimit: 128000, Streaming: true, Capabilities: Capabilities{ToolCalling: true, Streaming: true}},
+	},
+	"kilocode": {
+		{ID: "deepseek-r1", Name: "DeepSeek R1 (KiloCode)", ContextLimit: 64000, Streaming: true, Capabilities: Capabilities{Reasoning: true, Streaming: true}},
+		{ID: "claude-3-7-sonnet", Name: "Claude 3.7 Sonnet (KiloCode)", ContextLimit: 200000, Streaming: true, Capabilities: Capabilities{Vision: true, ToolCalling: true, Reasoning: true, Streaming: true}},
+	},
 }
 
 func GetCanonicalModels(providerID string) []ModelInfo {
