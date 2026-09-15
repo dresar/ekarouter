@@ -236,6 +236,7 @@ func NewServer(
 			authApi.Get("/keys", adminHandler.ListApiKeys)
 			authApi.Post("/keys", adminHandler.CreateApiKey)
 			authApi.Delete("/keys/{id}", adminHandler.DeleteApiKey)
+			authApi.Post("/keys/health", adminHandler.CheckKeyHealth)
 
 			authApi.Get("/settings", adminHandler.GetSettings)
 			authApi.Put("/settings", adminHandler.UpdateSetting)

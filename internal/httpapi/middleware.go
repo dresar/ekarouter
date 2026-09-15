@@ -83,21 +83,32 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 func GatewayAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var token string
 			authHeader := r.Header.Get("Authorization")
-			if !strings.HasPrefix(authHeader, "Bearer ") {
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+			if token == "" {
+				if cookie, err := r.Cookie("session_token"); err == nil && cookie.Value != "" {
+					token = cookie.Value
+				}
+			}
+
+			if token == "" {
 				http.Error(w, `{"error":"missing or invalid authorization header"}`, http.StatusUnauthorized)
 				return
 			}
 
-			token := strings.TrimPrefix(authHeader, "Bearer ")
 			tokenHash := auth.HashToken(token)
 
 			var keyID string
 			err := db.QueryRowContext(r.Context(), "SELECT id FROM api_keys WHERE hash = ? AND enabled = 1", tokenHash).Scan(&keyID)
 			if err != nil {
 				var sessionUserID string
-				sErr := db.QueryRowContext(r.Context(), "SELECT user_id FROM sessions WHERE token_hash = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP) AND revoked_at IS NULL", tokenHash).Scan(&sessionUserID)
-				if sErr != nil {
+				var expiresAt time.Time
+				var revokedAt sql.NullTime
+				sErr := db.QueryRowContext(r.Context(), "SELECT user_id, expires_at, revoked_at FROM sessions WHERE token_hash = ?", tokenHash).Scan(&sessionUserID, &expiresAt, &revokedAt)
+				if sErr != nil || revokedAt.Valid || (!expiresAt.IsZero() && expiresAt.Before(time.Now())) {
 					http.Error(w, `{"error":"unauthorized: invalid api key"}`, http.StatusUnauthorized)
 					return
 				}

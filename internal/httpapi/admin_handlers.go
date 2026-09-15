@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -314,6 +317,189 @@ func (a *AdminHandler) DeleteApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+type KeyHealthRequest struct {
+	Provider string `json:"provider"`
+	ApiKey   string `json:"api_key"`
+	Model    string `json:"model"`
+	ProxyURL string `json:"proxy_url"`
+}
+
+type KeyHealthResponse struct {
+	Healthy    bool   `json:"healthy"`
+	Status     string `json:"status"`
+	LatencyMs  int64  `json:"latency_ms"`
+	Message    string `json:"message"`
+	Provider   string `json:"provider"`
+	HTTPStatus int    `json:"http_status"`
+	Details    string `json:"details,omitempty"`
+}
+
+func (a *AdminHandler) CheckKeyHealth(w http.ResponseWriter, r *http.Request) {
+	var req KeyHealthRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+		return
+	}
+
+	key := strings.TrimSpace(req.ApiKey)
+	if key == "" {
+		http.Error(w, `{"error":"api_key is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	if provider == "" {
+		provider = "gemini"
+	}
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	start := time.Now()
+	var httpReq *http.Request
+	var err error
+
+	if strings.Contains(provider, "gemini") {
+		model := req.Model
+		if model == "" {
+			model = "gemini-2.5-flash"
+		}
+		targetURL := req.ProxyURL
+		if targetURL == "" {
+			targetURL = fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, key)
+		} else {
+			sep := "?"
+			if strings.Contains(targetURL, "?") {
+				sep = "&"
+			}
+			if !strings.Contains(targetURL, "key=") {
+				targetURL += sep + "key=" + key
+			}
+		}
+		bodyData := []byte(`{"contents":[{"parts":[{"text":"ping"}]}]}`)
+		httpReq, err = http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, bytes.NewReader(bodyData))
+		if err == nil {
+			httpReq.Header.Set("Content-Type", "application/json")
+		}
+	} else if strings.Contains(provider, "claude") || strings.Contains(provider, "anthropic") {
+		targetURL := req.ProxyURL
+		if targetURL == "" {
+			targetURL = "https://api.anthropic.com/v1/messages"
+		}
+		model := req.Model
+		if model == "" {
+			model = "claude-3-5-haiku-20241022"
+		}
+		bodyData := []byte(fmt.Sprintf(`{"model":"%s","max_tokens":5,"messages":[{"role":"user","content":"ping"}]}`, model))
+		httpReq, err = http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, bytes.NewReader(bodyData))
+		if err == nil {
+			httpReq.Header.Set("Content-Type", "application/json")
+			httpReq.Header.Set("x-api-key", key)
+			httpReq.Header.Set("anthropic-version", "2023-06-01")
+		}
+	} else {
+		targetURL := req.ProxyURL
+		if targetURL == "" {
+			switch provider {
+			case "groq":
+				targetURL = "https://api.groq.com/openai/v1/chat/completions"
+			case "openrouter":
+				targetURL = "https://openrouter.ai/api/v1/chat/completions"
+			case "deepseek":
+				targetURL = "https://api.deepseek.com/chat/completions"
+			case "cerebras":
+				targetURL = "https://api.cerebras.ai/v1/chat/completions"
+			case "mistral":
+				targetURL = "https://api.mistral.ai/v1/chat/completions"
+			default:
+				targetURL = "https://api.openai.com/v1/chat/completions"
+			}
+		}
+		model := req.Model
+		if model == "" {
+			switch provider {
+			case "groq":
+				model = "llama-3.1-8b-instant"
+			case "openrouter":
+				model = "google/gemini-2.5-flash"
+			case "deepseek":
+				model = "deepseek-chat"
+			default:
+				model = "gpt-4o-mini"
+			}
+		}
+		bodyData := []byte(fmt.Sprintf(`{"model":"%s","max_tokens":5,"messages":[{"role":"user","content":"ping"}]}`, model))
+		httpReq, err = http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, bytes.NewReader(bodyData))
+		if err == nil {
+			httpReq.Header.Set("Content-Type", "application/json")
+			httpReq.Header.Set("Authorization", "Bearer "+key)
+		}
+	}
+
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(KeyHealthResponse{
+			Healthy:    false,
+			Status:     "error",
+			LatencyMs:  time.Since(start).Milliseconds(),
+			Message:    err.Error(),
+			Provider:   provider,
+			HTTPStatus: 400,
+		})
+		return
+	}
+
+	resp, doErr := client.Do(httpReq)
+	elapsed := time.Since(start).Milliseconds()
+
+	w.Header().Set("Content-Type", "application/json")
+	if doErr != nil {
+		_ = json.NewEncoder(w).Encode(KeyHealthResponse{
+			Healthy:    false,
+			Status:     "network_error",
+			LatencyMs:  elapsed,
+			Message:    doErr.Error(),
+			Provider:   provider,
+			HTTPStatus: 0,
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	respSnippet := string(respBytes)
+	if len(respSnippet) > 300 {
+		respSnippet = respSnippet[:300] + "..."
+	}
+
+	healthy := resp.StatusCode >= 200 && resp.StatusCode < 300
+	status := "active"
+	msg := "Key valid"
+
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		status = "unauthorized"
+		msg = "Key tidak valid atau ditolak upstream"
+	} else if resp.StatusCode == 429 {
+		status = "rate_limited"
+		msg = "Quota terlampaui atau terkena limit"
+	} else if !healthy {
+		status = "upstream_error"
+		msg = fmt.Sprintf("Upstream mengembalikan HTTP %d", resp.StatusCode)
+	}
+
+	_ = json.NewEncoder(w).Encode(KeyHealthResponse{
+		Healthy:    healthy,
+		Status:     status,
+		LatencyMs:  elapsed,
+		Message:    msg,
+		Provider:   provider,
+		HTTPStatus: resp.StatusCode,
+		Details:    respSnippet,
+	})
 }
 
 func (a *AdminHandler) GetUsageSummary(w http.ResponseWriter, r *http.Request) {

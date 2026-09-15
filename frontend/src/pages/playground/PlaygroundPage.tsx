@@ -15,9 +15,11 @@ import {
   RefreshCw,
   Key,
   Zap,
+  Activity,
 } from 'lucide-react'
 import { api } from '../../api/client.ts'
 import { Account } from '../../types/api.ts'
+import { getStoredToken } from '../../utils/storage.ts'
 import { SearchableSelect, SearchableOption } from '../../components/ui/SearchableSelect.tsx'
 import { ProviderLogo } from '../../components/ui/ProviderLogo.tsx'
 
@@ -29,14 +31,13 @@ interface ProviderPreset {
   defaultModels: string[]
   format: 'gemini' | 'openai' | 'anthropic'
   keyPlaceholder: string
-  description: string
 }
 
 const AI_PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'gemini',
     name: 'Google Gemini',
-    category: 'Provider Utama',
+    category: 'Utama',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
     defaultModels: [
       'gemini-2.5-flash',
@@ -47,12 +48,11 @@ const AI_PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     format: 'gemini',
     keyPlaceholder: 'AIzaSy...',
-    description: 'Direct Google GenAI v1beta API',
   },
   {
     id: 'gemini-cli',
     name: 'Google Gemini CLI / Antigravity',
-    category: 'Provider Utama',
+    category: 'Utama',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
     defaultModels: [
       'gemini-2.5-flash',
@@ -61,22 +61,20 @@ const AI_PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     format: 'gemini',
     keyPlaceholder: 'AIzaSy... / OAuth Token',
-    description: 'Gemini CLI & Antigravity Client',
   },
   {
     id: 'openai',
     name: 'OpenAI',
-    category: 'Provider Utama',
+    category: 'Utama',
     defaultEndpoint: 'https://api.openai.com/v1/chat/completions',
     defaultModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o3-mini', 'o1'],
     format: 'openai',
     keyPlaceholder: 'sk-proj-...',
-    description: 'Official OpenAI Chat Completions',
   },
   {
     id: 'anthropic',
     name: 'Anthropic Claude',
-    category: 'Provider Utama',
+    category: 'Utama',
     defaultEndpoint: 'https://api.anthropic.com/v1/messages',
     defaultModels: [
       'claude-3-7-sonnet-20250219',
@@ -85,22 +83,20 @@ const AI_PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     format: 'anthropic',
     keyPlaceholder: 'sk-ant-...',
-    description: 'Anthropic Messages API',
   },
   {
     id: 'deepseek',
     name: 'DeepSeek Official',
-    category: 'Provider Utama',
+    category: 'Utama',
     defaultEndpoint: 'https://api.deepseek.com/chat/completions',
     defaultModels: ['deepseek-chat', 'deepseek-reasoner'],
     format: 'openai',
     keyPlaceholder: 'sk-...',
-    description: 'DeepSeek V3 & DeepSeek R1 API',
   },
   {
     id: 'groq',
     name: 'Groq Cloud',
-    category: 'Ultra-Fast Inference (LPU)',
+    category: 'LPU',
     defaultEndpoint: 'https://api.groq.com/openai/v1/chat/completions',
     defaultModels: [
       'llama-3.3-70b-versatile',
@@ -110,32 +106,29 @@ const AI_PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     format: 'openai',
     keyPlaceholder: 'gsk_...',
-    description: 'Groq Tensor Streaming Processor',
   },
   {
     id: 'cerebras',
     name: 'Cerebras Inference',
-    category: 'Ultra-Fast Inference (LPU)',
+    category: 'LPU',
     defaultEndpoint: 'https://api.cerebras.ai/v1/chat/completions',
     defaultModels: ['llama3.1-8b', 'llama3.1-70b', 'llama-3.3-70b'],
     format: 'openai',
     keyPlaceholder: 'csk-...',
-    description: 'Wafer-scale ultrafast token generation',
   },
   {
     id: 'chutes',
     name: 'Chutes AI',
-    category: 'Ultra-Fast Inference (LPU)',
+    category: 'LPU',
     defaultEndpoint: 'https://chutes.ai/api/v1/chat/completions',
     defaultModels: ['deepseek-ai/DeepSeek-V3', 'deepseek-ai/DeepSeek-R1', 'chutes-llama-3.3-70b'],
     format: 'openai',
     keyPlaceholder: 'cpk_...',
-    description: 'Decentralized serverless GPU compute',
   },
   {
     id: 'openrouter',
     name: 'OpenRouter Aggregator',
-    category: 'Aggregators & Router',
+    category: 'Router',
     defaultEndpoint: 'https://openrouter.ai/api/v1/chat/completions',
     defaultModels: [
       'google/gemini-2.5-flash',
@@ -146,12 +139,11 @@ const AI_PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     format: 'openai',
     keyPlaceholder: 'sk-or-v1-...',
-    description: 'Unified gateway ke 200+ models',
   },
   {
     id: 'together',
     name: 'Together AI',
-    category: 'Aggregators & Router',
+    category: 'Router',
     defaultEndpoint: 'https://api.together.xyz/v1/chat/completions',
     defaultModels: [
       'meta-llama/Llama-3.3-70B-Instruct-Turbo',
@@ -160,144 +152,130 @@ const AI_PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     format: 'openai',
     keyPlaceholder: '...',
-    description: 'Together AI Cloud inference',
   },
   {
     id: 'huggingface',
     name: 'Hugging Face Inference',
-    category: 'Aggregators & Router',
+    category: 'Router',
     defaultEndpoint: 'https://api-inference.huggingface.co/v1/chat/completions',
     defaultModels: ['Qwen/Qwen2.5-72B-Instruct', 'meta-llama/Llama-3.3-70B-Instruct'],
     format: 'openai',
     keyPlaceholder: 'hf_...',
-    description: 'Serverless Hugging Face Inference API',
   },
   {
     id: 'mistral',
     name: 'Mistral AI',
-    category: 'Open-Weights & Reasoning',
+    category: 'Open',
     defaultEndpoint: 'https://api.mistral.ai/v1/chat/completions',
     defaultModels: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'],
     format: 'openai',
     keyPlaceholder: '...',
-    description: 'La Plateforme Mistral AI',
   },
   {
     id: 'nvidia',
     name: 'NVIDIA NIM',
-    category: 'Open-Weights & Reasoning',
+    category: 'Open',
     defaultEndpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
     defaultModels: ['meta/llama-3.3-70b-instruct', 'deepseek-ai/deepseek-r1', 'mistralai/mistral-large-2-instruct'],
     format: 'openai',
     keyPlaceholder: 'nvapi-...',
-    description: 'NVIDIA API Catalog microservices',
   },
   {
     id: 'qwen',
     name: 'Qwen Alibaba Cloud',
-    category: 'Open-Weights & Reasoning',
+    category: 'Open',
     defaultEndpoint: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
     defaultModels: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen2.5-coder-32b-instruct'],
     format: 'openai',
     keyPlaceholder: 'sk-...',
-    description: 'DashScope OpenAI-compatible API',
   },
   {
     id: 'xai',
     name: 'xAI (Grok)',
-    category: 'Provider Utama',
+    category: 'Utama',
     defaultEndpoint: 'https://api.x.ai/v1/chat/completions',
     defaultModels: ['grok-2-1212', 'grok-2-vision-1212', 'grok-beta'],
     format: 'openai',
     keyPlaceholder: 'xai-...',
-    description: 'Elon Musk xAI Grok API',
   },
   {
     id: 'moonshot',
     name: 'Moonshot AI (Kimi)',
-    category: 'Open-Weights & Reasoning',
+    category: 'Open',
     defaultEndpoint: 'https://api.moonshot.cn/v1/chat/completions',
     defaultModels: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
     format: 'openai',
     keyPlaceholder: 'sk-...',
-    description: 'Kimi Moonshot AI API',
   },
   {
     id: 'cloudflare',
     name: 'Cloudflare Workers AI',
-    category: 'Edge & Local Cloud',
+    category: 'Edge',
     defaultEndpoint: 'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions',
     defaultModels: ['@cf/meta/llama-3.3-70b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'],
     format: 'openai',
     keyPlaceholder: 'Bearer API Token',
-    description: 'Serverless inference di edge Cloudflare',
   },
   {
     id: 'ollama',
     name: 'Ollama Local Host',
-    category: 'Edge & Local Cloud',
+    category: 'Edge',
     defaultEndpoint: 'http://localhost:11434/v1/chat/completions',
     defaultModels: ['llama3.2', 'deepseek-r1', 'qwen2.5-coder', 'mistral', 'phi4'],
     format: 'openai',
-    keyPlaceholder: 'Bisa dikosongkan (Opsional)',
-    description: 'Direct local LLM server di localhost:11434',
+    keyPlaceholder: 'Opsional',
   },
   {
     id: 'github',
     name: 'GitHub Models',
-    category: 'Developer & Free Tiers',
+    category: 'Dev',
     defaultEndpoint: 'https://models.inference.ai.azure.com/chat/completions',
     defaultModels: ['gpt-4o', 'gpt-4o-mini', 'Phi-3.5-mini-instruct'],
     format: 'openai',
-    keyPlaceholder: 'ghp_... (GitHub Token)',
-    description: 'Azure AI backed GitHub Models catalog',
+    keyPlaceholder: 'ghp_...',
   },
   {
     id: 'airforce',
     name: 'Airforce AI',
-    category: 'Developer & Free Tiers',
+    category: 'Dev',
     defaultEndpoint: 'https://api.airforce/v1/chat/completions',
     defaultModels: ['llama-3.3-70b', 'deepseek-r1', 'chatgpt-4o-latest'],
     format: 'openai',
-    keyPlaceholder: 'sk-... / Token',
-    description: 'Community AI model proxy',
+    keyPlaceholder: 'sk-...',
   },
   {
     id: 'mimofree',
     name: 'MiMo Free',
-    category: 'Developer & Free Tiers',
+    category: 'Dev',
     defaultEndpoint: 'https://api.mimofree.com/v1/chat/completions',
     defaultModels: ['mimo-free-v1'],
     format: 'openai',
-    keyPlaceholder: 'Token / Key',
-    description: 'Xiaomi MiMo Free Tier Provider',
+    keyPlaceholder: 'Token...',
   },
   {
     id: 'devin',
     name: 'Devin AI',
-    category: 'Developer & Free Tiers',
+    category: 'Dev',
     defaultEndpoint: 'https://api.devin.ai/v1/chat/completions',
     defaultModels: ['devin-default'],
     format: 'openai',
     keyPlaceholder: 'devin_...',
-    description: 'Devin AI Coding Agent proxy endpoint',
   },
   {
     id: 'custom',
     name: 'Custom / Proxy Relay',
-    category: 'Custom & Self-Hosted',
+    category: 'Custom',
     defaultEndpoint: 'https://api.openai.com/v1/chat/completions',
     defaultModels: ['custom-model'],
     format: 'openai',
-    keyPlaceholder: 'sk-... (Opsional)',
-    description: 'Custom proxy, Deno relay, atau server pribadi',
+    keyPlaceholder: 'Opsional',
   },
 ]
 
 const PROMPT_PRESETS = [
-  { label: 'Health Check', prompt: 'Halo! Sebutkan nama modelmu dan berikan 1 kalimat pembuka.' },
-  { label: 'Kecepatan & Latency', prompt: 'Hitung hasil dari: 47 dikali 83 = ?' },
-  { label: 'Kreativitas', prompt: 'Tulis 2 baris sajak singkat bertema kecerdasan buatan dan router.' },
+  { label: 'Halo', prompt: 'Halo! Sebutkan nama modelmu dan berikan 1 kalimat pembuka.' },
+  { label: 'Hitung', prompt: 'Hitung hasil dari: 47 dikali 83 = ?' },
+  { label: 'Sajak', prompt: 'Tulis 2 baris sajak singkat bertema kecerdasan buatan dan router.' },
 ]
 
 export function PlaygroundPage() {
@@ -328,6 +306,9 @@ export function PlaygroundPage() {
   const [rawResponse, setRawResponse] = useState<any>(null)
   const [showRawInspector, setShowRawInspector] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
+
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false)
+  const [healthStatus, setHealthStatus] = useState<{ healthy: boolean; latency: number; message: string } | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -367,7 +348,7 @@ export function PlaygroundPage() {
 
       let sub = p.id
       if (count > 0) {
-        sub = `${count} Akun (${activeCount} Aktif di Pool)`
+        sub = `${count} Akun (${activeCount} Aktif)`
       }
 
       return {
@@ -384,11 +365,11 @@ export function PlaygroundPage() {
     return selectedProviderAccounts.map((a) => {
       const isCooling = a.state === 'cooling_down'
       const isDown = a.state === 'disabled' || a.state === 'unavailable'
-      const stateLabel = isCooling ? 'Sedang Cooldown' : isDown ? 'Non-Aktif' : 'Profil Aktif'
+      const stateLabel = isCooling ? 'Cooldown' : isDown ? 'Non-Aktif' : 'Aktif'
       return {
         value: a.id,
         label: a.name,
-        sublabel: `${a.proxy_name || a.proxy_url ? `${a.proxy_name || 'Proxy Aktif'} · ` : ''}${a.masked_secret || a.id.slice(0, 8)}`,
+        sublabel: `${a.proxy_name || a.proxy_url ? `${a.proxy_name || 'Proxy'} · ` : ''}${a.masked_secret || a.id.slice(0, 8)}`,
         category: stateLabel,
         icon: <ProviderLogo providerId={a.provider_id} name={a.name} size="sm" />,
       }
@@ -423,6 +404,7 @@ export function PlaygroundPage() {
     } else {
       setSelectedAccountId('')
     }
+    setHealthStatus(null)
   }, [selectedPresetId, selectedProviderAccounts])
 
   const loadSavedAccounts = async () => {
@@ -449,6 +431,49 @@ export function PlaygroundPage() {
     }
   }
 
+  const handleTestHealth = async () => {
+    setIsCheckingHealth(true)
+    setHealthStatus(null)
+    try {
+      if (testMethod === 'manual_key') {
+        if (!apiKey.trim()) return
+        const res = await api.post<{ healthy: boolean; latency_ms: number; message: string; http_status: number }>(
+          '/api/keys/health',
+          {
+            provider: activePreset.id,
+            api_key: apiKey.trim(),
+            model: effectiveModel,
+            proxy_url: customEndpoint.trim(),
+          }
+        )
+        setHealthStatus({
+          healthy: res.healthy,
+          latency: res.latency_ms || 0,
+          message: res.message || (res.healthy ? 'Aktif' : 'Gagal'),
+        })
+      } else if (poolScope === 'single_account' && selectedAccountId) {
+        const res = await api.post<{ healthy: boolean; latency: number; message: string }>(
+          `/api/accounts/${selectedAccountId}/test`,
+          {}
+        )
+        setHealthStatus({
+          healthy: res.healthy,
+          latency: res.latency || 0,
+          message: res.healthy ? 'Aktif' : res.message || 'Gagal',
+        })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal'
+      setHealthStatus({
+        healthy: false,
+        latency: 0,
+        message: msg,
+      })
+    } finally {
+      setIsCheckingHealth(false)
+    }
+  }
+
   const handleExecuteTest = async (e?: FormEvent) => {
     if (e) e.preventDefault()
     if (!prompt.trim()) return
@@ -471,7 +496,7 @@ export function PlaygroundPage() {
         if (poolScope === 'single_account' && selectedAccountId) {
           const selectedAcc = selectedProviderAccounts.find((a) => a.id === selectedAccountId)
           const url = `/api/accounts/${selectedAccountId}/test`
-          setRawRequest({ url, method: 'POST', targetAccountId: selectedAccountId, accountName: selectedAcc?.name })
+          setRawRequest({ url, method: 'POST', accountId: selectedAccountId, account: selectedAcc?.name })
 
           const res = await api.post<{ healthy: boolean; latency: number; message: string }>(url, {})
           const elapsed = Math.round(performance.now() - startTime)
@@ -479,15 +504,15 @@ export function PlaygroundPage() {
           setResponseStatus(res.healthy ? 200 : 503)
           setRawResponse(res)
 
-          setExecutedInfo(`Uji Langsung Akun: ${selectedAcc?.name || selectedAccountId} (${selectedAcc?.provider_id})`)
+          setExecutedInfo(`Akun: ${selectedAcc?.name || selectedAccountId}`)
 
           if (res.healthy) {
-            setResponseText(`Akun Sehat & Siap Digunakan!\nStatus: Terkoneksi ke upstream\nLatency: ${res.latency || elapsed}ms\nPesan: ${res.message || 'Respons OK'}`)
+            setResponseText(`Status: Online\nLatency: ${res.latency || elapsed}ms\nPesan: ${res.message || 'OK'}`)
           } else {
-            setErrorDetails(`Akun Mengalami Gangguan Upstream:\n${res.message || 'Gagal memvalidasi kredensial'}`)
+            setErrorDetails(`Gangguan:\n${res.message || 'Error'}`)
           }
         } else {
-          const token = localStorage.getItem('session_token') || routerApiKey
+          const token = getStoredToken() || routerApiKey
           const url = '/v1/chat/completions'
           const reqHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -509,6 +534,7 @@ export function PlaygroundPage() {
           const res = await fetch(url, {
             method: 'POST',
             headers: reqHeaders,
+            credentials: 'include',
             body: JSON.stringify(reqBody),
             signal: controller.signal,
           })
@@ -520,10 +546,10 @@ export function PlaygroundPage() {
           const data = await res.json()
           setRawResponse(data)
 
-          setExecutedInfo(`Auto-Rotasi Pool: ${activePreset.name} (${selectedProviderAccounts.length} Akun di Pool)`)
+          setExecutedInfo(`Rotasi: ${activePreset.name}`)
 
           if (!res.ok) {
-            const errMessage = data?.error?.message || data?.error || `HTTP ${res.status}: ${res.statusText}`
+            const errMessage = data?.error?.message || data?.error || `HTTP ${res.status}`
             throw new Error(errMessage)
           }
 
@@ -532,10 +558,10 @@ export function PlaygroundPage() {
         }
       } else {
         if (!apiKey.trim() && selectedPresetId !== 'custom' && selectedPresetId !== 'ollama') {
-          throw new Error('Masukkan API Key untuk pengujian langsung dari browser Chrome')
+          throw new Error('Masukkan API Key')
         }
 
-        setExecutedInfo(`Client Chrome Direct: ${activePreset.name}`)
+        setExecutedInfo(`Direct: ${activePreset.name}`)
 
         if (activePreset.format === 'gemini') {
           let url = customEndpoint.trim()
@@ -571,7 +597,7 @@ export function PlaygroundPage() {
           setRawResponse(data)
 
           if (!res.ok) {
-            const errMessage = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`
+            const errMessage = data?.error?.message || `HTTP ${res.status}`
             throw new Error(errMessage)
           }
 
@@ -611,7 +637,7 @@ export function PlaygroundPage() {
           setRawResponse(data)
 
           if (!res.ok) {
-            const errMessage = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`
+            const errMessage = data?.error?.message || `HTTP ${res.status}`
             throw new Error(errMessage)
           }
 
@@ -650,7 +676,7 @@ export function PlaygroundPage() {
           setRawResponse(data)
 
           if (!res.ok) {
-            const errMessage = data?.error?.message || data?.message || `HTTP ${res.status}: ${res.statusText}`
+            const errMessage = data?.error?.message || data?.message || `HTTP ${res.status}`
             throw new Error(errMessage)
           }
 
@@ -662,9 +688,9 @@ export function PlaygroundPage() {
       const elapsed = Math.round(performance.now() - startTime)
       setLatency(elapsed)
       if (err instanceof Error && err.name === 'AbortError') {
-        setErrorDetails('Pengujian dibatalkan oleh pengguna.')
+        setErrorDetails('Dibatalkan')
       } else {
-        const msg = err instanceof Error ? err.message : 'Permintaan gagal dieksekusi'
+        const msg = err instanceof Error ? err.message : 'Gagal'
         setErrorDetails(msg)
       }
     } finally {
@@ -682,39 +708,32 @@ export function PlaygroundPage() {
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-[8px] bg-[#2a1d17] border border-[#ea580c]/30 flex items-center justify-center text-[#f97316] shrink-0">
-            <Sparkles className="w-5 h-5" />
+      <div className="flex items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-3.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-[6px] bg-[#2a1d17] border border-[#ea580c]/30 flex items-center justify-center text-[#f97316] shrink-0">
+            <Sparkles className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-[17px] font-bold text-[var(--text-primary)]">AI Playground & Auto-Rotation Tester</h2>
-            <p className="text-[12px] text-[var(--text-muted)]">
-              Uji coba AI Provider dengan rotasi otomatis antar akun/key tersimpan di EkaRouter atau uji API key langsung dari browser Chrome.
-            </p>
-          </div>
+          <h2 className="text-[16px] font-bold text-[var(--text-primary)]">Playground</h2>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono px-2 py-1 rounded-[5px] bg-[#171821] border border-[#2b2e3b] text-[#9ca3af]">
-            Total Akun Tersimpan: <strong className="text-[#ea580c]">{savedAccounts.length}</strong>
-          </span>
-        </div>
+        <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-[#171821] border border-[#2b2e3b] text-[#9ca3af]">
+          Pool: <strong className="text-[#ea580c]">{savedAccounts.length}</strong>
+        </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 space-y-4">
-            <h3 className="text-[13.5px] font-bold text-[var(--text-primary)] flex items-center gap-2 pb-2 border-b border-[var(--border-subtle)]">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 space-y-3.5">
+            <h3 className="text-[13px] font-bold text-[var(--text-primary)] flex items-center gap-2 pb-2 border-b border-[var(--border-subtle)]">
               <Layers className="w-4 h-4 text-[#ea580c]" />
-              <span>Konfigurasi Pengujian Provider</span>
+              <span>Konfigurasi</span>
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)]">
-                    Target AI Provider ({AI_PROVIDER_PRESETS.length} Provider Tersedia)
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-[var(--text-secondary)]">
+                    Provider
                   </label>
                   <span className="text-[10px] font-mono font-semibold text-[#f97316] bg-[#2a1d17] px-1.5 py-0.5 rounded border border-[#ea580c]/30">
                     {activePreset.format.toUpperCase()}
@@ -727,158 +746,184 @@ export function PlaygroundPage() {
                     setSelectedPresetId(val)
                     setCustomModel('')
                   }}
-                  placeholder="Pilih AI Provider..."
-                  searchPlaceholder="Cari provider (gemini, claude, deepseek, groq, openai)..."
+                  placeholder="Pilih..."
+                  searchPlaceholder="Cari..."
                 />
-                <p className="text-[10.5px] text-[#787d90] mt-1 truncate">
-                  {activePreset.description}
-                </p>
               </div>
 
-              <div>
-                <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                  Metode Pengujian untuk {activePreset.name}
-                </label>
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#121318] border border-[#2b2e3b] rounded-[7px]">
-                  <button
-                    type="button"
-                    onClick={() => setTestMethod('pool_rotation')}
-                    className={`px-2.5 py-1.5 text-[11.5px] font-medium rounded-[5px] flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      testMethod === 'pool_rotation'
-                        ? 'bg-[#ea580c] text-white shadow-sm font-semibold'
-                        : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1d25]'
-                    }`}
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Auto-Rotasi Pool ({selectedProviderAccounts.length})</span>
-                  </button>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#121318] border border-[#2b2e3b] rounded-[6px]">
+                <button
+                  type="button"
+                  onClick={() => setTestMethod('pool_rotation')}
+                  className={`px-2 py-1.5 text-[11.5px] rounded-[4px] flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    testMethod === 'pool_rotation'
+                      ? 'bg-[#ea580c] text-white shadow-sm font-semibold'
+                      : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1d25]'
+                  }`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Rotasi</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setTestMethod('manual_key')}
-                    className={`px-2.5 py-1.5 text-[11.5px] font-medium rounded-[5px] flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      testMethod === 'manual_key'
-                        ? 'bg-[#ea580c] text-white shadow-sm font-semibold'
-                        : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1d25]'
-                    }`}
-                  >
-                    <Key className="w-3.5 h-3.5" />
-                    <span>API Key Langsung</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setTestMethod('manual_key')}
+                  className={`px-2 py-1.5 text-[11.5px] rounded-[4px] flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    testMethod === 'manual_key'
+                      ? 'bg-[#ea580c] text-white shadow-sm font-semibold'
+                      : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1d25]'
+                  }`}
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Manual</span>
+                </button>
               </div>
 
               {testMethod === 'pool_rotation' ? (
-                <div className="p-3 rounded-[8px] bg-[#14151c] border border-[#262936] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-[#ea580c]" />
-                      <span className="text-[12px] font-bold text-[var(--text-primary)]">
-                        Pool EkaRouter: {activePreset.name}
-                      </span>
+                <div className="p-3 rounded-[7px] bg-[#14151c] border border-[#262936] space-y-2.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5 text-[var(--text-primary)] font-medium">
+                      <Zap className="w-3.5 h-3.5 text-[#ea580c]" />
+                      <span>Pool</span>
                     </div>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#1e2029] text-[#f97316] font-semibold border border-[#ea580c]/20">
-                      {activeAccountsCount} Aktif / {selectedProviderAccounts.length} Total
+                    <span className="font-mono text-[#f97316]">
+                      {activeAccountsCount}/{selectedProviderAccounts.length}
                     </span>
                   </div>
 
-                  {selectedProviderAccounts.length === 0 ? (
-                    <div className="p-2.5 rounded-[6px] bg-[#1c1d25] text-[11px] text-[#9ca3af] leading-relaxed">
-                      Belum ada akun tersimpan untuk <strong>{activePreset.name}</strong> di database EkaRouter. Anda dapat menambahkan akun di menu <strong>Providers</strong> atau gunakan tab <strong>API Key Langsung</strong> di atas.
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-2 pt-1">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPoolScope('all_rotation')}
+                      className={`py-1 px-2 text-[11px] rounded-[4px] border text-center transition-colors cursor-pointer ${
+                        poolScope === 'all_rotation'
+                          ? 'bg-[#2a1d17] border-[#ea580c] text-[#f97316] font-medium'
+                          : 'bg-[#181920] border-[#2d303e] text-[#8e93a6] hover:text-white'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPoolScope('single_account')}
+                      className={`py-1 px-2 text-[11px] rounded-[4px] border text-center transition-colors cursor-pointer ${
+                        poolScope === 'single_account'
+                          ? 'bg-[#2a1d17] border-[#ea580c] text-[#f97316] font-medium'
+                          : 'bg-[#181920] border-[#2d303e] text-[#8e93a6] hover:text-white'
+                      }`}
+                    >
+                      Spesifik
+                    </button>
+                  </div>
+
+                  {poolScope === 'single_account' && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10.5px] font-semibold text-[#8e93a6]">
+                          Akun
+                        </label>
                         <button
                           type="button"
-                          onClick={() => setPoolScope('all_rotation')}
-                          className={`flex-1 py-1.5 px-2 text-[11px] rounded-[5px] border text-center transition-colors cursor-pointer ${
-                            poolScope === 'all_rotation'
-                              ? 'bg-[#2a1d17] border-[#ea580c] text-[#f97316] font-medium'
-                              : 'bg-[#181920] border-[#2d303e] text-[#8e93a6] hover:text-white'
-                          }`}
+                          disabled={!selectedAccountId || isCheckingHealth}
+                          onClick={handleTestHealth}
+                          className="h-5 px-2 text-[10px] font-medium rounded-[3px] bg-[#1e2027] hover:bg-[#282a35] border border-[#353947] text-[#c0c4d4] flex items-center gap-1 cursor-pointer disabled:opacity-50"
                         >
-                          Rotasi Otomatis (Semua Akun)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPoolScope('single_account')}
-                          className={`flex-1 py-1.5 px-2 text-[11px] rounded-[5px] border text-center transition-colors cursor-pointer ${
-                            poolScope === 'single_account'
-                              ? 'bg-[#2a1d17] border-[#ea580c] text-[#f97316] font-medium'
-                              : 'bg-[#181920] border-[#2d303e] text-[#8e93a6] hover:text-white'
-                          }`}
-                        >
-                          Fokus 1 Akun Spesifik
+                          <Activity className={`w-3 h-3 ${isCheckingHealth ? 'animate-spin text-[#ea580c]' : ''}`} />
+                          <span>Health</span>
                         </button>
                       </div>
+                      <SearchableSelect
+                        options={accountOptions}
+                        value={selectedAccountId}
+                        onChange={(val) => {
+                          setSelectedAccountId(val)
+                          setHealthStatus(null)
+                        }}
+                        placeholder="Pilih..."
+                        searchPlaceholder="Cari..."
+                      />
 
-                      {poolScope === 'single_account' ? (
-                        <div>
-                          <label className="block text-[11px] font-semibold text-[#8e93a6] mb-1">
-                            Pilih Akun {activePreset.name} yang Ingin Diuji:
-                          </label>
-                          <SearchableSelect
-                            options={accountOptions}
-                            value={selectedAccountId}
-                            onChange={(val) => setSelectedAccountId(val)}
-                            placeholder={`Pilih dari ${selectedProviderAccounts.length} akun ${activePreset.name}...`}
-                            searchPlaceholder="Cari nama akun atau proxy..."
-                          />
+                      {healthStatus && (
+                        <div className={`p-1.5 rounded-[4px] text-[10.5px] flex items-center justify-between font-mono ${
+                          healthStatus.healthy
+                            ? 'bg-emerald-950/30 text-emerald-400 border border-emerald-600/30'
+                            : 'bg-rose-950/30 text-rose-400 border border-rose-600/30'
+                        }`}>
+                          <span>{healthStatus.message}</span>
+                          <span>{healthStatus.latency}ms</span>
                         </div>
-                      ) : (
-                        <p className="text-[11px] text-[#8e93a6] leading-relaxed">
-                          Permintaan akan otomatis di-rotasi (round-robin / priority) oleh EkaRouter ke {activeAccountsCount} akun {activePreset.name} yang aktif dengan proteksi cooldown & failover otomatis.
-                        </p>
                       )}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   <div>
-                    <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                      API Key {activePreset.name} (Direct Client Chrome) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-semibold text-[var(--text-secondary)]">
+                        Key
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!apiKey.trim() || isCheckingHealth}
+                        onClick={handleTestHealth}
+                        className="h-5 px-2 text-[10px] font-medium rounded-[3px] bg-[#1e2027] hover:bg-[#282a35] border border-[#353947] text-[#c0c4d4] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <Activity className={`w-3 h-3 ${isCheckingHealth ? 'animate-spin text-[#ea580c]' : ''}`} />
+                        <span>Health</span>
+                      </button>
+                    </div>
+
                     <div className="relative">
                       <input
                         type={showApiKey ? 'text' : 'password'}
                         value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder={activePreset.keyPlaceholder || 'sk-...'}
-                        className="w-full h-9 pl-3 pr-9 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                        onChange={(e) => {
+                          setApiKey(e.target.value)
+                          setHealthStatus(null)
+                        }}
+                        placeholder={activePreset.keyPlaceholder || 'Key...'}
+                        className="w-full h-8 pl-2.5 pr-8 text-[12px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
                       />
                       <button
                         type="button"
                         onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#8e93a6] hover:text-white cursor-pointer"
+                        className="absolute inset-y-0 right-0 pr-2 flex items-center text-[#8e93a6] hover:text-white cursor-pointer"
                       >
-                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <p className="text-[10.5px] text-[#787d90] mt-1">
-                      Key langsung diuji dari browser Chrome ke endpoint provider tanpa melalui server backend.
-                    </p>
+
+                    {healthStatus && (
+                      <div className={`mt-1.5 p-1.5 rounded-[4px] text-[10.5px] flex items-center justify-between font-mono ${
+                        healthStatus.healthy
+                          ? 'bg-emerald-950/30 text-emerald-400 border border-emerald-600/30'
+                          : 'bg-rose-950/30 text-rose-400 border border-rose-600/30'
+                      }`}>
+                        <span>{healthStatus.message}</span>
+                        <span>{healthStatus.latency}ms</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
-                    <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                      Custom Proxy / Base URL (Opsional)
+                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+                      Proxy
                     </label>
                     <input
                       type="text"
                       value={customEndpoint}
                       onChange={(e) => setCustomEndpoint(e.target.value)}
                       placeholder={activePreset.defaultEndpoint}
-                      className="w-full h-9 px-3 text-[12px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                      className="w-full h-8 px-2.5 text-[11.5px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
                     />
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                  Pilih Model
+                <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+                  Model
                 </label>
                 <SearchableSelect
                   options={modelOptions}
@@ -887,32 +932,27 @@ export function PlaygroundPage() {
                     setSelectedModel(val)
                     setCustomModel('')
                   }}
-                  placeholder="Pilih model..."
-                  searchPlaceholder="Cari nama model..."
+                  placeholder="Model..."
+                  searchPlaceholder="Cari..."
                 />
               </div>
 
               <div>
-                <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-                  Nama Model Kustom (Opsional)
+                <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+                  Kustom
                 </label>
                 <input
                   type="text"
                   value={customModel}
                   onChange={(e) => setCustomModel(e.target.value)}
-                  placeholder="Contoh: gemini-3.6-flash atau gpt-4o"
-                  className="w-full h-9 px-3 text-[12.5px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
+                  placeholder="Kustom..."
+                  className="w-full h-8 px-2.5 text-[11.5px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors"
                 />
-                {customModel.trim() && (
-                  <p className="text-[10.5px] text-[#ea580c] mt-1">
-                    Model kustom aktif: <span className="font-mono">{customModel.trim()}</span> (menggantikan {selectedModel})
-                  </p>
-                )}
               </div>
 
-              <div className="pt-2 border-t border-[var(--border-subtle)] space-y-3">
+              <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2.5">
                 <div>
-                  <div className="flex items-center justify-between text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
                     <span>Temperature</span>
                     <span className="font-mono text-[#ea580c]">{temperature}</span>
                   </div>
@@ -928,8 +968,8 @@ export function PlaygroundPage() {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1">
-                    <span>Max Tokens</span>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
+                    <span>Tokens</span>
                     <span className="font-mono text-[#ea580c]">{maxTokens}</span>
                   </div>
                   <input
@@ -939,7 +979,7 @@ export function PlaygroundPage() {
                     step="64"
                     value={maxTokens}
                     onChange={(e) => setMaxTokens(parseInt(e.target.value) || 1024)}
-                    className="w-full h-8 px-3 text-[12px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c]"
+                    className="w-full h-7 px-2 text-[11px] font-mono rounded-[5px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c]"
                   />
                 </div>
               </div>
@@ -948,18 +988,18 @@ export function PlaygroundPage() {
         </div>
 
         <div className="lg:col-span-7 space-y-4">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap pb-1">
-              <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
-                Preset Pertanyaan Cepat:
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                Preset:
               </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5">
                 {PROMPT_PRESETS.map((p) => (
                   <button
                     key={p.label}
                     type="button"
                     onClick={() => setPrompt(p.prompt)}
-                    className="px-2 py-1 text-[11px] font-medium rounded-[5px] bg-[#1a1b22] hover:bg-[#232530] border border-[#2d313e] text-[#b0b4c5] hover:text-[#ea580c] transition-colors cursor-pointer"
+                    className="px-2 py-0.5 text-[10.5px] font-medium rounded-[4px] bg-[#1a1b22] hover:bg-[#232530] border border-[#2d313e] text-[#b0b4c5] hover:text-[#ea580c] transition-colors cursor-pointer"
                   >
                     {p.label}
                   </button>
@@ -977,26 +1017,20 @@ export function PlaygroundPage() {
                     handleExecuteTest()
                   }
                 }}
-                placeholder="Tulis instruksi atau pertanyaan untuk menguji model... (Tekan Ctrl+Enter untuk kirim)"
-                className="w-full p-3 text-[13px] rounded-[7px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors leading-relaxed"
+                placeholder="Prompt..."
+                className="w-full p-2.5 text-[12.5px] rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[#ea580c] transition-colors leading-relaxed"
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="text-[11px] text-[var(--text-muted)] hidden sm:block">
-                <span>Tekan </span>
-                <kbd className="px-1.5 py-0.5 rounded bg-[#1f2129] border border-[#363a48] font-mono text-[10px]">
-                  Ctrl + Enter
-                </kbd>
-                <span> untuk menjalankan tes</span>
-              </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] text-[var(--text-muted)] font-mono">Ctrl+Enter</span>
 
               <div className="flex items-center gap-2 ml-auto">
                 {isLoading ? (
                   <button
                     type="button"
                     onClick={handleStop}
-                    className="h-8 px-4 text-[12px] font-semibold rounded-[6px] bg-rose-950/40 border border-rose-600/50 text-rose-300 hover:bg-rose-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="h-7 px-3 text-[11.5px] font-semibold rounded-[5px] bg-rose-950/40 border border-rose-600/50 text-rose-300 hover:bg-rose-900/50 flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <StopCircle className="w-3.5 h-3.5" />
                     <span>Stop</span>
@@ -1005,10 +1039,10 @@ export function PlaygroundPage() {
                   <button
                     type="button"
                     onClick={() => handleExecuteTest()}
-                    className="h-8 px-5 text-[12.5px] font-semibold rounded-[6px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                    className="h-7 px-4 text-[11.5px] font-semibold rounded-[5px] bg-[#ea580c] hover:bg-[#f97316] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Run Test</span>
+                    <span>Test</span>
                   </button>
                 )}
               </div>
@@ -1016,13 +1050,13 @@ export function PlaygroundPage() {
           </div>
 
           <div className="bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-[10px] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#14151b] border-b border-[var(--border-subtle)]">
+            <div className="flex items-center justify-between px-3.5 py-2 bg-[#14151b] border-b border-[var(--border-subtle)]">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[12.5px] font-bold text-[var(--text-primary)]">Hasil Respon</span>
+                <span className="text-[12px] font-bold text-[var(--text-primary)]">Respon</span>
 
                 {responseStatus !== null && (
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-mono font-medium ${
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium ${
                       responseStatus >= 200 && responseStatus < 300
                         ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-600/30'
                         : 'bg-rose-950/40 text-rose-400 border border-rose-600/30'
@@ -1033,19 +1067,19 @@ export function PlaygroundPage() {
                     ) : (
                       <XCircle className="w-3 h-3" />
                     )}
-                    HTTP {responseStatus}
+                    {responseStatus}
                   </span>
                 )}
 
                 {latency !== null && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-[#1a1b20] border border-[#2c303d] text-[11px] font-mono text-[#9ca3af]">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#1a1b20] border border-[#2c303d] text-[10.5px] font-mono text-[#9ca3af]">
                     <Clock className="w-3 h-3 text-[#ea580c]" />
                     {latency}ms
                   </span>
                 )}
 
                 {executedInfo && (
-                  <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-[4px] bg-[#1a1b20] border border-[#2c303d] text-[#ea580c]">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[3px] bg-[#1a1b20] border border-[#2c303d] text-[#ea580c]">
                     {executedInfo}
                   </span>
                 )}
@@ -1056,70 +1090,63 @@ export function PlaygroundPage() {
                   <button
                     type="button"
                     onClick={copyResponse}
-                    className="h-7 px-2 text-[11px] font-medium rounded-[5px] bg-[#1e2027] hover:bg-[#282a35] border border-[#353947] text-[#c0c4d4] flex items-center gap-1 transition-colors cursor-pointer"
+                    className="h-6 px-2 text-[10.5px] font-medium rounded-[4px] bg-[#1e2027] hover:bg-[#282a35] border border-[#353947] text-[#c0c4d4] flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{isCopied ? 'Tersalin' : 'Copy'}</span>
+                    <span>Salin</span>
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={() => setShowRawInspector(!showRawInspector)}
-                  className={`h-7 px-2 text-[11px] font-medium rounded-[5px] border flex items-center gap-1 transition-colors cursor-pointer ${
+                  className={`h-6 px-2 text-[10.5px] font-medium rounded-[4px] border flex items-center gap-1 transition-colors cursor-pointer ${
                     showRawInspector
                       ? 'bg-[#2a1d17] border-[#ea580c]/50 text-[#f97316]'
                       : 'bg-[#1e2027] hover:bg-[#282a35] border-[#353947] text-[#c0c4d4]'
                   }`}
                 >
                   <Code className="w-3 h-3" />
-                  <span>Inspect JSON</span>
+                  <span>Inspect</span>
                 </button>
               </div>
             </div>
 
-            <div className="p-4 min-h-[160px]">
+            <div className="p-3.5 min-h-[140px]">
               {isLoading ? (
-                <div className="py-12 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)]">
-                  <div className="w-6 h-6 rounded-full border-2 border-[#383c4b] border-t-[#ea580c] animate-spin" />
-                  <span className="text-[12px] font-mono">
-                    {testMethod === 'pool_rotation'
-                      ? 'Menghubungi EkaRouter Load-Balancer & Merotasi Kredensial...'
-                      : 'Mengirim permintaan langsung ke endpoint provider...'}
-                  </span>
+                <div className="py-10 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)]">
+                  <div className="w-5 h-5 rounded-full border-2 border-[#383c4b] border-t-[#ea580c] animate-spin" />
+                  <span className="text-[11px] font-mono">Loading...</span>
                 </div>
               ) : errorDetails ? (
-                <div className="p-3.5 rounded-[7px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[12px] space-y-1 font-mono">
-                  <div className="font-bold flex items-center gap-2 text-rose-200">
-                    <XCircle className="w-4 h-4 shrink-0" />
-                    <span>Error Pengujian</span>
+                <div className="p-3 rounded-[6px] bg-rose-950/20 border border-rose-600/30 text-rose-300 text-[11.5px] space-y-1 font-mono">
+                  <div className="font-bold flex items-center gap-1.5 text-rose-200">
+                    <XCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Error</span>
                   </div>
-                  <p className="whitespace-pre-wrap break-all text-[11.5px] leading-relaxed pt-1">
+                  <p className="whitespace-pre-wrap break-all text-[11px] leading-relaxed pt-0.5">
                     {errorDetails}
                   </p>
                 </div>
               ) : responseText ? (
-                <div className="text-[13px] text-[#e0e2eb] whitespace-pre-wrap leading-relaxed font-sans">
+                <div className="text-[12.5px] text-[#e0e2eb] whitespace-pre-wrap leading-relaxed font-sans">
                   {responseText}
                 </div>
               ) : (
-                <div className="py-12 text-center text-[#686d80] text-[12px] space-y-1">
-                  <p>Belum ada respon pengujian.</p>
-                  <p className="text-[11px] text-[#555a6d]">
-                    Pilih target provider, pilih mode pengujian (Auto-Rotasi Pool atau API Key Langsung), lalu klik <strong>Run Test</strong>.
-                  </p>
+                <div className="py-10 text-center text-[#686d80] text-[11.5px]">
+                  Kosong
                 </div>
               )}
             </div>
 
             {showRawInspector && (rawRequest || rawResponse) && (
-              <div className="border-t border-[var(--border-subtle)] bg-[#101115] p-4 space-y-3">
+              <div className="border-t border-[var(--border-subtle)] bg-[#101115] p-3.5 space-y-2.5">
                 {rawRequest && (
                   <div>
-                    <span className="text-[10.5px] font-semibold uppercase text-[#787d90] tracking-wider block mb-1">
-                      Raw Request Payload
+                    <span className="text-[10px] font-semibold uppercase text-[#787d90] tracking-wider block mb-1">
+                      Request
                     </span>
-                    <pre className="p-2.5 rounded-[6px] bg-[#16171d] border border-[#272a34] text-[11px] font-mono text-[#a5abbf] overflow-x-auto max-h-48 overflow-y-auto">
+                    <pre className="p-2 rounded-[5px] bg-[#16171d] border border-[#272a34] text-[10.5px] font-mono text-[#a5abbf] overflow-x-auto max-h-40 overflow-y-auto">
                       {JSON.stringify(rawRequest, null, 2)}
                     </pre>
                   </div>
@@ -1127,10 +1154,10 @@ export function PlaygroundPage() {
 
                 {rawResponse && (
                   <div>
-                    <span className="text-[10.5px] font-semibold uppercase text-[#787d90] tracking-wider block mb-1">
-                      Raw Response JSON
+                    <span className="text-[10px] font-semibold uppercase text-[#787d90] tracking-wider block mb-1">
+                      Response
                     </span>
-                    <pre className="p-2.5 rounded-[6px] bg-[#16171d] border border-[#272a34] text-[11px] font-mono text-[#a5abbf] overflow-x-auto max-h-56 overflow-y-auto">
+                    <pre className="p-2 rounded-[5px] bg-[#16171d] border border-[#272a34] text-[10.5px] font-mono text-[#a5abbf] overflow-x-auto max-h-48 overflow-y-auto">
                       {JSON.stringify(rawResponse, null, 2)}
                     </pre>
                   </div>
