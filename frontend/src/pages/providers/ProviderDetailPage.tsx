@@ -101,6 +101,9 @@ export function ProviderDetailPage() {
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showEditSheet, setShowEditSheet] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
+  const [proxyTargetAccount, setProxyTargetAccount] = useState<Account | null>(null)
+  const [showRowProxySheet, setShowRowProxySheet] = useState(false)
+  const [isSavingRowProxy, setIsSavingRowProxy] = useState(false)
 
   const [addForm, setAddForm] = useState({
     name: '',
@@ -519,6 +522,34 @@ export function ProviderDetailPage() {
     } catch {}
   }
 
+  const openAccountProxy = (acc: Account) => {
+    setProxyTargetAccount(acc)
+    setShowRowProxySheet(true)
+  }
+
+  const handleSetAccountProxy = async (proxyPoolId: string) => {
+    if (!proxyTargetAccount) return
+    setIsSavingRowProxy(true)
+    try {
+      await api.put(`/api/accounts/${proxyTargetAccount.id}`, {
+        proxy_pool_id: proxyPoolId,
+      })
+      setShowRowProxySheet(false)
+      const selectedProxy = proxies.find((p) => p.id === proxyPoolId)
+      setActionSuccess(
+        proxyPoolId
+          ? `Proxy ${selectedProxy?.name || ''} berhasil dipasang ke ${proxyTargetAccount.name}`
+          : `Proxy dilepas. ${proxyTargetAccount.name} kini terhubung Direct (tanpa proxy).`
+      )
+      setTimeout(() => setActionSuccess(null), 3500)
+      await loadData()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal mengatur proxy')
+    } finally {
+      setIsSavingRowProxy(false)
+    }
+  }
+
   const openEdit = (acc: Account) => {
     setEditingAccount(acc)
     setEditForm({
@@ -849,11 +880,15 @@ export function ProviderDetailPage() {
                     <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         type="button"
-                        title="Set proxy for this connection"
-                        onClick={() => openEdit(acc)}
-                        className="px-2 py-1.5 text-[10.5px] font-medium text-[var(--text-muted)] hover:text-[var(--status-warning)] hover:bg-[var(--bg-panel)] rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer"
+                        title={acc.proxy_pool_id || acc.proxy_url ? `Proxy aktif: ${acc.proxy_name || acc.proxy_url}` : 'Pasang proxy untuk koneksi ini'}
+                        onClick={() => openAccountProxy(acc)}
+                        className={`px-2 py-1.5 text-[10.5px] font-medium rounded-[5px] transition-colors flex items-center gap-1 cursor-pointer ${
+                          acc.proxy_pool_id || acc.proxy_url
+                            ? 'bg-[#2a1d17] border border-[#ea580c]/40 text-[#f97316] hover:bg-[#382319]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)] border border-transparent'
+                        }`}
                       >
-                        <Globe className="w-3.5 h-3.5" />
+                        <Globe className={`w-3.5 h-3.5 ${acc.proxy_pool_id || acc.proxy_url ? 'text-[#f97316]' : 'text-[var(--text-muted)]'}`} />
                         <span className="hidden sm:block">Proxy</span>
                       </button>
 
@@ -1316,10 +1351,86 @@ export function ProviderDetailPage() {
       </BottomSheet>
 
       <BottomSheet
+        isOpen={showRowProxySheet}
+        onClose={() => setShowRowProxySheet(false)}
+        title={`Set Proxy — ${proxyTargetAccount?.name || ''}`}
+        description="Pilih relay proxy untuk koneksi ini atau gunakan direct (tanpa proxy)"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            disabled={isSavingRowProxy}
+            onClick={() => handleSetAccountProxy('')}
+            className={`w-full px-3.5 py-2.5 rounded-[7px] border flex items-center justify-between transition-colors cursor-pointer text-left ${
+              !proxyTargetAccount?.proxy_pool_id && !proxyTargetAccount?.proxy_url
+                ? 'bg-[#2a1d17] border-[#ea580c]/40 text-[#f97316]'
+                : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[var(--text-primary)]'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-[6px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
+                <Unlink className="w-3.5 h-3.5 text-[#9fa3b4]" />
+              </div>
+              <div>
+                <span className="text-[13px] font-medium block">Direct (Tanpa Proxy)</span>
+                <span className="text-[11px] text-[var(--text-muted)] block">
+                  Koneksi langsung ke server provider tanpa perantara proxy
+                </span>
+              </div>
+            </div>
+            {!proxyTargetAccount?.proxy_pool_id && !proxyTargetAccount?.proxy_url && (
+              <Check className="w-4 h-4 text-[#ea580c] shrink-0" />
+            )}
+          </button>
+
+          <div className="pt-2 pb-1 text-[11px] font-semibold uppercase text-[var(--text-muted)] tracking-wider">
+            Daftar Proxy Tersedia ({proxies.length})
+          </div>
+
+          {proxies.length === 0 ? (
+            <div className="py-6 text-center text-[12px] text-[var(--text-muted)] bg-[var(--bg-panel)] rounded-[7px] border border-[var(--border-subtle)]">
+              Belum ada proxy di sistem. Tambahkan proxy di menu Proxies.
+            </div>
+          ) : (
+            <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+              {proxies.map((p) => {
+                const isSelected = proxyTargetAccount?.proxy_pool_id === p.id
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={isSavingRowProxy}
+                    onClick={() => handleSetAccountProxy(p.id)}
+                    className={`w-full px-3 py-2 rounded-[6px] border flex items-center justify-between transition-colors cursor-pointer text-left ${
+                      isSelected
+                        ? 'bg-[#2a1d17] border-[#ea580c]/40 text-[#f97316]'
+                        : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-card)] border-[var(--border-subtle)] hover:border-[var(--border-strong)] text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Globe className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-[#ea580c]' : 'text-[var(--text-muted)]'}`} />
+                      <div className="min-w-0">
+                        <span className="text-[12.5px] font-medium block truncate">{p.name}</span>
+                        <span className="text-[11px] font-mono text-[var(--text-muted)] block truncate">
+                          {p.scheme}://{p.host}{p.port && p.port !== 80 && p.port !== 443 ? `:${p.port}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-[#ea580c] shrink-0 ml-2" />}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
         isOpen={showEditSheet}
         onClose={() => setShowEditSheet(false)}
-        title={`Edit — ${editingAccount?.name || ''}`}
-        description="Update connection name, priority, proxy, or rotate API key"
+        title={`Edit Koneksi — ${editingAccount?.name || ''}`}
+        description="Perbarui nama koneksi, prioritas routing, proxy, atau ganti API key"
         maxWidth="max-w-2xl"
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
@@ -1377,17 +1488,25 @@ export function ProviderDetailPage() {
           </div>
 
           <div>
-            <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)] mb-1.5">
-              Rotate API Key (leave blank to keep current)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+                Ganti API Key Baru
+              </label>
+              <span className="text-[10.5px] text-[var(--text-muted)]">
+                (Biarkan kosong jika tidak diubah)
+              </span>
+            </div>
             <input
               type="password"
               autoComplete="new-password"
               value={editForm.api_key}
               onChange={(e) => setEditForm({ ...editForm, api_key: e.target.value })}
-              placeholder="Enter new key to replace existing…"
+              placeholder="Masukkan API key baru untuk mengganti yang lama…"
               className="w-full h-9 px-3 text-[13px] font-mono rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-strong)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
             />
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+              API key lama tetap tersimpan aman. Isi kolom ini hanya jika Anda ingin mengganti dengan API key baru.
+            </p>
           </div>
 
           <div className="flex items-center gap-3 p-3 rounded-[6px] bg-[var(--bg-panel)] border border-[var(--border-subtle)]">
