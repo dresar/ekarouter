@@ -876,4 +876,24 @@ func RegisterDefaultProviders(r *Registry) {
 		FreeTierStatus: "available",
 		Enabled:        false,
 	}, defaultTimeout))
+
+	_ = r.Register(NewBaseAdapter(ProviderMetadata{
+		ID:                  "deepseek",
+		Name:                "DeepSeek",
+		Category:            CategoryAI,
+		Description:         "DeepSeek official inference API featuring DeepSeek-V3 and DeepSeek-R1 reasoning models",
+		BaseURL:             "https://api.deepseek.com",
+		AuthType:            AuthTypeBearerToken,
+		AuthHeaderName:      "Authorization",
+		AuthHeaderPrefix:    "Bearer ",
+		RequiredCredentials: []string{"api_key"},
+		SupportedOperations: []string{"chat_completions", "models"},
+		Capabilities:        []Capability{CapBearerAuth, CapRequestProxy, CapHealthCheck, CapStreaming},
+		WebsiteURL:          "https://www.deepseek.com",
+		DocsURL:             "https://api-docs.deepseek.com",
+		APIReferenceURL:     "https://api-docs.deepseek.com",
+		FreeTierStatus:      "available",
+		FreeTierNotes:       "High performance, cost-effective reasoning and chat models.",
+		Enabled:             true,
+	}, defaultTimeout))
 }
